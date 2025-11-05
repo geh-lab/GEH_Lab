@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<!--
+	Hielo by TEMPLATED
+	templated.co @templatedco
+	Released for free under the Creative Commons Attribution 3.0 license (templated.co/license)
+-->
+<html>
+  <head>
+    <title>충남대학교 환경원예학연구실</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="assets/css/main.css" />
+
+
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #f9f9f9;
+        color: #333;
+      }
+
+      .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+      .section-title {
+        text-align: center;
+        margin: 20px 0;
+        font-size: 24px;
+        color: #333;
+      }
+
+      .professor-section {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: flex-start;
+        gap: 20px;
+        padding: 20px;
+        max-width: 1200px;
+        margin: 0 auto;
+        background-color: #fff;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+        margin-top: 20px;
+
+      }
+
+      .professor-image {
+        flex: 1 1 40%;
+        text-align: center;
+      }
+
+      .professor-image img {
+        width: 100%;
+        max-width: 350px;
+        border-radius: 10px;
+        object-fit: cover;
+      }
+
+      .professor-info {
+        flex: 1 1 50%;
+        padding: 20px;
+        text-align: left;
+      }
+
+      .professor-info h3 {
+        font-size: 18px;
+        color: #007bff;
+        margin-bottom: 10px;
+      }
+
+      .professor-info p {
+        font-size: 14px;
+        color: #555;
+        line-height: 1.6;
+      }
+
+
+
+      
+      .members-section {
+    background-color: #fff;
+    padding: 20px;
+    align-items: center;
+    max-width: 1200px; /* 섹션의 너비를 조정 */
+    margin: 0 auto; /* 섹션을 중앙 정렬 */
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+    text-align: center; /* 텍스트와 내용을 중앙 정렬 */
+}
+
+      .members {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            justify-items: center;
+            
+        }
+
+
+
+
+        
+        .member {
+            display: flex;
+            align-items: center;
+            width: 100%; /* 부모 컨테이너의 크기에 맞춤 */
+            max-width: 390px; /* 카드 최대 너비 */
+            gap: 20px;
+            justify-content: center;
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .member img {
+    width: 100px; /* 사진 크기 조정 */
+    height: 150px; /* 사진 크기 조정 */
+    border-radius: 50%; /* 원형 이미지 */
+    object-fit: cover; /* 이미지 크기 유지 */
+
+}
+
+        .member-info h3 {
+            margin: 0 0 5px;
+            font-size: 18px;
+        }
+
+        .member-info p {
+            margin: 0;
+            font-size: 14px;
+        }
+
+        .single-member-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            justify-content: center;
+        }
+
+        .single-member-container .member {
+            grid-column: span 1;
+        }
+
+        .phdsingle-member-container .member {
+          max-width: 580px; /* 카드 최대 너비를 600px로 설정 */
+    width: 100%; /* 부모 컨테이너 크기에 맞춤 */
+    margin: 0 ; /* 중앙 정렬 */
+    
+        }
+
+
+        .single-member-container .member:nth-child(1) {
+            grid-column: 1 / 2;
+        }
+
+        .alumni {
+    
+    max-width: 1200px; /* 섹션의 최대 너비를 제한 */
+    margin: 0 auto; /* 섹션을 수평 중앙 정렬 */
+    background-color: #fff; /* 배경색 추가로 다른 섹션과 통일 */
+    padding: 20px; /* 내부 여백 추가 */
+    border-radius: 10px; /* 모서리 둥글게 */
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* 섀도우 추가 */
+}
+
+.alumni-list {
+    line-height: 1.8; /* 텍스트 간격 조정 */
+}
+
+      </style>
+
+
+
+    
+    <!-- Header -->
+    <header id="header" class="alt">
+      <div class="logo">
+        <a href="index.html">CNU <span>ENV Lab.</span></a>
+      </div>
+      <a href="#menu">Menu</a>
+    </header>
+
+    <!-- Nav -->
+    <nav id="menu">
+      <ul class="links">
+        <li><a href="index.html">HOME</a></li>
+        <li><a href="member_final.html">MEMBERS</a></li>
+        <li><a href="reserch_final.html">RESEARCH</a></li>
+        <li><a href="papers_final.html">PUBLICATIONS</a></li>
+      </ul>
+    </nav>
+
+
+
+    <section id="One" class="wrapper style3">
+        <div class="inner">
+          <header class="align-center">
+            <p>Environmental Horticulture Science laboratory</p>
+            <h2>Members</h2>
+          </header>
+        </div>
+      </section>
+  
+
+
+
+    <!-- 교수님 섹션 -->
+    <section class="professor">
+        <div class="section-title"><b>Principal Investigator</b></div>
+        <div class="professor-section">
+          <div class="professor-image">
+            <img src="images/12/jsp.png" alt="박 종 석" />
+          </div>
+          <div class="professor-info">
+            <h3><b>JONGSEOK PARK</b></h3>
+            <p><strong>Professor, CNU Environmental Horticulture Lab</strong></p>
+            <p><strong>Education:</strong><br>
+              B.S., Konkuk University, Korea (1997)<br>
+              M.S., Seoul National University, Korea (2000)<br>
+              Ph.D., University of Tokyo, Japan (2006)</p>
+          <p><strong>Experience:</strong><br>
+              Postdoctoral Fellow, University of Tokyo (2006-2008)<br>
+              Research Professor, University of Tokyo (2008-2009)<br>
+              Principal Researcher, POSCO (2010-2013)<br>
+              Professor, Chungnam National University (2013-Present)</p>
+            <a href="mailto:jongseok@cnu.ac.kr">E-Mail</a>
+          </div>
+        </div> 
+      </section>
+  
+
+      <!-- Postdoctoral Researchers 섹션 -->
+
+    <section class="members-section">
+      <h2 class="section-title"><b>Postdoctoral Researcher</b></h2>
+      <div class="phdsingle-member-container" style="display: flex; justify-content: center; gap: 20px;">
+    
+        <div class="member">
+          <img src="images/12/kwang.png" alt="Kwangya Lee">
+          <div class="member-info">
+            <h3><b>Kwangya Lee</b></h3>
+            <p>B.S. Konkuk Univ.</p>
+            <p><b>Agricultural Engineering</b></p>
+            <p>M.S. Konkuk Univ.</p>
+            <p><b>Agricultural Engineering</b></p>
+            <p>Ph.D. Konkuk Univ.</p>
+            <p><b>Agricultural Engineering</b></p>
+            <p>Research Interest</p>
+            <p><b>Smart irrigation, Artificial Intelligence Agricultural water management</b></p>
+            <p>leehec7005@gmail.com</p>
+          </div>
+        </div>
+    
+        <div class="member">
+          <img src="images/12/lam.png" alt="Vu Phong Lam">
+          <div class="member-info">
+            <h3><b>VU PHONG LAM</b></h3>
+            <p>B.S. Thai Nguyen University of Agriculture and Forestry</p>
+            <p><b>Crop Science</b></p>
+            <p>M.S. Vietnam National University of Agriculture</p>
+            <p><b>Crop Science</b></p>
+            <p>Ph.D. CNU</p>
+            <p><b>Horticulture Science</b></p>
+            <p>Research Interest</p>
+            <p><b>Plant physiology, Abiotic stress, Plant factory, Bioactive compounds, Antioxidants, Herb plant, Crop physiology</b></p>
+            <p>phonglamdhtaybac@gmail.com</p>
+          </div>
+        </div>
+    
+      </div>
+    </section>
+    
+
+
+  <section class="members-section">
+      <h2 class="section-title"><b>Graduate Students</b></h2>
+      <div class="members">
+          <div class="member">
+              <img src="images/12/loi.png" alt="Roi">
+              <div class="member-info">
+                  <h3><b>DAO NHAN LOI</b></h3>
+                  <p>B.S. VNUF</p>
+                  <p><b>Forest Resources Management</b></p>
+                  <p>M.S. VNUF</p>
+                  <p><b>Silviculture</b></p>
+                  <p>Resarch Interest</p>
+                  <p><b>Plant physiology, Herb plant</b></p>
+                  <p>daonhanloi@gmail.com</p>
+              </div>
+          </div>
+          <div class="member">
+              <img src="images/12/xin.png" alt="Wang Xin">
+              <div class="member-info">
+                <h3><b>XIN WANG</b></h3>
+                <p>B.S. Yanbian Univ.</p>
+                <p><b>Crop Science</b></p>
+                <p>M.S. Yanbian Univ.</p>
+                <p><b>Crop Science</b></p>
+                <p>Resarch Interest</p>
+                <p><b>Smart irrigation, Smart, IOT agriculture</b></p>
+                <p>yudawang1993@hotmail.com</p>
+              </div>
+          </div>
+          <div class="member">
+              <img src="images/12/ju.png" alt="Oh Gi Ju">
+              <div class="member-info">
+                <h3><b>GIJU EOH</b></h3>
+                <p>B.S. Inha Univ.</p>
+                <p><b>Polymer Engineering</b></p>
+                <p>M.S. CNU</p>
+                <p><b>Bio-AI Convergence</b></p>
+                <p>Resarch Interest</p>
+                <p><b>Bio-impedance, Plant Factory, AI</b></p>
+                <p>giju91@naver.com</p>
+              </div>
+          </div>
+          <div class="member">
+            <img src="images/12/seoung.png" alt="Wang Xin">
+            <div class="member-info">
+              <h3><b>SEUNGYONG HAHM</b></h3>
+              <p>B.S. CNU</p>
+              <p><b>Horticulture</b></p>
+              <p>M.S. CNU</p>
+              <p><b>Bio-AI Convergence</b></p>
+              <p>Resarch Interest</p>
+              <p><b>Cannabis, Plant physiology</b></p>
+              <p>hahmsy1996@o.cnu.ac.kr</p>
+          </div>
+          </div>
+          <div class="member">
+            <img src="images/12/sun.png" alt="Wang Xin">
+            <div class="member-info">
+              <h3><b>SUNWOO KIM</b></h3>
+              <p>B.S. CNU</p>
+              <p><b>Horticulture</b></p>
+              <p>M.S. CNU</p>
+              <p><b>Bio-AI Convergence</b></p>
+              <p>Resarch Interest</p>
+              <p><b>Ozonated water, Hydroponics</b></p>
+              <p>sunwookim96@naver.com</p>
+          </div>
+          </div>
+          <div class="member">
+            <img src="images/12/ji.png" alt="Wang Xin">
+            <div class="member-info">
+              <h3><b>JIWON BAE</b></h3>
+              <p>B.S. CNU</p>
+              <p><b>Horticulture</b></p>
+              <p>M.S. CNU</p>
+              <p><b>Bio-AI Convergence</b></p>
+              <p>Resarch Interest</p>
+              <p><b>Brassicaceae plant secondary metabolites</b></p>
+              <p>bjw7384@naver.com</p>
+          </div>
+          </div>
+          <div class="member">
+            <img src="images/12/yong.png" alt="Wang Xin">
+            <div class="member-info">
+              <h3><b>YONGJAE LEE</b></h3>
+              <p>B.S. CNU</p>
+              <p><b>Horticultural science</b></p>
+              <p>M.S. CNU</p>
+              <p><b>Bio-AI Convergence</b></p>
+              <p>Resarch Interest</p>
+              <p><b>Agricultural water management</b></p>
+              <p>zzcvxbcx51@naver.com</p>
+          </div>
+          </div>
+          <div class="member">
+            <img src="images/12/min.png" alt="Wang Xin">
+            <div class="member-info">
+              <h3><b>MINJI NAM</b></h3>
+              <p>B.S. Seowon Univ.</p>
+              <p><b>Nutrition</b></p>
+              <p>Resarch Interest</p>
+              <p><b>Phenomics, Phytochemical data analysis</b></p>
+              <p>minji.001.@gmail.com</p>
+          </div>
+          </div>
+          <div class="member">
+            <img src="images/12/jus.png" alt="Wang Xin">
+            <div class="member-info">
+              <h3><b>JUSEOK JEON</b></h3>
+              <p>B.S. CNU</p>
+              <p><b>Horticulture</b></p>
+              <p>Resarch Interest</p>
+              <p><b>Non-destructive analysis, Computer vision</b></p>
+              <p>jooseuk@naver.com</p>
+          </div>
+          </div>
+          <div class="member">
+            <img src="images/12/won.png" alt="Wang Xin">
+            <div class="member-info">
+              <h3><b>WONKYU YI</b></h3>
+              <p>B.S. CNU</p>
+              <p><b>Horticultural science</b></p>
+              <p>Resarch Interest</p>
+              <p><b>Space agriculture, Chamber experiment</b></p>
+              <p>lwk5749669@gmail.com</p>
+          </div>
+          </div>
+          <div class="member">
+            <img src="images/12/byung.png" alt="Wang Xin">
+            <div class="member-info">
+              <h3><b>BYUNGJUN KIM</b></h3>
+              <p>B.S. CNU</p>
+              <p><b>Horticultural science</b></p>
+              <p>Resarch Interest</p>
+              <p><b>Cannabis sativa, Plant physiology</b></p>
+              <p>keep719@naver.com</p>
+          </div>
+          </div>
+          <div class="member">
+            <img src="images/12/su.png" alt="Wang Xin">
+            <div class="member-info">
+              <h3><b>SUMIN LEE</b></h3>
+              <p>B.S. Hoseo Univ.</p>
+              <p><b>Environmental engineering</b></p>
+              <p>Resarch Interest</p>
+              <p><b>Dynamic Control of Artificial Lighting</b></p>
+              <p>hymhym099@gmail.com</p>
+          </div>
+          </div>
+          <div class="member">
+            <img src="images/12/kang.png" alt="Wang Xin">
+            <div class="member-info">
+              <h3><b>TO KANG</b></h3>
+              <p>B.S. CNU</p>
+              <p><b>Agricultural Economics</b></p>
+              <p>Resarch Interest</p>
+              <p><b>AI engineering, Machine learning</b></p>
+              <p>rkdxh369@naver.com</p>
+          </div>
+          </div>
+          <div class="member">
+            <img src="images/12/bang.png" alt="Wang Xin">
+            <div class="member-info">
+              <h3><b>VANG A ME</b></h3>
+              <p>B.S. Tay Bac Univ.</p>
+              <p><b>Agronomy</b></p>
+              <p>Resarch Interest</p>
+              <p><b>Abiotic stress, Herb plant</b></p>
+              <p>vangmeicfood.vn@gmail.com</p>
+          </div>
+          </div>
+          </div>
+      </div>
+  </section>
+</div>
+</body>
+</html>
+
+  
+      <section class="alumni">
+        <div class="section-title">Alumni</div>
+        <p class="alumni-list">
+          Sungjin Kim (Horticultural Science, CNU) - Currently Researcher in KT&G<br>
+          Seungwon Noh (Bio-AI Convergence, CNU) - Currently Researcher in PlanTfarm<br>
+          Vu Ky Anh (Bio-AI Convergence, CNU)- Currently Employee in Lamhai company<br> 
+          Gwon Jeong Bok (Bio-AI Convergence, CNU) - Currently Academic Research Professor in Sunchon National University<br>
+          Younghwi Ahn (Bio-AI Convergence, CNU) - Currently Graduate Student in CNU<br>
+          Jiwoo Park (Bio-AI Convergence, CNU) - Currently Employee in Korea Precision Agriculture<br>
+          Seungwoon Ha (Bio-AI Convergence, CNU) - Currently Graduate Student in Sejong unv.<br>
+          Junyoung Kwak (Horticultural Science, CNU) - Currently Employee in Nonghyup seed
+        </p>
+      </section>
+
+  
+      <footer style="text-align: center; margin: 20px 0; color: #555;">
+        &copy; CNU Environmental Horticulture Science LAB. All rights reserved.
+      </footer>
+  
+      <script>
+        const menuToggle = document.getElementById("menu-toggle");
+        const menu = document.getElementById("menu");
+  
+        menuToggle.addEventListener("click", () => {
+          menu.style.display = menu.style.display === "block" ? "none" : "block";
+        });
+      </script>
+
+
+
+
+
+
+    <!-- Scripts -->
+    <script src="assets/js/jquery.min.js"></script>
+    <script src="assets/js/jquery.scrollex.min.js"></script>
+    <script src="assets/js/skel.min.js"></script>
+    <script src="assets/js/util.js"></script>
+    <script src="assets/js/main.js"></script>
+  </body>
+</html>
