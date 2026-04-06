@@ -11,7 +11,8 @@ import {
   resolveGoogleRedirectResult,
   signOutAdmin,
   uploadMemberPhoto,
-  watchAdminState
+  watchAdminState,
+  auth
 } from './firebase.js';
 import {
   escapeHTML,
@@ -60,6 +61,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   watchAdminState(handleAuthStateChange);
+
+  if (auth?.currentUser && (!ADMIN_EMAILS.length || ADMIN_EMAILS.includes(String(auth.currentUser.email || '').toLowerCase()))) {
+    handleAuthStateChange(auth.currentUser);
+  }
 });
 
 function cacheElements() {
@@ -260,7 +265,21 @@ async function handleGoogleLoginClick() {
     elements['google-login-button']?.setAttribute('disabled', 'disabled');
     elements['google-login-button']?.classList.add('is-loading');
     showNotice('Google 계정 선택 창을 여는 중입니다.', 'info');
-    await signInAdminWithGoogle();
+    const credential = await signInAdminWithGoogle();
+
+    if (credential?.user) {
+      await handleAuthStateChange(credential.user);
+      showNotice(`${credential.user.email} 계정으로 로그인되었습니다.`, 'success');
+      return;
+    }
+
+    if (auth?.currentUser) {
+      await handleAuthStateChange(auth.currentUser);
+      showNotice(`${auth.currentUser.email} 계정으로 로그인되었습니다.`, 'success');
+      return;
+    }
+
+    showNotice('Google 인증은 완료되었지만 세션 반영이 지연되고 있습니다. 잠시 후 자동 반영되지 않으면 페이지를 한 번 새로고침하세요.', 'warning');
   } catch (error) {
     console.error(error);
     showNotice(error.message || 'Google 로그인에 실패했습니다.', 'danger');
