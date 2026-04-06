@@ -7,7 +7,8 @@ import {
   hasFirebaseConfig,
   listenCollection,
   saveDocument,
-  signInAdmin,
+  signInAdminWithGoogle,
+  resolveGoogleRedirectResult,
   signOutAdmin,
   uploadMemberPhoto,
   watchAdminState
@@ -53,6 +54,11 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
+  resolveGoogleRedirectResult().catch((error) => {
+    console.error(error);
+    showNotice(error.message || 'Google 로그인 확인에 실패했습니다. 승인된 도메인과 관리자 이메일을 다시 확인하세요.', 'danger');
+  });
+
   watchAdminState(handleAuthStateChange);
 });
 
@@ -67,7 +73,7 @@ function cacheElements() {
     'logout-button',
     'current-user-label',
     'admin-summary-grid',
-    'login-form',
+    'google-login-button',
     'member-form',
     'project-form',
     'publication-form',
@@ -96,7 +102,7 @@ function cacheElements() {
 }
 
 function wireStaticActions() {
-  elements.login-form?.addEventListener('submit', handleLoginSubmit);
+  elements['google-login-button']?.addEventListener('click', handleGoogleLoginClick);
   elements.logout-button?.addEventListener('click', async () => {
     await signOutAdmin();
     showNotice('로그아웃되었습니다.', 'info');
@@ -156,8 +162,8 @@ function renderSetupStatus() {
   if (!elements['setup-status-text']) return;
 
   elements['setup-status-text'].textContent = hasFirebaseConfig
-    ? 'Firebase 설정이 연결되었습니다. Authentication / Firestore / Storage 권한만 맞추면 바로 관리자 CMS로 사용할 수 있습니다.'
-    : '아직 Firebase 설정이 비어 있습니다. firebase-config.js 파일을 채우면 로그인과 데이터 저장이 활성화됩니다.';
+    ? 'Firebase 설정이 연결되었습니다. 이 관리자 페이지는 Google 로그인 전용입니다. 버튼을 누르면 Google 계정 선택 창이 열립니다.'
+    : '아직 Firebase 설정이 비어 있습니다. firebase-config.js 파일을 채우면 Google 로그인과 데이터 저장이 활성화됩니다.';
 
   elements['setup-extra-text'].textContent = ADMIN_EMAILS.length
     ? `허용된 관리자 이메일: ${ADMIN_EMAILS.join(', ')}`
@@ -165,7 +171,7 @@ function renderSetupStatus() {
 
   elements['allowed-admin-emails'].textContent = ADMIN_EMAILS.length
     ? ADMIN_EMAILS.join(', ')
-    : '예: admin@example.com';
+    : '예: envlab1315@gmail.com';
 }
 
 async function handleAuthStateChange(user) {
@@ -191,7 +197,7 @@ function toggleAuthenticatedState(user) {
   elements['logout-button'].hidden = !isAuthenticated;
   elements['current-user-label'].textContent = isAuthenticated
     ? user.email
-    : 'Not signed in';
+    : 'Google sign-in required';
 
   if (!hasFirebaseConfig) {
     elements['login-panel'].hidden = false;
@@ -244,23 +250,23 @@ function tearDownListeners() {
   state.unsubs = [];
 }
 
-async function handleLoginSubmit(event) {
-  event.preventDefault();
-
+async function handleGoogleLoginClick() {
   if (!hasFirebaseConfig) {
     showNotice('먼저 firebase-config.js에 Firebase 설정을 입력하세요.', 'warning');
     return;
   }
 
-  const formData = new FormData(event.currentTarget);
-  const email = String(formData.get('email') || '').trim();
-  const password = String(formData.get('password') || '').trim();
-
   try {
-    await signInAdmin(email, password);
+    elements['google-login-button']?.setAttribute('disabled', 'disabled');
+    elements['google-login-button']?.classList.add('is-loading');
+    showNotice('Google 계정 선택 창을 여는 중입니다.', 'info');
+    await signInAdminWithGoogle();
   } catch (error) {
     console.error(error);
-    showNotice(error.message || '로그인에 실패했습니다.', 'danger');
+    showNotice(error.message || 'Google 로그인에 실패했습니다.', 'danger');
+  } finally {
+    elements['google-login-button']?.removeAttribute('disabled');
+    elements['google-login-button']?.classList.remove('is-loading');
   }
 }
 

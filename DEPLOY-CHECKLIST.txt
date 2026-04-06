@@ -1,0 +1,9 @@
+[배포 체크리스트]
+
+1. 이 폴더 내용으로 저장소 루트를 교체합니다.
+2. 예전 파일(vite.config.js, *_final.html, 예전 admin.html)을 같이 남겨두지 않습니다.
+3. GitHub push 후 Vercel 재배포를 기다립니다.
+4. https://geh-lab.vercel.app/admin.html 에서 아래를 확인합니다.
+   - Google sign-in edition · v2 배지
+   - Google 계정 선택 창 열기 버튼
+   - 이메일/비밀번호 입력칸이 없음

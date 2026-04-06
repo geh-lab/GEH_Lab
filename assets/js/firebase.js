@@ -2,7 +2,10 @@ import { initializeApp, getApp, getApps } from 'https://www.gstatic.com/firebase
 import {
   getAuth,
   onAuthStateChanged,
-  signInWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
   browserLocalPersistence,
   setPersistence
@@ -46,6 +49,11 @@ const app = hasFirebaseConfig ? (getApps().length ? getApp() : initializeApp(fir
 export const auth = app ? getAuth(app) : null;
 export const db = app ? getFirestore(app) : null;
 export const storage = app ? getStorage(app) : null;
+const googleProvider = app ? new GoogleAuthProvider() : null;
+
+if (googleProvider) {
+  googleProvider.setCustomParameters({ prompt: 'select_account' });
+}
 
 export function isAllowedAdmin(email = '') {
   const normalizedEmail = String(email || '').trim().toLowerCase();
@@ -54,13 +62,10 @@ export function isAllowedAdmin(email = '') {
   return ADMIN_EMAILS.includes(normalizedEmail);
 }
 
-export async function signInAdmin(email, password) {
-  if (!auth) {
-    throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
+async function validateAdminCredential(credential) {
+  if (!credential?.user) {
+    throw new Error('Google 로그인 결과를 확인하지 못했습니다.');
   }
-
-  await setPersistence(auth, browserLocalPersistence);
-  const credential = await signInWithEmailAndPassword(auth, email, password);
 
   if (!isAllowedAdmin(credential.user.email)) {
     await signOut(auth);
@@ -68,6 +73,45 @@ export async function signInAdmin(email, password) {
   }
 
   return credential;
+}
+
+export async function signInAdminWithGoogle(options = {}) {
+  if (!auth || !googleProvider) {
+    throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
+  }
+
+  await setPersistence(auth, browserLocalPersistence);
+
+  const shouldUseRedirect =
+    options.redirect === true ||
+    (window.matchMedia && window.matchMedia('(max-width: 820px)').matches);
+
+  if (shouldUseRedirect) {
+    await signInWithRedirect(auth, googleProvider);
+    return null;
+  }
+
+  try {
+    const credential = await signInWithPopup(auth, googleProvider);
+    return await validateAdminCredential(credential);
+  } catch (error) {
+    if (
+      error?.code === 'auth/popup-blocked' ||
+      error?.code === 'auth/popup-closed-by-user' ||
+      error?.code === 'auth/cancelled-popup-request'
+    ) {
+      await signInWithRedirect(auth, googleProvider);
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function resolveGoogleRedirectResult() {
+  if (!auth) return null;
+  const credential = await getRedirectResult(auth);
+  if (!credential) return null;
+  return validateAdminCredential(credential);
 }
 
 export async function signOutAdmin() {

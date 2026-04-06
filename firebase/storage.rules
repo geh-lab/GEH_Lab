@@ -6,7 +6,7 @@ service firebase.storage {
       return request.auth != null
         && request.auth.token.email != null
         && request.auth.token.email in [
-          "admin@example.com"
+          "envlab1315@gmail.com"
         ];
     }
 

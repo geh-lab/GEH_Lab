@@ -8,6 +8,4 @@ window.GEH_FIREBASE_CONFIG = {
   appId: "1:841207426499:web:2165fa5e2e93a0c70de176"
 };
 
-window.GEH_ADMIN_EMAILS = [
-  "envlab1315@gmail.com"
-];
+window.GEH_ADMIN_EMAILS = ["envlab1315@gmail.com"];

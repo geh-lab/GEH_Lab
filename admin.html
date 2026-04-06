@@ -10,7 +10,7 @@
     />
     <link rel="stylesheet" href="assets/css/styles.css" />
   </head>
-  <body class="admin-body">
+  <body class="admin-body" data-auth-mode="google-only">
     <div class="admin-shell">
       <header class="admin-topbar">
         <div class="admin-topbar-main">
@@ -32,7 +32,7 @@
         </div>
 
         <div class="admin-topbar-user">
-          <span class="user-chip" id="current-user-label">Not signed in</span>
+          <span class="user-chip" id="current-user-label">Google sign-in required</span>
           <button type="button" class="button secondary" id="logout-button" hidden>Log out</button>
         </div>
       </header>
@@ -40,6 +40,7 @@
       <section class="admin-hero">
         <div class="admin-hero-copy">
           <span class="eyebrow">Administrator</span>
+          <div class="release-pill">Google sign-in edition · v2</div>
           <h1>CNU GEH Lab CMS</h1>
           <p>
             공개 사이트와 같은 밝은 톤을 유지하면서 멤버, 논문, 과제를 한곳에서
@@ -61,7 +62,7 @@
             <p class="muted" id="setup-extra-text"></p>
             <div class="inline-code" id="allowed-admin-emails"></div>
             <ul class="setup-checklist">
-              <li>Authentication → Email/Password 활성화</li>
+              <li>Authentication → Google 활성화</li>
               <li>Cloud Firestore 생성</li>
               <li>Storage 생성</li>
               <li>firebase-config.js에 Web App 설정 입력</li>
@@ -101,31 +102,34 @@
             Firebase 연결 상태를 확인한 뒤 로그인하면 관리자 패널이 활성화됩니다.
           </div>
 
+          <div class="deploy-hint">
+            현재 페이지에서 입력칸이 아니라 <strong>Google 로그인 버튼</strong>이 보여야 정상입니다.
+          </div>
+
           <section class="auth-panel" id="login-panel">
-            <article class="auth-card">
+            <article class="auth-card auth-card--google">
               <span class="eyebrow">Administrator sign in</span>
-              <h2>Firebase Auth login</h2>
+              <h2>Google account login</h2>
               <p>
-                Firebase Authentication에서 생성한 이메일/비밀번호 계정으로 로그인하세요.
+                이 버전은 이메일/비밀번호 입력 폼을 제거하고, 버튼을 누르면 바로 Google 계정 선택 창이 열리도록 구성했습니다.
               </p>
 
-              <form id="login-form" class="editor-form">
-                <div class="form-grid">
-                  <label class="field">
-                    <span>Email</span>
-                    <input type="email" name="email" placeholder="admin@example.com" required />
-                  </label>
-
-                  <label class="field">
-                    <span>Password</span>
-                    <input type="password" name="password" placeholder="••••••••" required />
-                  </label>
-                </div>
-
-                <div class="form-actions">
-                  <button type="submit" class="button primary">Login</button>
-                </div>
-              </form>
+              <div class="auth-google-stack">
+                <button type="button" class="button google-login-button" id="google-login-button">
+                  <span class="google-login-button__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="22" height="22" role="img">
+                      <path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.6 3.9-5.4 3.9-3.2 0-5.9-2.7-5.9-6s2.7-6 5.9-6c1.8 0 3.1.8 3.8 1.4l2.6-2.5C16.7 3.4 14.6 2.5 12 2.5 6.8 2.5 2.5 6.8 2.5 12S6.8 21.5 12 21.5c6.9 0 9.1-4.8 9.1-7.3 0-.5-.1-.9-.1-1.3H12z"/>
+                      <path fill="#34A853" d="M3.6 7l3.2 2.3C7.7 7.7 9.7 6 12 6c1.8 0 3.1.8 3.8 1.4l2.6-2.5C16.7 3.4 14.6 2.5 12 2.5 8.3 2.5 5 4.6 3.6 7z"/>
+                      <path fill="#4A90E2" d="M12 21.5c2.5 0 4.6-.8 6.1-2.3l-2.8-2.3c-.8.6-1.8 1-3.3 1-3.7 0-5.1-2.5-5.4-3.8l-3.1 2.4c1.4 2.8 4.7 5 8.5 5z"/>
+                      <path fill="#FBBC05" d="M6.6 14.1c-.2-.6-.3-1.3-.3-2.1s.1-1.5.3-2.1L3.5 7.5C2.9 8.8 2.5 10.4 2.5 12s.4 3.2 1 4.5l3.1-2.4z"/>
+                    </svg>
+                  </span>
+                  <span>Google 계정 선택 창 열기</span>
+                </button>
+                <p class="auth-helper">
+                  이 버튼이 보이면 Google 로그인 버전이 정상 배포된 것입니다. 모바일이나 팝업 차단 환경에서는 Google 로그인 페이지로 이동할 수 있습니다.
+                </p>
+              </div>
             </article>
           </section>
 
