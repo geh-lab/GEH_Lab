@@ -1,10 +1,4 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-const firebaseConfig = {
+window.GEH_FIREBASE_CONFIG = {
   apiKey: "AIzaSyAnUC-UYmLHjdCWARGUHXfgOeVUm1gjUOs",
   authDomain: "cnu-geh-lab.firebaseapp.com",
   databaseURL: "https://cnu-geh-lab-default-rtdb.firebaseio.com",
@@ -14,5 +8,6 @@ const firebaseConfig = {
   appId: "1:841207426499:web:2165fa5e2e93a0c70de176"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+window.GEH_ADMIN_EMAILS = [
+  "envlab1315@gmail.com"
+];
