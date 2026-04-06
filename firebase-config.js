@@ -1,22 +1,18 @@
-/*
-  Firebase Web App configuration
-  1) Open Firebase Console → Project settings → Your apps → Web app
-  2) Copy the config object below
-  3) Replace null with your config object
-  4) Update GEH_ADMIN_EMAILS with the real admin email address
-*/
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
-window.GEH_FIREBASE_CONFIG = null;
-
-/*
-window.GEH_FIREBASE_CONFIG = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.firebasestorage.app",
-  messagingSenderId: "1234567890",
-  appId: "1:1234567890:web:abcdef123456"
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyAnUC-UYmLHjdCWARGUHXfgOeVUm1gjUOs",
+  authDomain: "cnu-geh-lab.firebaseapp.com",
+  databaseURL: "https://cnu-geh-lab-default-rtdb.firebaseio.com",
+  projectId: "cnu-geh-lab",
+  storageBucket: "cnu-geh-lab.firebasestorage.app",
+  messagingSenderId: "841207426499",
+  appId: "1:841207426499:web:2165fa5e2e93a0c70de176"
 };
-*/
 
-window.GEH_ADMIN_EMAILS = ["admin@example.com"];
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
