@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Members · CNU GEH Lab</title>
+    <meta
+      name="description"
+      content="Members and alumni of the CNU GEH Lab"
+    />
+    <link rel="stylesheet" href="assets/css/styles.css" />
+  </head>
+  <body class="public-body" data-page="members">
+    <div class="site-shell">
+      <header class="site-header">
+        <a href="./index.html" class="brand">
+          <span class="brand-mark">CNU</span>
+          <span class="brand-text">
+            <strong>GEH Lab</strong>
+            <small>Greenhouse &amp; Environmental Horticulture</small>
+          </span>
+        </a>
+
+        <button class="menu-toggle" type="button" aria-label="메뉴 열기" aria-expanded="false" data-menu-toggle>
+          <span></span>
+          <span></span>
+        </button>
+
+        <nav class="site-nav" data-nav-panel>
+          <a href="./index.html" data-nav-page="home">Home</a>
+          <a href="./members.html" data-nav-page="members">Members</a>
+          <a href="./projects.html" data-nav-page="projects">Projects</a>
+          <a href="./publications.html" data-nav-page="publications">Publications</a>
+          <a href="./admin.html" class="nav-admin-link">Admin</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="page-hero reveal">
+          <div class="page-hero-card">
+            <span class="eyebrow">People</span>
+            <h1 id="page-hero-title">Members.</h1>
+            <p id="page-hero-description">교수진, 박사후연구원, 대학원생, 졸업생을 별도 페이지에서 편하게 볼 수 있도록 구성했습니다.</p>
+            <div id="page-stat-grid" class="hero-stat-grid page-stat-grid"></div>
+          </div>
+          <div class="page-hero-visual page-hero-visual--soft">
+            <img src="assets/images/members/jongseok-park.png" alt="Jongseok Park" />
+          </div>
+        </section>
+
+        <section class="section reveal" id="members">
+          <div class="section-header section-header--inline">
+            <div>
+              <span class="eyebrow">People</span>
+              <h2>Members &amp; alumni</h2>
+            </div>
+            <p id="member-result-label"></p>
+          </div>
+
+          <div class="filter-row">
+            <button type="button" class="filter-chip is-active" data-member-filter="all">All current</button>
+            <button type="button" class="filter-chip" data-member-filter="faculty">Faculty</button>
+            <button type="button" class="filter-chip" data-member-filter="postdoc">Postdoc</button>
+            <button type="button" class="filter-chip" data-member-filter="graduate">Graduate</button>
+          </div>
+
+          <div id="current-member-groups" class="member-group-stack"></div>
+
+          <div class="alumni-section">
+            <div class="section-inline-header">
+              <div>
+                <span class="eyebrow">Archive</span>
+                <h3>Graduated alumni</h3>
+              </div>
+              <p>관리자가 졸업 처리하면 이 영역으로 이동하고, 현재 진로도 함께 표시됩니다.</p>
+            </div>
+            <div id="alumni-groups"></div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <div>
+          <strong id="footer-lab-name">Greenhouse &amp; Environmental Horticulture Science Laboratory</strong>
+          <p>Static multi-page Vercel deployment + Firebase CMS structure.</p>
+        </div>
+        <div class="footer-links">
+          <a href="./index.html">Home</a>
+          <a href="./members.html">Members</a>
+          <a href="./projects.html">Projects</a>
+          <a href="./publications.html">Publications</a>
+          <a href="./admin.html">Admin</a>
+        </div>
+        <div class="footer-meta">© <span id="footer-year"></span></div>
+      </footer>
+    </div>
+
+    <script src="firebase-config.js"></script>
+    <script type="module" src="assets/js/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Publications · CNU GEH Lab</title>
+    <meta
+      name="description"
+      content="Publications of the CNU GEH Lab"
+    />
+    <link rel="stylesheet" href="assets/css/styles.css" />
+  </head>
+  <body class="public-body" data-page="publications">
+    <div class="site-shell">
+      <header class="site-header">
+        <a href="./index.html" class="brand">
+          <span class="brand-mark">CNU</span>
+          <span class="brand-text">
+            <strong>GEH Lab</strong>
+            <small>Greenhouse &amp; Environmental Horticulture</small>
+          </span>
+        </a>
+
+        <button class="menu-toggle" type="button" aria-label="메뉴 열기" aria-expanded="false" data-menu-toggle>
+          <span></span>
+          <span></span>
+        </button>
+
+        <nav class="site-nav" data-nav-panel>
+          <a href="./index.html" data-nav-page="home">Home</a>
+          <a href="./members.html" data-nav-page="members">Members</a>
+          <a href="./projects.html" data-nav-page="projects">Projects</a>
+          <a href="./publications.html" data-nav-page="publications">Publications</a>
+          <a href="./admin.html" class="nav-admin-link">Admin</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="page-hero reveal">
+          <div class="page-hero-card">
+            <span class="eyebrow">Research output</span>
+            <h1 id="page-hero-title">Publications.</h1>
+            <p id="page-hero-description">연도별 정리와 검색 기능을 제공해 논문 제목, 저자, 저널, DOI로 바로 찾을 수 있게 했습니다.</p>
+            <div id="page-stat-grid" class="hero-stat-grid page-stat-grid"></div>
+          </div>
+          <div class="page-hero-visual">
+            <img src="assets/images/background/hero-3.jpg" alt="Publications background" />
+          </div>
+        </section>
+
+        <section class="section reveal" id="publications">
+          <div class="section-header section-header--inline">
+            <div>
+              <span class="eyebrow">Research output</span>
+              <h2>Publications</h2>
+            </div>
+            <p id="publication-result-label"></p>
+          </div>
+
+          <div class="search-shell">
+            <label class="search-input">
+              <span>Search</span>
+              <input
+                type="search"
+                id="publication-search"
+                placeholder="Search title, author, journal, DOI..."
+                autocomplete="off"
+              />
+            </label>
+          </div>
+
+          <div id="publication-groups"></div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <div>
+          <strong id="footer-lab-name">Greenhouse &amp; Environmental Horticulture Science Laboratory</strong>
+          <p>Static multi-page Vercel deployment + Firebase CMS structure.</p>
+        </div>
+        <div class="footer-links">
+          <a href="./index.html">Home</a>
+          <a href="./members.html">Members</a>
+          <a href="./projects.html">Projects</a>
+          <a href="./publications.html">Publications</a>
+          <a href="./admin.html">Admin</a>
+        </div>
+        <div class="footer-meta">© <span id="footer-year"></span></div>
+      </footer>
+    </div>
+
+    <script src="firebase-config.js"></script>
+    <script type="module" src="assets/js/app.js"></script>
+  </body>
+</html>

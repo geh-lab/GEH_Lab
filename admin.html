@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CNU GEH Lab Admin</title>
+    <meta
+      name="description"
+      content="Firebase-powered admin dashboard for the CNU GEH Lab website"
+    />
+    <link rel="stylesheet" href="assets/css/styles.css" />
+  </head>
+  <body class="admin-body">
+    <div class="admin-shell">
+      <header class="admin-topbar">
+        <div class="admin-topbar-main">
+          <a href="./index.html" class="brand">
+            <span class="brand-mark">CNU</span>
+            <span class="brand-text">
+              <strong>GEH Lab</strong>
+              <small>Admin CMS</small>
+            </span>
+          </a>
+
+          <nav class="admin-topbar-links" aria-label="관리자 상단 메뉴">
+            <a href="./index.html">Home</a>
+            <a href="./members.html">Members</a>
+            <a href="./projects.html">Projects</a>
+            <a href="./publications.html">Publications</a>
+            <a href="./admin.html" class="is-active" aria-current="page">Admin</a>
+          </nav>
+        </div>
+
+        <div class="admin-topbar-user">
+          <span class="user-chip" id="current-user-label">Not signed in</span>
+          <button type="button" class="button secondary" id="logout-button" hidden>Log out</button>
+        </div>
+      </header>
+
+      <section class="admin-hero">
+        <div class="admin-hero-copy">
+          <span class="eyebrow">Administrator</span>
+          <h1>CNU GEH Lab CMS</h1>
+          <p>
+            공개 사이트와 같은 밝은 톤을 유지하면서 멤버, 논문, 과제를 한곳에서
+            추가·수정·삭제하고 졸업 처리까지 할 수 있도록 정리했습니다.
+          </p>
+        </div>
+        <div class="admin-hero-actions">
+          <a href="./index.html" class="button secondary">Public site</a>
+          <a href="./members.html" class="button secondary">Members page</a>
+        </div>
+      </section>
+
+      <main class="admin-layout">
+        <aside class="admin-sidebar">
+          <article class="sidebar-card">
+            <span class="eyebrow">Setup</span>
+            <h2>Firebase status</h2>
+            <p id="setup-status-text"></p>
+            <p class="muted" id="setup-extra-text"></p>
+            <div class="inline-code" id="allowed-admin-emails"></div>
+            <ul class="setup-checklist">
+              <li>Authentication → Email/Password 활성화</li>
+              <li>Cloud Firestore 생성</li>
+              <li>Storage 생성</li>
+              <li>firebase-config.js에 Web App 설정 입력</li>
+              <li>rules 파일 내용을 Firebase Console에 반영</li>
+            </ul>
+          </article>
+
+          <article class="sidebar-card">
+            <span class="eyebrow">Navigation</span>
+            <div class="admin-tab-list">
+              <button type="button" class="admin-tab is-active" data-admin-tab="members">Members</button>
+              <button type="button" class="admin-tab" data-admin-tab="projects">Projects</button>
+              <button type="button" class="admin-tab" data-admin-tab="publications">Publications</button>
+            </div>
+          </article>
+
+          <article class="sidebar-card">
+            <span class="eyebrow">Summary</span>
+            <div id="admin-summary-grid" class="summary-grid"></div>
+          </article>
+
+          <article class="sidebar-card">
+            <span class="eyebrow">Migration</span>
+            <h3>현재 사이트 데이터로 시작</h3>
+            <p>
+              업로드하신 기존 사이트 내용을 Firebase 컬렉션에 한 번에 넣어서
+              새 관리자 구조로 바로 전환할 수 있습니다.
+            </p>
+            <button type="button" class="button primary button-block" id="seed-data-button">
+              현재 사이트 데이터로 시작하기
+            </button>
+          </article>
+        </aside>
+
+        <section class="admin-stage">
+          <div class="notice notice--info" id="admin-alert">
+            Firebase 연결 상태를 확인한 뒤 로그인하면 관리자 패널이 활성화됩니다.
+          </div>
+
+          <section class="auth-panel" id="login-panel">
+            <article class="auth-card">
+              <span class="eyebrow">Administrator sign in</span>
+              <h2>Firebase Auth login</h2>
+              <p>
+                Firebase Authentication에서 생성한 이메일/비밀번호 계정으로 로그인하세요.
+              </p>
+
+              <form id="login-form" class="editor-form">
+                <div class="form-grid">
+                  <label class="field">
+                    <span>Email</span>
+                    <input type="email" name="email" placeholder="admin@example.com" required />
+                  </label>
+
+                  <label class="field">
+                    <span>Password</span>
+                    <input type="password" name="password" placeholder="••••••••" required />
+                  </label>
+                </div>
+
+                <div class="form-actions">
+                  <button type="submit" class="button primary">Login</button>
+                </div>
+              </form>
+            </article>
+          </section>
+
+          <section id="dashboard-panel" hidden>
+            <section class="admin-panel" data-admin-panel="members">
+              <div class="editor-layout">
+                <article class="editor-card">
+                  <div class="editor-head">
+                    <span class="eyebrow">Members</span>
+                    <h2 id="member-form-title">멤버 추가</h2>
+                  </div>
+
+                  <form id="member-form" class="editor-form">
+                    <div class="form-grid form-grid--double">
+                      <label class="field">
+                        <span>이름 *</span>
+                        <input type="text" name="name" placeholder="홍길동 / John Doe" required />
+                      </label>
+
+                      <label class="field">
+                        <span>이메일</span>
+                        <input type="email" name="email" placeholder="name@example.com" />
+                      </label>
+
+                      <label class="field">
+                        <span>그룹</span>
+                        <select name="group">
+                          <option value="Principal Investigator">Principal Investigator</option>
+                          <option value="Postdoctoral Researcher">Postdoctoral Researcher</option>
+                          <option value="Graduate Students" selected>Graduate Students</option>
+                          <option value="Alumni">Alumni</option>
+                        </select>
+                      </label>
+
+                      <label class="field">
+                        <span>트랙</span>
+                        <select name="track">
+                          <option value="">선택</option>
+                          <option value="Faculty">Faculty</option>
+                          <option value="Researcher">Researcher</option>
+                          <option value="Full-time Students">Full-time Students</option>
+                          <option value="Part-time Students">Part-time Students</option>
+                          <option value="Alumni">Alumni</option>
+                        </select>
+                      </label>
+
+                      <label class="field">
+                        <span>과정 / 직위</span>
+                        <input type="text" name="course" placeholder="Ph.D. Course / Postdoc / Professor" />
+                      </label>
+
+                      <label class="field">
+                        <span>표시 순서</span>
+                        <input type="number" name="sortOrder" placeholder="낮을수록 먼저 노출" />
+                      </label>
+
+                      <label class="field">
+                        <span>상태</span>
+                        <select name="status">
+                          <option value="active" selected>active</option>
+                          <option value="alumni">alumni</option>
+                        </select>
+                      </label>
+
+                      <label class="field">
+                        <span>졸업 연도</span>
+                        <input type="text" name="graduationYear" placeholder="2026" />
+                      </label>
+                    </div>
+
+                    <label class="field">
+                      <span>소개 / 역할</span>
+                      <textarea name="bio" rows="3" placeholder="직책 또는 간단한 소개"></textarea>
+                    </label>
+
+                    <label class="field">
+                      <span>학력 / 이력</span>
+                      <textarea name="education" rows="3" placeholder="학력 또는 주요 이력"></textarea>
+                    </label>
+
+                    <label class="field">
+                      <span>경력</span>
+                      <textarea name="experience" rows="3" placeholder="교수/연구원 경력 등"></textarea>
+                    </label>
+
+                    <label class="field">
+                      <span>연구 키워드</span>
+                      <textarea name="researchInterest" rows="3" placeholder="Research Interest"></textarea>
+                    </label>
+
+                    <label class="field">
+                      <span>현재 진로 / 취업처</span>
+                      <input type="text" name="currentPosition" placeholder="Currently at ..." />
+                    </label>
+
+                    <div class="field">
+                      <span>사진 업로드</span>
+                      <div class="dropzone" id="member-dropzone">
+                        <div id="member-photo-preview" class="dropzone-preview"></div>
+                        <p>클릭 또는 드래그로 사진 추가</p>
+                        <div class="dropzone-actions">
+                          <button type="button" class="small-button">사진 선택</button>
+                          <button type="button" class="small-button" id="member-photo-remove">사진 제거</button>
+                        </div>
+                        <input type="file" id="member-photo-input" accept="image/*" hidden />
+                      </div>
+                    </div>
+
+                    <div class="form-actions">
+                      <button type="submit" class="button primary">Save member</button>
+                      <button type="button" class="button secondary" id="member-form-reset">Reset</button>
+                    </div>
+                  </form>
+                </article>
+
+                <article class="collection-card">
+                  <div class="editor-head">
+                    <span class="eyebrow">Collection</span>
+                    <h2>Stored members</h2>
+                  </div>
+                  <div id="member-admin-list" class="admin-item-list"></div>
+                </article>
+              </div>
+            </section>
+
+            <section class="admin-panel" data-admin-panel="projects" hidden>
+              <div class="editor-layout">
+                <article class="editor-card">
+                  <div class="editor-head">
+                    <span class="eyebrow">Projects</span>
+                    <h2 id="project-form-title">과제 추가</h2>
+                  </div>
+
+                  <form id="project-form" class="editor-form">
+                    <div class="form-grid form-grid--double">
+                      <label class="field">
+                        <span>과제 제목 *</span>
+                        <input type="text" name="title" placeholder="Project title" required />
+                      </label>
+
+                      <label class="field">
+                        <span>상태</span>
+                        <select name="status">
+                          <option value="ongoing" selected>ongoing</option>
+                          <option value="completed">completed</option>
+                        </select>
+                      </label>
+
+                      <label class="field">
+                        <span>기간</span>
+                        <input type="text" name="period" placeholder="2025–2027 / 2026" />
+                      </label>
+
+                      <label class="field">
+                        <span>연도</span>
+                        <input type="text" name="year" placeholder="2026" />
+                      </label>
+
+                      <label class="field field--full">
+                        <span>태그</span>
+                        <input type="text" name="tags" placeholder="AI, Plant Factory, Water Management" />
+                      </label>
+
+                      <label class="field">
+                        <span>표시 순서</span>
+                        <input type="number" name="sortOrder" placeholder="낮을수록 먼저 노출" />
+                      </label>
+                    </div>
+
+                    <label class="field">
+                      <span>과제 설명</span>
+                      <textarea name="description" rows="6" placeholder="과제 설명을 입력하세요"></textarea>
+                    </label>
+
+                    <div class="form-actions">
+                      <button type="submit" class="button primary">Save project</button>
+                      <button type="button" class="button secondary" id="project-form-reset">Reset</button>
+                    </div>
+                  </form>
+                </article>
+
+                <article class="collection-card">
+                  <div class="editor-head">
+                    <span class="eyebrow">Collection</span>
+                    <h2>Stored projects</h2>
+                  </div>
+                  <div id="project-admin-list" class="admin-item-list"></div>
+                </article>
+              </div>
+            </section>
+
+            <section class="admin-panel" data-admin-panel="publications" hidden>
+              <div class="editor-layout">
+                <article class="editor-card">
+                  <div class="editor-head">
+                    <span class="eyebrow">Publications</span>
+                    <h2 id="publication-form-title">논문 추가</h2>
+                  </div>
+
+                  <form id="publication-form" class="editor-form">
+                    <div class="form-grid form-grid--double">
+                      <label class="field field--full">
+                        <span>논문 제목 *</span>
+                        <input type="text" name="title" placeholder="Paper title" required />
+                      </label>
+
+                      <label class="field">
+                        <span>저자</span>
+                        <input type="text" name="authors" placeholder="Author list" />
+                      </label>
+
+                      <label class="field">
+                        <span>저널</span>
+                        <input type="text" name="journal" placeholder="Journal name" />
+                      </label>
+
+                      <label class="field">
+                        <span>연도</span>
+                        <input type="text" name="year" placeholder="2026" />
+                      </label>
+
+                      <label class="field">
+                        <span>DOI</span>
+                        <input type="text" name="doi" placeholder="10.xxxx/xxxxx" />
+                      </label>
+
+                      <label class="field">
+                        <span>직접 URL</span>
+                        <input type="url" name="url" placeholder="https://..." />
+                      </label>
+
+                      <label class="field">
+                        <span>표시 순서</span>
+                        <input type="number" name="sortOrder" placeholder="낮을수록 먼저 노출" />
+                      </label>
+                    </div>
+
+                    <label class="field">
+                      <span>초록</span>
+                      <textarea name="abstract" rows="7" placeholder="논문 초록을 입력하세요"></textarea>
+                    </label>
+
+                    <div class="form-actions">
+                      <button type="submit" class="button primary">Save publication</button>
+                      <button type="button" class="button secondary" id="publication-form-reset">Reset</button>
+                    </div>
+                  </form>
+                </article>
+
+                <article class="collection-card">
+                  <div class="editor-head">
+                    <span class="eyebrow">Collection</span>
+                    <h2>Stored publications</h2>
+                  </div>
+                  <div id="publication-admin-list" class="admin-item-list"></div>
+                </article>
+              </div>
+            </section>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script src="firebase-config.js"></script>
+    <script type="module" src="assets/js/admin.js"></script>
+  </body>
+</html>

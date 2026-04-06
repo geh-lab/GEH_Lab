@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Projects · CNU GEH Lab</title>
+    <meta
+      name="description"
+      content="Research projects of the CNU GEH Lab"
+    />
+    <link rel="stylesheet" href="assets/css/styles.css" />
+  </head>
+  <body class="public-body" data-page="projects">
+    <div class="site-shell">
+      <header class="site-header">
+        <a href="./index.html" class="brand">
+          <span class="brand-mark">CNU</span>
+          <span class="brand-text">
+            <strong>GEH Lab</strong>
+            <small>Greenhouse &amp; Environmental Horticulture</small>
+          </span>
+        </a>
+
+        <button class="menu-toggle" type="button" aria-label="메뉴 열기" aria-expanded="false" data-menu-toggle>
+          <span></span>
+          <span></span>
+        </button>
+
+        <nav class="site-nav" data-nav-panel>
+          <a href="./index.html" data-nav-page="home">Home</a>
+          <a href="./members.html" data-nav-page="members">Members</a>
+          <a href="./projects.html" data-nav-page="projects">Projects</a>
+          <a href="./publications.html" data-nav-page="publications">Publications</a>
+          <a href="./admin.html" class="nav-admin-link">Admin</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="page-hero reveal">
+          <div class="page-hero-card">
+            <span class="eyebrow">Research</span>
+            <h1 id="page-hero-title">Projects.</h1>
+            <p id="page-hero-description">현재 진행 중인 과제와 종료된 과제를 분리해 보여주고, 관리자는 상태만 바꿔 손쉽게 이동시킬 수 있습니다.</p>
+            <div id="page-stat-grid" class="hero-stat-grid page-stat-grid"></div>
+          </div>
+          <div class="page-hero-visual">
+            <img src="assets/images/background/hero-1.jpg" alt="Research project background" />
+          </div>
+        </section>
+
+        <section class="section reveal" id="projects">
+          <div class="section-header section-header--inline">
+            <div>
+              <span class="eyebrow">Research</span>
+              <h2>Projects</h2>
+            </div>
+            <p id="project-result-label"></p>
+          </div>
+
+          <div class="project-grid" id="ongoing-project-grid"></div>
+
+          <div class="archive-block">
+            <div class="section-inline-header">
+              <div>
+                <span class="eyebrow">Archive</span>
+                <h3>Completed projects</h3>
+              </div>
+              <p>진행이 끝난 과제는 종료 과제로 이동해 공개 사이트에서도 기록으로 남습니다.</p>
+            </div>
+
+            <ul class="archive-list" id="completed-project-list"></ul>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <div>
+          <strong id="footer-lab-name">Greenhouse &amp; Environmental Horticulture Science Laboratory</strong>
+          <p>Static multi-page Vercel deployment + Firebase CMS structure.</p>
+        </div>
+        <div class="footer-links">
+          <a href="./index.html">Home</a>
+          <a href="./members.html">Members</a>
+          <a href="./projects.html">Projects</a>
+          <a href="./publications.html">Publications</a>
+          <a href="./admin.html">Admin</a>
+        </div>
+        <div class="footer-meta">© <span id="footer-year"></span></div>
+      </footer>
+    </div>
+
+    <script src="firebase-config.js"></script>
+    <script type="module" src="assets/js/app.js"></script>
+  </body>
+</html>
