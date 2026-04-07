@@ -90,7 +90,7 @@
                   <option value="pi">연구책임자</option>
                   <option value="researchProfessor">연구교수</option>
                   <option value="graduateStudent" selected>대학원생</option>
-                  <option value="studentResearcher">학생연구원</option>
+                  <option value="studentResearcher">학부연구생</option>
                   <option value="alumni">졸업생</option>
                 </select>
               </label>
@@ -109,11 +109,11 @@
                   <option value="postdoc">박사후연구원</option>
                   <option value="phd">박사과정</option>
                   <option value="ms" selected>석사과정</option>
-                  <option value="researcher">학생연구원</option>
+                  <option value="undergrad">학부연구생</option>
                   <option value="alumni">졸업생</option>
                 </select>
               </label>
-              <label class="field"><span>정렬 순서</span><input name="sortOrder" type="number" value="999"></label>
+              <label class="field"><span>입학/입사 연도</span><input name="startYear" type="text" placeholder="2024"></label>
               <label class="field">
                 <span>상태</span>
                 <select name="status">
@@ -144,6 +144,7 @@
         </article>
         <article class="admin-card">
           <span class="eyebrow">STORED 멤버</span>
+          <div class="admin-subtabs" id="member-filter-tabs"></div>
           <div class="admin-list-stack" id="member-list"></div>
         </article>
       </section>
@@ -156,9 +157,7 @@
             <label class="field"><span>과제 제목 *</span><input name="title" type="text" required></label>
             <div class="form-grid form-grid--double">
               <label class="field"><span>상태</span><select name="status"><option value="ongoing" selected>진행중</option><option value="completed">종료</option></select></label>
-              <label class="field"><span>연도</span><input name="year" type="text" placeholder="2024"></label>
-              <label class="field"><span>기간</span><input name="period" type="text" placeholder="예: 2024–2026 / 진행 중"></label>
-              <label class="field"><span>정렬 순서</span><input name="sortOrder" type="number" value="999"></label>
+              <label class="field"><span>기간</span><input name="period" type="text" placeholder="예: 2024–2026 / 2020 / 2018–2020"></label>
             </div>
             <label class="field"><span>과제 설명</span><textarea name="description"></textarea></label>
             <label class="field"><span>태그 (쉼표로 구분)</span><input name="tags" type="text" placeholder="AI, Smart Farm"></label>
@@ -170,6 +169,7 @@
         </article>
         <article class="admin-card">
           <span class="eyebrow">STORED 과제</span>
+          <div class="admin-subtabs" id="project-filter-tabs"></div>
           <div class="admin-list-stack" id="project-list"></div>
         </article>
       </section>
@@ -184,7 +184,7 @@
               <label class="field"><span>저자</span><input name="authors" type="text"></label>
               <label class="field"><span>저널</span><input name="journal" type="text"></label>
               <label class="field"><span>연도</span><input name="year" type="text" placeholder="2025"></label>
-              <label class="field"><span>정렬 순서</span><input name="sortOrder" type="number" value="999"></label>
+              <label class="field"><span>월</span><input name="month" type="number" min="1" max="12" placeholder="3"></label>
             </div>
             <label class="field"><span>DOI</span><input name="doi" type="text"></label>
             <label class="field"><span>링크 URL</span><input name="url" type="url"></label>
@@ -197,6 +197,7 @@
         </article>
         <article class="admin-card">
           <span class="eyebrow">STORED 논문</span>
+          <div class="admin-subtabs" id="publication-filter-tabs"></div>
           <div class="admin-list-stack" id="publication-list"></div>
         </article>
       </section>

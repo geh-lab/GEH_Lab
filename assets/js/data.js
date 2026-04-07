@@ -1,10 +1,10 @@
-export const BUILD_DATE = '2026-04-06';
+export const BUILD_DATE = '2026-04-07';
 
 export const SITE_COPY = {
   "kr": {
     "siteName": "충남대학교 환경원예학연구실",
     "siteShort": "GEH Lab",
-    "brandSub": "Greenhouse & Environmental Horticulture",
+    "brandSub": "Greenhouse & Environmental Horticulture Lab",
     "nav": {
       "home": "홈",
       "members": "멤버",
@@ -50,22 +50,22 @@ export const SITE_COPY = {
     "homeProjectsDesc": "현재 수행 중인 대표 과제를 미리 볼 수 있습니다.",
     "viewAllProjects": "전체 과제 보기",
     "membersHeroTitle": "멤버",
-    "membersHeroDesc": "연구교수, 대학원생, 학생연구원, 졸업생을 연도와 과정별로 정리했습니다.",
+    "membersHeroDesc": "지도교수, 연구교수, 박사과정, 석사과정, 학부연구생, 졸업생 정보를 과정과 연도별로 정리했습니다.",
     "projectsHeroTitle": "연구 과제",
-    "projectsHeroDesc": "진행 중인 과제와 종료된 과제를 구분하고, 종료 과제는 연도별 아코디언으로 정리했습니다.",
+    "projectsHeroDesc": "진행 중 과제와 종료 과제를 구분하고, 종료 과제는 연도별 아코디언으로 정리했습니다. 기간 정보는 과제별 카드에 함께 표시됩니다.",
     "publicationsHeroTitle": "논문",
-    "publicationsHeroDesc": "연도별 논문을 한눈에 볼 수 있도록 정리했습니다. DOI는 바로 열 수 있는 링크로 제공합니다.",
+    "publicationsHeroDesc": "연도별 논문을 한눈에 볼 수 있도록 정리했습니다. DOI는 바로 열 수 있는 링크로 제공하며, 등록 시 연도와 월을 함께 기록할 수 있습니다.",
     "updated": "업데이트",
     "pi": "연구 책임자",
-    "researchProfessor": "연구교수",
+    "researchProfessor": "연구교수 / 박사후연구원",
     "graduateStudent": "대학원생",
-    "studentResearcher": "학생연구원",
+    "studentResearcher": "학부연구생",
     "alumni": "졸업생",
     "phdFullTime": "박사과정 · 풀타임",
     "phdPartTime": "박사과정 · 파트타임",
     "msFullTime": "석사과정 · 풀타임",
     "msPartTime": "석사과정 · 파트타임",
-    "studentResearcherSection": "학생연구원",
+    "studentResearcherSection": "학부연구생",
     "researchProfessorSection": "연구교수",
     "alumniSection": "졸업생",
     "noMembers": "표시할 멤버가 없습니다.",
@@ -84,12 +84,12 @@ export const SITE_COPY = {
     "doi": "DOI",
     "open": "열기",
     "countItems": "건",
-    "footerNote": "충남대학교 환경원예학연구실"
+    "footerNote": "Greenhouse & Environmental Horticulture Lab"
   },
   "en": {
     "siteName": "CNU GEH Lab",
     "siteShort": "GEH Lab",
-    "brandSub": "Greenhouse & Environmental Horticulture",
+    "brandSub": "Greenhouse & Environmental Horticulture Lab",
     "nav": {
       "home": "Home",
       "members": "Members",
@@ -100,7 +100,7 @@ export const SITE_COPY = {
     "heroEyebrow": "CHUNGNAM NATIONAL UNIVERSITY",
     "heroTitle": "Grow the next environment for horticulture.",
     "heroSubtitle": "Plant factory, smart farm, medicinal crops, sustainable water management, and data-driven cultivation control.",
-    "heroDesc": "The CNU Greenhouse & Environmental Horticulture Science Laboratory studies crop physiology, bioactive compounds, and AI-enabled cultivation systems.",
+    "heroDesc": "The CNU Greenhouse & Environmental Horticulture Lab studies crop physiology, bioactive compounds, and AI-enabled cultivation systems.",
     "heroButtons": {
       "members": "View members",
       "projects": "View projects"
@@ -135,22 +135,22 @@ export const SITE_COPY = {
     "homeProjectsDesc": "A quick view of the projects currently underway.",
     "viewAllProjects": "View all projects",
     "membersHeroTitle": "Members",
-    "membersHeroDesc": "Research professors, graduate students, student researchers, and alumni organized by program and year.",
+    "membersHeroDesc": "Principal Investigator, research professors, Ph.D. students, M.S. students, undergraduate researchers, and alumni organized by program and year.",
     "projectsHeroTitle": "Projects",
-    "projectsHeroDesc": "Ongoing projects are separated from archived projects, and completed projects are grouped by year in accordions.",
+    "projectsHeroDesc": "Ongoing projects are separated from archived projects, and completed projects are grouped by year in accordions. Each project card can show its project period.",
     "publicationsHeroTitle": "Publications",
-    "publicationsHeroDesc": "Publications are organized by year. DOI links are displayed inline for quick access.",
+    "publicationsHeroDesc": "Publications are organized by year. DOI links are displayed inline, and year/month metadata can be recorded together.",
     "updated": "Updated",
     "pi": "Principal Investigator",
-    "researchProfessor": "Research Professors",
+    "researchProfessor": "Research Professors / Postdocs",
     "graduateStudent": "Graduate Students",
-    "studentResearcher": "Student Researchers",
+    "studentResearcher": "Undergraduate Researchers",
     "alumni": "Alumni",
     "phdFullTime": "Ph.D. · Full-time",
     "phdPartTime": "Ph.D. · Part-time",
     "msFullTime": "M.S. · Full-time",
     "msPartTime": "M.S. · Part-time",
-    "studentResearcherSection": "Student Researchers",
+    "studentResearcherSection": "Undergraduate Researchers",
     "researchProfessorSection": "Research Professors",
     "alumniSection": "Alumni",
     "noMembers": "No members to display.",
@@ -169,7 +169,7 @@ export const SITE_COPY = {
     "doi": "DOI",
     "open": "Open",
     "countItems": "items",
-    "footerNote": "Greenhouse & Environmental Horticulture Science Laboratory"
+    "footerNote": "Greenhouse & Environmental Horticulture Lab"
   }
 };
 
@@ -181,7 +181,7 @@ export const FALLBACK_MEMBERS = [
     "track": "none",
     "course": "professor",
     "email": "jongseok@cnu.ac.kr",
-    "bio": "Professor, Chungnam National University",
+    "bio": "Professor, Chungnam National University · Greenhouse & Environmental Horticulture Lab",
     "education": "B.S., Konkuk University, Korea (1997) · M.S., Seoul National University, Korea (2000) · Ph.D., University of Tokyo, Japan (2006)",
     "experience": "Postdoctoral Fellow, University of Tokyo (2006–2008) · Research Professor, University of Tokyo (2008–2009) · Principal Researcher, POSCO (2010–2013) · Professor, Chungnam National University (2013–Present)",
     "researchInterest": "Controlled environment agriculture, plant factory, smart farm, crop physiology",
@@ -191,7 +191,8 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 1,
     "photoUrl": "assets/images/members/jongseok-park.png",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "startYear": "2013"
   },
   {
     "id": "kwangya-lee",
@@ -341,7 +342,7 @@ export const FALLBACK_MEMBERS = [
     "status": "enrolled",
     "graduationYear": "",
     "sortOrder": 25,
-    "photoUrl": "",
+    "photoUrl": "assets/images/members/eun-sun-choi.jpg",
     "photoPath": "",
     "updatedAt": "2026-04-06"
   },
@@ -417,7 +418,7 @@ export const FALLBACK_MEMBERS = [
     "status": "enrolled",
     "graduationYear": "",
     "sortOrder": 49,
-    "photoUrl": "",
+    "photoUrl": "assets/images/members/inseong-choi.jpg",
     "photoPath": "",
     "updatedAt": "2026-04-06"
   },
@@ -436,7 +437,7 @@ export const FALLBACK_MEMBERS = [
     "status": "enrolled",
     "graduationYear": "",
     "sortOrder": 50,
-    "photoUrl": "",
+    "photoUrl": "assets/images/members/jiyeon-hwang.png",
     "photoPath": "",
     "updatedAt": "2026-04-06"
   },
@@ -445,7 +446,7 @@ export const FALLBACK_MEMBERS = [
     "name": "Hyunsoo Ha",
     "group": "studentResearcher",
     "track": "fullTime",
-    "course": "researcher",
+    "course": "undergrad",
     "email": "xahad@naver.com",
     "bio": "",
     "education": "B.S. CNU · Horticultural science",
@@ -455,7 +456,7 @@ export const FALLBACK_MEMBERS = [
     "status": "enrolled",
     "graduationYear": "",
     "sortOrder": 60,
-    "photoUrl": "",
+    "photoUrl": "assets/images/members/hyunsoo-ha.jpg",
     "photoPath": "",
     "updatedAt": "2026-04-06"
   },
@@ -464,7 +465,7 @@ export const FALLBACK_MEMBERS = [
     "name": "Suyeon Kim",
     "group": "studentResearcher",
     "track": "fullTime",
-    "course": "researcher",
+    "course": "undergrad",
     "email": "yeon032900@naver.com",
     "bio": "",
     "education": "B.S. Student, CNU · Horticultural science",
@@ -474,7 +475,7 @@ export const FALLBACK_MEMBERS = [
     "status": "enrolled",
     "graduationYear": "",
     "sortOrder": 61,
-    "photoUrl": "",
+    "photoUrl": "assets/images/members/suyeon-kim.png",
     "photoPath": "",
     "updatedAt": "2026-04-06"
   },
@@ -980,7 +981,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://www.hst-j.org/articles/xml/Xx1J/",
     "abstract": "",
     "sortOrder": 1,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2025-development-of-a-real-time-irrigation-strategy-based-on-cumulative-reference-evapotranspiration-et0-for-cabbage-cultivation-in-paddy-converted-fields",
@@ -992,7 +994,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.3390/agronomy15081981",
     "abstract": "",
     "sortOrder": 2,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2025-an-automatic-irrigation-system-based-on-hourly-cumulative-evapotranspiration-for-reducing-agricultural-water-usage",
@@ -1004,7 +1007,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.3390/agriculture15030308",
     "abstract": "",
     "sortOrder": 3,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2025-optimizing-ethanol-concentrations-to-enhance-growth-and-bioactive-compound-production-in-agastache-rugosa-cultivated-in-a-plant-factory",
@@ -1016,7 +1020,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.32604/phyton.2025.062507",
     "abstract": "",
     "sortOrder": 4,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2025-selenium-concentration-improves-growth-antioxidant-capacity-photosynthesis-and-bioactive-compounds-in-agastache-rugosa-grown-in-a-plant-factory",
@@ -1028,7 +1033,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.1007/s13580-025-00700-3",
     "abstract": "",
     "sortOrder": 5,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2025-light-temperature-and-relative-humidity-influence-the-adventitious-rooting-of-cannabis-stem-cuttings",
@@ -1040,7 +1046,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.7235/HORT.20250043",
     "abstract": "",
     "sortOrder": 6,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2025-machine-learning-based-weather-factor-prediction-for-estimating-reference-crop-evapotranspiration-using-the-penman-monteith-equation",
@@ -1052,7 +1059,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.12791/KSBEC.2025.34.1.069",
     "abstract": "",
     "sortOrder": 7,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2025-seaweed-foliar-biostimulants-improve-growth-and-phytochemicals-of-thai-basil-ocimum-basilicum-l-in-a-plant-factory",
@@ -1064,7 +1072,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.3390/plants14213271",
     "abstract": "",
     "sortOrder": 8,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2025-exploration-of-recycling-pathways-for-coir-spent-substrate-to-establish-recycling-for-by-products-of-protected-cultivation",
@@ -1076,7 +1085,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.12791/KSBEC.2025.34.4.582",
     "abstract": "",
     "sortOrder": 9,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2025-analysis-of-co2-absorption-capacity-of-various-moss-species-under-different-light-intensities-and-humidity-conditions",
@@ -1088,7 +1098,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.12791/KSBEC.2025.34.4.420",
     "abstract": "",
     "sortOrder": 10,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2025-exogenous-ethanol-application-enhances-drought-tolerance-and-fruit-quality-in-melon-cucumis-melo-l-across-seasons",
@@ -1100,7 +1111,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.12791/KSBEC.2025.34.4.564",
     "abstract": "",
     "sortOrder": 11,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2025-high-light-intensity-enhances-cannabinoid-biosynthesis-through-concerted-gene-expression-in-hemp-cannabis-sativa-flowers",
@@ -1112,7 +1124,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.3389/fpls.2025.1687794",
     "abstract": "",
     "sortOrder": 12,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2025-influence-of-the-plasma-activated-water-process-time-on-germination-growth-and-secondary-metabolite-accumulation-in-radish-sprouts-raphanus-sativus-l",
@@ -1124,7 +1137,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.7235/HORT.20250076",
     "abstract": "",
     "sortOrder": 13,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2024-evaluation-of-sodium-chloride-concentrations-on-growth-and-phytochemical-production-of-mesembryanthemum-crystallinum-l-in-a-hydroponic-system",
@@ -1136,7 +1150,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.3390/horticulturae10121304",
     "abstract": "",
     "sortOrder": 14,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2024-optimizing-cabbage-cultivation-in-paddy-converted-fields-using-discarded-coir-substrates-and-controlled-irrigation",
@@ -1148,7 +1163,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.3390/agronomy15010008",
     "abstract": "",
     "sortOrder": 15,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2024-optimization-of-cannabinoid-production-in-hemp-through-methyl-jasmonate-application-in-a-vertical-farming-system",
@@ -1160,7 +1176,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.3390/horticulturae10111165",
     "abstract": "",
     "sortOrder": 16,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2024-minimizing-plant-height-and-optimizing-bioactive-compound-accumulation-of-agastache-rugosa",
@@ -1172,7 +1189,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.1007/s10725-023-00974-6",
     "abstract": "",
     "sortOrder": 17,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2024-the-impact-of-pre-harvest-ec-adjustment-on-growth-and-secondary-metabolites",
@@ -1184,7 +1202,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://www.ksbec.org/articles/article/0Y4w/#Information",
     "abstract": "",
     "sortOrder": 18,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2024-phenylpropanoid-accumulation-and-gene-expression-in-agastache-rugosa",
@@ -1196,7 +1215,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.7235/HORT.20240037",
     "abstract": "",
     "sortOrder": 19,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2024-transient-salinity-stress-promotes-secondary-metabolites-and-antioxidant-enzymes-in-brassica-plants",
@@ -1208,7 +1228,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://search.informit.org/doi/abs/10.3316/informit.T2024120300011801260063373",
     "abstract": "",
     "sortOrder": 20,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2023-optimization-of-salicylic-acid-concentrations-for-increasing-antioxidant-enzymes-and-bioactive-compounds",
@@ -1220,7 +1241,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.1371/journal.pone.0287658",
     "abstract": "",
     "sortOrder": 21,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2023-ozonated-water-soaking-improves-flower-growth-antioxidant-activity-and-bioactive-compound-accumulation",
@@ -1232,7 +1254,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://link.springer.com/article/10.1186/s40538-023-00496-3",
     "abstract": "",
     "sortOrder": 22,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2023-effectiveness-of-silver-nitrate-application-on-plant-growth-and-bioactive-compounds",
@@ -1244,7 +1267,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://www.cell.com/heliyon/fulltext/S2405-8440(23)07413-3",
     "abstract": "",
     "sortOrder": 23,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2023-diniconazole-promotes-the-yield-of-female-hemp-and-cannabinoids-in-a-vertical-farming-system",
@@ -1256,7 +1280,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://www.mdpi.com/2073-4395/13/6/1497",
     "abstract": "",
     "sortOrder": 24,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2023-effects-of-exogenous-ethanol-treatment-in-nutrient-solution-on-growth-and-secondary-metabolite-contents",
@@ -1268,7 +1293,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://www.mdpi.com/2223-7747/12/22/3842y",
     "abstract": "",
     "sortOrder": 25,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2023-enhancement-of-the-growth-and-quality-of-soybeans-using-wasted-coir-substrates-on-multi-purpose-utilization-land",
@@ -1280,7 +1306,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://www.ksbec.org/articles/article/Qjbv/#Information",
     "abstract": "",
     "sortOrder": 26,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2023-influence-of-light-intensity-and-photoperiod-on-the-growth-and-phenol-contents-of-hydroponic-basil-in-vertical-farms",
@@ -1292,7 +1319,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.12791/KSBEC.2023.32.4.353",
     "abstract": "",
     "sortOrder": 27,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2023-enhancement-of-bioactive-compound-levels-in-agastache-rugosa-by-hydrogen-peroxide-soaking-in-a-hydroponic-culture-system",
@@ -1304,7 +1332,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "http://dx.doi.org/10.1139/CJPS-2022-0088",
     "abstract": "",
     "sortOrder": 28,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2023-minimizing-plant-height-and-optimizing-bioactive-compound-accumulation-in-agastache-rugosa-by-spraying-or-soaking-with-diniconazole-in-a-plant-factory",
@@ -1316,7 +1345,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "http://crossmark.crossref.org/dialog/?doi=10.1007/s10725-023-00974-6&domain=pdf",
     "abstract": "",
     "sortOrder": 29,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2023-exogenous-gibberellin-application-in-tomato-solanum-lycopersicum-recovers-growth-inhibition-caused-by-triazole-overuse",
@@ -1328,7 +1358,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.7235/HORT.20230026",
     "abstract": "",
     "sortOrder": 30,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2022-and-earlier-optimizing-the-electrical-conductivity-of-a-nutrient-solution-for-plant-growth-and-bioactive-compounds-of-agastache-rugosa",
@@ -1340,7 +1371,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.3390/agronomy10010076",
     "abstract": "",
     "sortOrder": 31,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2022-and-earlier-the-effects-of-root-temperature-on-growth-physiology-and-accumulation-of-bioactive-compounds-of-agastache-rugosa",
@@ -1352,7 +1384,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.3390/agriculture10050162",
     "abstract": "",
     "sortOrder": 32,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2022-and-earlier-selection-of-optimal-varieties-suitable-for-indoor-cultivation-considering-the-growth-and-functional-content-of-agastache-species",
@@ -1364,7 +1397,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.12791/KSBEC.2020.29.2.202",
     "abstract": "",
     "sortOrder": 33,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2022-and-earlier-increased-antioxidants-of-agastache-rugosa-by-the-night-interruption-time",
@@ -1376,7 +1410,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.12791/KSBEC.2022.31.4.319",
     "abstract": "",
     "sortOrder": 34,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2022-and-earlier-increasing-bioactive-compound-levels-in-agastache-rugosa-by-hydrogen-peroxide-soaking-in-a-hydroponic-culture-system",
@@ -1388,7 +1423,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://cdnsciencepub.com/doi/full/10.1139/cjps-2022-0088",
     "abstract": "",
     "sortOrder": 35,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2022-and-earlier-generation-of-adventitious-roots-and-characteristics-of-gas-exchange-according-to-leaf-number-of-hemp",
@@ -1400,7 +1436,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://www.hst-j.org/articles/article/Z9am/#Information",
     "abstract": "",
     "sortOrder": 36,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2022-and-earlier-phenylalanine-ammonia-lyase-expression-and-pyranocoumarin-accumulation-in-angelica-gigas",
@@ -1412,7 +1449,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.25081/jp.2021.v13.7018",
     "abstract": "",
     "sortOrder": 37,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2022-and-earlier-effect-of-red-and-blue-led-ratio-on-growth-and-glucosinolate-contents-of-watercress",
@@ -1424,7 +1462,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.7235/HORT.20200045",
     "abstract": "",
     "sortOrder": 38,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2022-and-earlier-changes-in-growth-and-bioactive-compounds-of-lettuce-according-to-co-tablet-treatment",
@@ -1436,7 +1475,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.12791/ksbec.2021.30.1.085",
     "abstract": "",
     "sortOrder": 39,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2022-and-earlier-intermittent-root-flushing-with-ozonated-water-promotes-growth-of-japanese-mustard-spinach",
@@ -1448,7 +1488,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://doi.org/10.1080/01919512.2021.1967723",
     "abstract": "",
     "sortOrder": 40,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2022-and-earlier-ozonated-water-soaking-improves-the-flower-growth-antioxidant-activity-and-bioactive-compound-accumulation-in-agastache-rugosa",
@@ -1460,7 +1501,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://link.springer.com/article/10.1186/s40538-023-00496-3",
     "abstract": "",
     "sortOrder": 41,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2022-and-earlier-effects-of-light-emitting-diodes-on-the-accumulation-of-glucosinolates-and-phenolic-compounds-in-sprouting-canola",
@@ -1472,7 +1514,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://www.mdpi.com/2304-8158/8/2/76",
     "abstract": "",
     "sortOrder": 42,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2022-and-earlier-enhancing-growth-and-glucosinolate-accumulation-in-watercress",
@@ -1484,7 +1527,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://www.mdpi.com/2077-0472/11/8/723",
     "abstract": "",
     "sortOrder": 43,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2022-and-earlier-root-pruning-increased-bioactive-compounds-of-hydroponically-grown-agastache-rugosa",
@@ -1496,7 +1540,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://link.springer.com/article/10.1007/s13580-019-00163-3",
     "abstract": "",
     "sortOrder": 44,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2022-and-earlier-optimizing-plant-spacing-and-harvest-time-for-yield-and-glucosinolate-accumulation",
@@ -1508,7 +1553,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://www.hst-j.org/articles/article/Rm0o/#Informationa",
     "abstract": "",
     "sortOrder": 45,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2022-and-earlier-microbubbles-increase-glucosinolate-contents-of-watercress",
@@ -1520,7 +1566,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://koreascience.kr/article/JAKO201914439302203.pageb",
     "abstract": "",
     "sortOrder": 46,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2022-and-earlier-response-of-nutrient-solution-and-photosynthetic-photon-flux-density",
@@ -1532,7 +1579,8 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://koreascience.kr/article/JAKO201732863554638.page",
     "abstract": "",
     "sortOrder": 47,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   },
   {
     "id": "2022-and-earlier-growth-characteristics-of-lettuce-under-different-frequency-of-pulse-lighting",
@@ -1544,6 +1592,7 @@ export const FALLBACK_PUBLICATIONS = [
     "url": "https://koreascience.kr/article/JAKO201718836883776.page",
     "abstract": "",
     "sortOrder": 48,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "month": ""
   }
 ];

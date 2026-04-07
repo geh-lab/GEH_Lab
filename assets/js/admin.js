@@ -11,6 +11,7 @@ import {
   memberStatusLabel,
   memberCourseLabel,
   memberTrackLabel,
+  memberGroupLabel,
   projectStatusLabel,
   rootAsset,
   mergeMembers,
@@ -18,7 +19,8 @@ import {
   mergePublications,
   memberSemanticKey,
   projectSemanticKey,
-  publicationSemanticKey
+  publicationSemanticKey,
+  memberYearLabel
 } from './utils.js';
 import {
   ADMIN_EMAILS,
@@ -49,7 +51,11 @@ const state = {
   pendingMemberPreview: '',
   seeded: false,
   unsubs: [],
-  authResolved: false
+  authResolved: false,
+  activeTab: 'members',
+  memberFilter: 'pi',
+  projectFilter: 'all',
+  publicationFilter: 'all'
 };
 
 const qs = (selector) => document.querySelector(selector);
@@ -72,16 +78,25 @@ const elements = {
   memberPhotoInput: qs('#member-photo-input'),
   memberPhotoPreview: qs('#member-photo-preview'),
   memberPhotoRemove: qs('#member-photo-remove'),
+  memberFilterTabs: qs('#member-filter-tabs'),
   projectForm: qs('#project-form'),
   projectList: qs('#project-list'),
   projectTitle: qs('#project-form-title'),
+  projectFilterTabs: qs('#project-filter-tabs'),
   publicationForm: qs('#publication-form'),
   publicationList: qs('#publication-list'),
   publicationTitle: qs('#publication-form-title'),
+  publicationFilterTabs: qs('#publication-filter-tabs'),
   summaryMembers: qs('#summary-members'),
   summaryProjects: qs('#summary-projects'),
   summaryPublications: qs('#summary-publications')
 };
+
+
+function setFormValue(form, fieldName, value) {
+  const field = form?.elements?.namedItem(fieldName);
+  if (field) field.value = value ?? '';
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
   bindEvents();
@@ -108,12 +123,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function bindEvents() {
   elements.googleLoginButton?.addEventListener('click', handleGoogleLogin);
-  elements.logoutButton?.addEventListener('click', async () => {
-    await signOutAdmin();
-  });
-  elements.tabButtons.forEach((button) => {
-    button.addEventListener('click', () => setActiveTab(button.dataset.adminTab));
-  });
+  elements.logoutButton?.addEventListener('click', async () => { await signOutAdmin(); });
+  elements.tabButtons.forEach((button) => button.addEventListener('click', () => setActiveTab(button.dataset.adminTab)));
+  elements.memberFilterTabs?.addEventListener('click', onMemberFilterClick);
+  elements.projectFilterTabs?.addEventListener('click', onProjectFilterClick);
+  elements.publicationFilterTabs?.addEventListener('click', onPublicationFilterClick);
   elements.memberForm?.addEventListener('submit', handleMemberSubmit);
   elements.projectForm?.addEventListener('submit', handleProjectSubmit);
   elements.publicationForm?.addEventListener('submit', handlePublicationSubmit);
@@ -135,7 +149,7 @@ function renderSetupMessage() {
   }
   elements.authNotice.textContent = ADMIN_EMAILS.length
     ? `허용된 관리자 계정: ${ADMIN_EMAILS.join(', ')}`
-    : '허용 관리자 계정 목록이 비어 있습니다. 보안을 위해 관리자 이메일을 설정하세요.';
+    : '허용 관리자 계정 목록이 비어 있습니다. 관리자 이메일을 설정하세요.';
 }
 
 async function handleGoogleLogin() {
@@ -146,9 +160,7 @@ async function handleGoogleLogin() {
   elements.googleLoginButton?.setAttribute('disabled', 'disabled');
   try {
     await signInAdminWithGoogle();
-    if (auth?.currentUser) {
-      await handleAuthState(auth.currentUser);
-    }
+    if (auth?.currentUser) await handleAuthState(auth.currentUser);
   } catch (error) {
     console.error(error);
     showNotice(error.message || 'Google 로그인에 실패했습니다.', 'danger');
@@ -172,10 +184,8 @@ async function handleAuthState(user) {
   elements.currentUser.textContent = user.email || '관리자';
   await ensureSeeded();
   attachListeners();
-  setActiveTab('members');
-  if (previousUid !== user.uid) {
-    showNotice(`${user.email} 계정으로 로그인되었습니다.`, 'success');
-  }
+  setActiveTab(state.activeTab || 'members');
+  if (previousUid !== user.uid) showNotice(`${user.email} 계정으로 로그인되었습니다.`, 'success');
 }
 
 function togglePending(isPending) {
@@ -188,12 +198,10 @@ function togglePending(isPending) {
 }
 
 function toggleViews(isAuthenticated) {
-  elements.loginView.hidden = isAuthenticated;
-  elements.dashboardView.hidden = !isAuthenticated;
-  elements.logoutButton.hidden = !isAuthenticated;
-  if (!isAuthenticated) {
-    elements.currentUser.textContent = '로그인 필요';
-  }
+  if (elements.loginView) elements.loginView.hidden = isAuthenticated;
+  if (elements.dashboardView) elements.dashboardView.hidden = !isAuthenticated;
+  if (elements.logoutButton) elements.logoutButton.hidden = !isAuthenticated;
+  if (!isAuthenticated) elements.currentUser.textContent = '로그인 필요';
 }
 
 async function ensureSeeded() {
@@ -248,9 +256,7 @@ function attachListeners() {
 }
 
 function teardownListeners() {
-  state.unsubs.forEach((unsub) => {
-    try { unsub(); } catch {}
-  });
+  state.unsubs.forEach((unsub) => { try { unsub(); } catch {} });
   state.unsubs = [];
 }
 
@@ -261,10 +267,30 @@ function renderSummary() {
 }
 
 function setActiveTab(tabName) {
+  state.activeTab = tabName;
   elements.tabButtons.forEach((button) => button.classList.toggle('is-active', button.dataset.adminTab === tabName));
-  elements.panels.forEach((panel) => {
-    panel.hidden = panel.dataset.panel !== tabName;
-  });
+  elements.panels.forEach((panel) => { panel.hidden = panel.dataset.panel !== tabName; });
+}
+
+function onMemberFilterClick(event) {
+  const button = event.target.closest('[data-member-filter]');
+  if (!button) return;
+  state.memberFilter = button.dataset.memberFilter;
+  renderMembersList();
+}
+
+function onProjectFilterClick(event) {
+  const button = event.target.closest('[data-project-filter]');
+  if (!button) return;
+  state.projectFilter = button.dataset.projectFilter;
+  renderProjectsList();
+}
+
+function onPublicationFilterClick(event) {
+  const button = event.target.closest('[data-publication-filter]');
+  if (!button) return;
+  state.publicationFilter = button.dataset.publicationFilter;
+  renderPublicationsList();
 }
 
 function onMemberPhotoChange(event) {
@@ -280,9 +306,7 @@ function clearMemberPhoto() {
   if (state.pendingMemberPreview) URL.revokeObjectURL(state.pendingMemberPreview);
   state.pendingMemberPreview = '';
   if (elements.memberPhotoInput) elements.memberPhotoInput.value = '';
-  if (state.editingMember) {
-    state.editingMember.photoUrl = '';
-  }
+  if (state.editingMember) state.editingMember.photoUrl = '';
   renderMemberPhotoPreview();
 }
 
@@ -316,6 +340,11 @@ function resetPublicationForm() {
   elements.publicationTitle.textContent = '논문 추가';
 }
 
+function extractYearFromPeriod(period = '') {
+  const years = String(period || '').match(/(?:19|20)\d{2}/g);
+  return years?.length ? years[years.length - 1] : '';
+}
+
 async function handleMemberSubmit(event) {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
@@ -332,14 +361,12 @@ async function handleMemberSubmit(event) {
     currentPosition: String(formData.get('currentPosition') || '').trim(),
     status: String(formData.get('status') || 'enrolled'),
     graduationYear: String(formData.get('graduationYear') || '').trim(),
-    sortOrder: Number(formData.get('sortOrder') || 999),
+    startYear: String(formData.get('startYear') || '').trim(),
+    sortOrder: state.editingMember?.sortOrder ?? 999,
     photoUrl: state.editingMember?.photoUrl || '',
     photoPath: state.editingMember?.photoPath || ''
   };
-  if (!payload.name) {
-    showNotice('이름을 입력해주세요.', 'warning');
-    return;
-  }
+  if (!payload.name) return showNotice('이름을 입력해주세요.', 'warning');
   try {
     if (state.pendingMemberFile) {
       const upload = await uploadMemberPhoto(state.pendingMemberFile);
@@ -349,10 +376,7 @@ async function handleMemberSubmit(event) {
       payload.photoUrl = upload.photoUrl;
       payload.photoPath = upload.photoPath;
     }
-    if (payload.status !== 'alumni') {
-      payload.graduationYear = '';
-      payload.currentPosition = payload.currentPosition;
-    }
+    if (payload.status !== 'alumni') payload.graduationYear = '';
     await saveDocument(COLLECTIONS.members, state.editingMember?.id || null, payload);
     showNotice('멤버 정보가 저장되었습니다.', 'success');
     resetMemberForm();
@@ -365,22 +389,17 @@ async function handleMemberSubmit(event) {
 async function handleProjectSubmit(event) {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
+  const period = String(formData.get('period') || '').trim();
   const payload = {
     title: String(formData.get('title') || '').trim(),
     description: String(formData.get('description') || '').trim(),
     status: String(formData.get('status') || 'ongoing'),
-    period: String(formData.get('period') || '').trim(),
-    year: String(formData.get('year') || '').trim(),
-    tags: String(formData.get('tags') || '')
-      .split(',')
-      .map((tag) => tag.trim())
-      .filter(Boolean),
-    sortOrder: Number(formData.get('sortOrder') || 999)
+    period,
+    year: extractYearFromPeriod(period),
+    tags: String(formData.get('tags') || '').split(',').map((tag) => tag.trim()).filter(Boolean),
+    sortOrder: state.editingProject?.sortOrder ?? 999
   };
-  if (!payload.title) {
-    showNotice('과제 제목을 입력해주세요.', 'warning');
-    return;
-  }
+  if (!payload.title) return showNotice('과제 제목을 입력해주세요.', 'warning');
   try {
     await saveDocument(COLLECTIONS.projects, state.editingProject?.id || null, payload);
     showNotice('과제 정보가 저장되었습니다.', 'success');
@@ -399,15 +418,13 @@ async function handlePublicationSubmit(event) {
     authors: String(formData.get('authors') || '').trim(),
     journal: String(formData.get('journal') || '').trim(),
     year: String(formData.get('year') || '').trim(),
+    month: String(formData.get('month') || '').trim(),
     doi: String(formData.get('doi') || '').trim(),
     url: String(formData.get('url') || '').trim(),
     abstract: String(formData.get('abstract') || '').trim(),
-    sortOrder: Number(formData.get('sortOrder') || 999)
+    sortOrder: state.editingPublication?.sortOrder ?? 999
   };
-  if (!payload.title) {
-    showNotice('논문 제목을 입력해주세요.', 'warning');
-    return;
-  }
+  if (!payload.title) return showNotice('논문 제목을 입력해주세요.', 'warning');
   try {
     await saveDocument(COLLECTIONS.publications, state.editingPublication?.id || null, payload);
     showNotice('논문 정보가 저장되었습니다.', 'success');
@@ -426,72 +443,102 @@ function renderAllLists() {
   renderMemberPhotoPreview();
 }
 
+function renderMemberFilterTabs() {
+  const filters = [
+    ['pi', '연구책임자 / 교수'],
+    ['research', '연구교수 / 박사후연구원'],
+    ['phd', '박사과정'],
+    ['ms', '석사과정'],
+    ['undergrad', '학부연구생'],
+    ['alumni', '졸업생']
+  ];
+  elements.memberFilterTabs.innerHTML = filters.map(([value, label]) => `
+    <button type="button" class="admin-subtab${state.memberFilter === value ? ' is-active' : ''}" data-member-filter="${escapeHTML(value)}">${escapeHTML(label)}</button>
+  `).join('');
+}
+
+function memberItemMarkup(member) {
+  const detailBits = [
+    memberGroupLabel(member.group, 'kr'),
+    member.course && member.group === 'graduateStudent' ? memberCourseLabel(member.course, 'kr') : '',
+    member.track && member.track !== 'none' ? memberTrackLabel(member.track, 'kr') : '',
+    memberYearLabel(member, 'kr')
+  ].filter(Boolean).join(' · ');
+
+  return `
+    <article class="admin-item-card">
+      <div class="admin-item-main">
+        <div class="admin-item-thumb">${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(member.name)}">` : `<span>${escapeHTML(getInitials(member.name))}</span>`}</div>
+        <div>
+          <div class="card-topline">
+            <strong>${escapeHTML(member.name)}</strong>
+            <span class="status-badge ${member.status === 'alumni' ? 'is-alumni' : ''}">${escapeHTML(memberStatusLabel(member, 'kr'))}</span>
+          </div>
+          ${detailBits ? `<p class="muted">${escapeHTML(detailBits)}</p>` : ''}
+          ${member.email ? `<p>${escapeHTML(member.email)}</p>` : ''}
+          ${member.currentPosition ? `<p>${escapeHTML(member.currentPosition)}</p>` : member.researchInterest ? `<p>${escapeHTML(member.researchInterest)}</p>` : ''}
+          ${member.startYear ? `<p class="muted">입학/입사 연도 · ${escapeHTML(member.startYear)}</p>` : ''}
+          ${member.graduationYear ? `<p class="muted">졸업 연도 · ${escapeHTML(member.graduationYear)}</p>` : ''}
+        </div>
+      </div>
+      <div class="admin-item-actions">
+        <button type="button" class="small-button" data-member-action="edit" data-id="${escapeHTML(member.id)}">수정</button>
+        ${member.status === 'alumni'
+          ? `<button type="button" class="small-button" data-member-action="restore" data-id="${escapeHTML(member.id)}">재학전환</button>`
+          : `<button type="button" class="small-button" data-member-action="graduate" data-id="${escapeHTML(member.id)}">졸업처리</button>`}
+        <button type="button" class="small-button is-danger" data-member-action="delete" data-id="${escapeHTML(member.id)}">삭제</button>
+      </div>
+    </article>
+  `;
+}
+
 function renderMembersList() {
   if (!elements.memberList) return;
+  renderMemberFilterTabs();
   if (!state.members.length) {
     elements.memberList.innerHTML = `<div class="admin-empty">저장된 멤버가 없습니다.</div>`;
     return;
   }
-  elements.memberList.innerHTML = state.members
-    .map((member) => `
-      <article class="admin-item-card">
-        <div class="admin-item-main">
-          <div class="admin-item-thumb">${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(member.name)}">` : `<span>${escapeHTML(getInitials(member.name))}</span>`}</div>
-          <div>
-            <div class="card-topline">
-              <strong>${escapeHTML(member.name)}</strong>
-              <span class="status-badge ${member.status === 'alumni' ? 'is-alumni' : ''}">${escapeHTML(memberStatusLabel(member, 'kr'))}</span>
-            </div>
-            <p class="muted">${escapeHTML([member.group === 'pi' ? '연구책임자' : member.group === 'researchProfessor' ? '연구교수' : member.group === 'studentResearcher' ? '학생연구원' : member.group === 'alumni' ? '졸업생' : '대학원생', memberTrackLabel(member.track, 'kr'), memberCourseLabel(member.course, 'kr')].filter(Boolean).join(' · '))}</p>
-            ${member.email ? `<p>${escapeHTML(member.email)}</p>` : ''}
-            ${member.currentPosition ? `<p>${escapeHTML(member.currentPosition)}</p>` : member.researchInterest ? `<p>${escapeHTML(member.researchInterest)}</p>` : ''}
-            ${member.graduationYear ? `<p class="muted">졸업 연도 · ${escapeHTML(member.graduationYear)}</p>` : ''}
-          </div>
-        </div>
-        <div class="admin-item-actions">
-          <button type="button" class="small-button" data-member-action="edit" data-id="${escapeHTML(member.id)}">수정</button>
-          ${member.status === 'alumni' ? `<button type="button" class="small-button" data-member-action="restore" data-id="${escapeHTML(member.id)}">재학 전환</button>` : `<button type="button" class="small-button" data-member-action="graduate" data-id="${escapeHTML(member.id)}">졸업 처리</button>`}
-          <button type="button" class="small-button is-danger" data-member-action="delete" data-id="${escapeHTML(member.id)}">삭제</button>
-        </div>
-      </article>
-    `)
-    .join('');
-}
 
-function renderProjectsList() {
-  if (!elements.projectList) return;
-  if (!state.projects.length) {
-    elements.projectList.innerHTML = `<div class="admin-empty">저장된 과제가 없습니다.</div>`;
-    return;
+  const enrolled = state.members.filter((item) => item.status !== 'alumni');
+  const alumni = state.members.filter((item) => item.status === 'alumni');
+  let sections = [];
+
+  if (state.memberFilter === 'pi') {
+    const items = enrolled.filter((item) => item.group === 'pi');
+    sections.push(adminSection('연구책임자 / 교수', items.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+  } else if (state.memberFilter === 'research') {
+    const items = enrolled.filter((item) => item.group === 'researchProfessor');
+    sections.push(adminSection('연구교수 / 박사후연구원', items.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+  } else if (state.memberFilter === 'phd') {
+    const full = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'phd' && item.track === 'fullTime');
+    const part = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'phd' && item.track === 'partTime');
+    sections.push(adminSection('박사과정 · 풀타임', full.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    sections.push(adminSection('박사과정 · 파트타임', part.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+  } else if (state.memberFilter === 'ms') {
+    const full = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'ms' && item.track === 'fullTime');
+    const part = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'ms' && item.track === 'partTime');
+    sections.push(adminSection('석사과정 · 풀타임', full.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    sections.push(adminSection('석사과정 · 파트타임', part.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+  } else if (state.memberFilter === 'undergrad') {
+    const items = enrolled.filter((item) => item.group === 'studentResearcher');
+    sections.push(adminSection('학부연구생', items.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+  } else if (state.memberFilter === 'alumni') {
+    const grouped = Object.entries(groupBy(alumni, (item) => item.graduationYear || '이전'))
+      .sort((a, b) => Number(String(b[0]).match(/\d{4}/)?.[0] || 0) - Number(String(a[0]).match(/\d{4}/)?.[0] || 0));
+    sections = grouped.map(([year, items]) => adminSection(year, items.map(memberItemMarkup).join('') || emptyAdmin('없음')));
   }
-  const ongoing = state.projects.filter((item) => item.status === 'ongoing');
-  const completed = state.projects.filter((item) => item.status === 'completed');
-  elements.projectList.innerHTML = [
-    adminSection('진행 중', ongoing.map(projectItemMarkup).join('') || `<div class="admin-empty">없음</div>`),
-    adminSection('종료', completed.map(projectItemMarkup).join('') || `<div class="admin-empty">없음</div>`)
-  ].join('');
+
+  elements.memberList.innerHTML = sections.join('');
 }
 
-function renderPublicationsList() {
-  if (!elements.publicationList) return;
-  if (!state.publications.length) {
-    elements.publicationList.innerHTML = `<div class="admin-empty">저장된 논문이 없습니다.</div>`;
-    return;
-  }
-  const grouped = {};
-  state.publications.forEach((item) => {
-    const year = item.year || '기타';
-    if (!grouped[year]) grouped[year] = [];
-    grouped[year].push(item);
-  });
-  elements.publicationList.innerHTML = Object.entries(grouped)
-    .sort((a, b) => Number(b[0].match(/\d{4}/)?.[0] || 0) - Number(a[0].match(/\d{4}/)?.[0] || 0))
-    .map(([year, items]) => adminSection(year, items.map(publicationItemMarkup).join('')))
-    .join('');
-}
-
-function adminSection(title, content) {
-  return `<section class="admin-list-section"><h3>${escapeHTML(title)}</h3>${content}</section>`;
+function renderProjectFilterTabs() {
+  const years = [...new Set(state.projects.filter((item) => item.status === 'completed').map((item) => item.year).filter(Boolean))]
+    .sort((a, b) => Number(b) - Number(a));
+  const filters = [['all', '전체'], ['ongoing', '진행중'], ...years.map((year) => [year, year])];
+  elements.projectFilterTabs.innerHTML = filters.map(([value, label]) => `
+    <button type="button" class="admin-subtab${state.projectFilter === value ? ' is-active' : ''}" data-project-filter="${escapeHTML(value)}">${escapeHTML(label)}</button>
+  `).join('');
 }
 
 function projectItemMarkup(project) {
@@ -515,12 +562,47 @@ function projectItemMarkup(project) {
   `;
 }
 
+function renderProjectsList() {
+  if (!elements.projectList) return;
+  renderProjectFilterTabs();
+  if (!state.projects.length) {
+    elements.projectList.innerHTML = `<div class="admin-empty">저장된 과제가 없습니다.</div>`;
+    return;
+  }
+  const ongoing = state.projects.filter((item) => item.status === 'ongoing');
+  const completed = state.projects.filter((item) => item.status === 'completed');
+  let sections = [];
+  if (state.projectFilter === 'all') {
+    sections.push(adminSection('진행 중', ongoing.map(projectItemMarkup).join('') || emptyAdmin('없음')));
+    const grouped = Object.entries(groupBy(completed, (item) => item.year || '이전'))
+      .sort((a, b) => Number(b[0]) - Number(a[0]));
+    sections.push(...grouped.map(([year, items]) => adminSection(year, items.map(projectItemMarkup).join('') || emptyAdmin('없음'))));
+  } else if (state.projectFilter === 'ongoing') {
+    sections.push(adminSection('진행 중', ongoing.map(projectItemMarkup).join('') || emptyAdmin('없음')));
+  } else {
+    const yearItems = completed.filter((item) => String(item.year || '') === String(state.projectFilter));
+    sections.push(adminSection(String(state.projectFilter), yearItems.map(projectItemMarkup).join('') || emptyAdmin('없음')));
+  }
+  elements.projectList.innerHTML = sections.join('');
+}
+
+function renderPublicationFilterTabs() {
+  const years = [...new Set(state.publications.map((item) => item.year).filter(Boolean))]
+    .sort((a, b) => Number(String(b).match(/\d{4}/)?.[0] || 0) - Number(String(a).match(/\d{4}/)?.[0] || 0));
+  const filters = [['all', '전체'], ...years.map((year) => [year, year])];
+  elements.publicationFilterTabs.innerHTML = filters.map(([value, label]) => `
+    <button type="button" class="admin-subtab${state.publicationFilter === value ? ' is-active' : ''}" data-publication-filter="${escapeHTML(value)}">${escapeHTML(label)}</button>
+  `).join('');
+}
+
 function publicationItemMarkup(item) {
+  const ym = [item.year, item.month ? `${Number(item.month)}월` : ''].filter(Boolean).join(' · ');
   return `
     <article class="admin-item-card">
       <div class="admin-item-main">
         <div>
           <div class="card-topline"><strong>${escapeHTML(item.title)}</strong></div>
+          ${ym ? `<p class="muted">${escapeHTML(ym)}</p>` : ''}
           <p class="muted">${escapeHTML(item.authors)}</p>
           <p>${escapeHTML(item.journal)}${item.doi ? ` · ${escapeHTML(item.doi)}` : ''}</p>
         </div>
@@ -533,16 +615,40 @@ function publicationItemMarkup(item) {
   `;
 }
 
+function renderPublicationsList() {
+  if (!elements.publicationList) return;
+  renderPublicationFilterTabs();
+  if (!state.publications.length) {
+    elements.publicationList.innerHTML = `<div class="admin-empty">저장된 논문이 없습니다.</div>`;
+    return;
+  }
+  let groups;
+  if (state.publicationFilter === 'all') {
+    groups = Object.entries(groupBy(state.publications, (item) => item.year || '기타'))
+      .sort((a, b) => Number(String(b[0]).match(/\d{4}/)?.[0] || 0) - Number(String(a[0]).match(/\d{4}/)?.[0] || 0));
+  } else {
+    groups = [[state.publicationFilter, state.publications.filter((item) => String(item.year) === String(state.publicationFilter))]];
+  }
+  elements.publicationList.innerHTML = groups.map(([year, items]) => adminSection(year, items.map(publicationItemMarkup).join('') || emptyAdmin('없음'))).join('');
+}
+
+function adminSection(title, content) {
+  return `<section class="admin-list-section"><h3>${escapeHTML(title)}</h3>${content}</section>`;
+}
+
+function emptyAdmin(text) {
+  return `<div class="admin-empty">${escapeHTML(text)}</div>`;
+}
+
 function onMemberListClick(event) {
   const button = event.target.closest('[data-member-action]');
   if (!button) return;
-  const action = button.dataset.memberAction;
   const member = state.members.find((item) => item.id === button.dataset.id);
   if (!member) return;
-  if (action === 'edit') return loadMemberForm(member);
-  if (action === 'graduate') return quickGraduate(member);
-  if (action === 'restore') return quickRestore(member);
-  if (action === 'delete') return removeMember(member);
+  if (button.dataset.memberAction === 'edit') return loadMemberForm(member);
+  if (button.dataset.memberAction === 'graduate') return quickGraduate(member);
+  if (button.dataset.memberAction === 'restore') return quickRestore(member);
+  if (button.dataset.memberAction === 'delete') return removeMember(member);
 }
 
 function onProjectListClick(event) {
@@ -567,19 +673,19 @@ function loadMemberForm(member) {
   state.editingMember = member;
   elements.memberTitle.textContent = '멤버 수정';
   const form = elements.memberForm;
-  form.name.value = member.name || '';
-  form.group.value = member.group || 'graduateStudent';
-  form.track.value = member.track || 'none';
-  form.course.value = member.course || 'ms';
-  form.email.value = member.email || '';
-  form.bio.value = member.bio || '';
-  form.education.value = member.education || '';
-  form.experience.value = member.experience || '';
-  form.researchInterest.value = member.researchInterest || '';
-  form.currentPosition.value = member.currentPosition || '';
-  form.status.value = member.status || 'enrolled';
-  form.graduationYear.value = member.graduationYear || '';
-  form.sortOrder.value = member.sortOrder || '';
+  setFormValue(form, 'name', member.name || '');
+  setFormValue(form, 'group', member.group || 'graduateStudent');
+  setFormValue(form, 'track', member.track || 'none');
+  setFormValue(form, 'course', member.course || 'ms');
+  setFormValue(form, 'email', member.email || '');
+  setFormValue(form, 'bio', member.bio || '');
+  setFormValue(form, 'education', member.education || '');
+  setFormValue(form, 'experience', member.experience || '');
+  setFormValue(form, 'researchInterest', member.researchInterest || '');
+  setFormValue(form, 'currentPosition', member.currentPosition || '');
+  setFormValue(form, 'status', member.status || 'enrolled');
+  setFormValue(form, 'graduationYear', member.graduationYear || '');
+  setFormValue(form, 'startYear', member.startYear || '');
   renderMemberPhotoPreview();
 }
 
@@ -587,27 +693,25 @@ function loadProjectForm(project) {
   state.editingProject = project;
   elements.projectTitle.textContent = '과제 수정';
   const form = elements.projectForm;
-  form.title.value = project.title || '';
-  form.description.value = project.description || '';
-  form.status.value = project.status || 'ongoing';
-  form.period.value = project.period || '';
-  form.year.value = project.year || '';
-  form.tags.value = (project.tags || []).join(', ');
-  form.sortOrder.value = project.sortOrder || '';
+  setFormValue(form, 'title', project.title || '');
+  setFormValue(form, 'description', project.description || '');
+  setFormValue(form, 'status', project.status || 'ongoing');
+  setFormValue(form, 'period', project.period || '');
+  setFormValue(form, 'tags', (project.tags || []).join(', '));
 }
 
 function loadPublicationForm(item) {
   state.editingPublication = item;
   elements.publicationTitle.textContent = '논문 수정';
   const form = elements.publicationForm;
-  form.title.value = item.title || '';
-  form.authors.value = item.authors || '';
-  form.journal.value = item.journal || '';
-  form.year.value = item.year || '';
-  form.doi.value = item.doi || '';
-  form.url.value = item.url || '';
-  form.abstract.value = item.abstract || '';
-  form.sortOrder.value = item.sortOrder || '';
+  setFormValue(form, 'title', item.title || '');
+  setFormValue(form, 'authors', item.authors || '');
+  setFormValue(form, 'journal', item.journal || '');
+  setFormValue(form, 'year', item.year || '');
+  setFormValue(form, 'month', item.month || '');
+  setFormValue(form, 'doi', item.doi || '');
+  setFormValue(form, 'url', item.url || '');
+  setFormValue(form, 'abstract', item.abstract || '');
 }
 
 async function quickGraduate(member) {
@@ -652,7 +756,5 @@ function showNotice(message, tone = 'info') {
   target.className = `notice-banner is-${tone}`;
   target.hidden = false;
   window.clearTimeout(showNotice.timer);
-  showNotice.timer = window.setTimeout(() => {
-    target.hidden = true;
-  }, 3600);
+  showNotice.timer = window.setTimeout(() => { target.hidden = true; }, 3600);
 }

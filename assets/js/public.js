@@ -10,13 +10,13 @@ import {
   lastUpdated,
   formatDate,
   resolvePublicationLink,
-  memberGroupLabel,
-  memberTrackLabel,
   memberCourseLabel,
+  memberTrackLabel,
   projectStatusLabel,
   mergeMembers,
   mergeProjects,
-  mergePublications
+  mergePublications,
+  memberYearLabel
 } from './utils.js';
 import { hasFirebaseConfig, fetchCollection, COLLECTIONS } from './firebase.js';
 
@@ -26,15 +26,8 @@ const lang = body.dataset.lang || 'kr';
 const root = body.dataset.root || '.';
 const copy = SITE_COPY[lang];
 
-const state = {
-  members: sortMembers(FALLBACK_MEMBERS),
-  projects: sortProjects(FALLBACK_PROJECTS),
-  publications: sortPublications(FALLBACK_PUBLICATIONS),
-  publicationQuery: ''
-};
-
 const qs = (selector) => document.querySelector(selector);
-const qsa = (selector) => Array.from(document.querySelectorAll(selector));
+const qsa = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
 
 const focusImages = [
   'assets/images/background/hero-1.jpg',
@@ -42,35 +35,20 @@ const focusImages = [
   'assets/images/background/hero-3.jpg'
 ].map((path) => rootAsset(path, root));
 
-const GENERIC_ONGOING_LABELS = new Set(['진행중', '진행 중', 'in progress', 'inprogress', 'ongoing']);
+const state = {
+  members: sortMembers(FALLBACK_MEMBERS),
+  projects: sortProjects(FALLBACK_PROJECTS),
+  publications: sortPublications(FALLBACK_PUBLICATIONS),
+  publicationQuery: ''
+};
 
-function compactText(value = '') {
-  return String(value || '').trim().toLowerCase().replace(/[\s._-]+/g, ' ');
-}
-
-function getProjectPeriodDisplay(project = {}) {
-  const raw = String(project.period || '').trim();
-  if (!raw) return '';
-  const normalized = compactText(raw);
-  if (GENERIC_ONGOING_LABELS.has(normalized)) return '';
-  if (project.status === 'completed' && raw === String(project.year || '').trim()) return raw;
-  return raw;
-}
-
-function yearSort(label) {
-  const match = String(label).match(/\d{4}/);
-  return match ? Number(match[0]) : 0;
-}
-
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   setupHeader();
   setupRevealAnimations();
-  setupAccordions();
   setupSearch();
   if (page === 'home') setupHeroSlider();
-  hydrate().finally(() => {
-    renderPage();
-  });
+  await hydrate();
+  renderPage();
 });
 
 async function hydrate() {
@@ -90,24 +68,13 @@ async function hydrate() {
 }
 
 function renderPage() {
-  switch (page) {
-    case 'home':
-      renderHome();
-      break;
-    case 'members':
-      renderMembers();
-      break;
-    case 'projects':
-      renderProjects();
-      break;
-    case 'publications':
-      renderPublications();
-      break;
-    default:
-      break;
-  }
+  if (page === 'home') renderHome();
+  if (page === 'members') renderMembers();
+  if (page === 'projects') renderProjects();
+  if (page === 'publications') renderPublications();
   setUpdatedDate();
   setupRevealAnimations();
+  setupAccordions();
   setupCountAnimations();
 }
 
@@ -175,9 +142,9 @@ function setupCountAnimations() {
     );
   }
   qsa('.count-up').forEach((item) => {
+    item.textContent = '0';
     if (item.dataset.countBound) return;
     item.dataset.countBound = 'true';
-    item.textContent = '0';
     setupCountAnimations.observer.observe(item);
   });
 }
@@ -189,9 +156,8 @@ function animateCount(el, target) {
     const progress = Math.min((now - start) / duration, 1);
     const eased = 1 - Math.pow(1 - progress, 3);
     el.textContent = String(Math.round(target * eased));
-    if (progress < 1 && el.dataset.counting === 'true') {
-      requestAnimationFrame(step);
-    } else {
+    if (progress < 1 && el.dataset.counting === 'true') requestAnimationFrame(step);
+    else {
       el.textContent = String(target);
       el.dataset.counting = 'false';
     }
@@ -220,19 +186,25 @@ function renderHome() {
   const ongoingCount = state.projects.filter((item) => item.status === 'ongoing').length;
   const publicationCount = state.publications.length;
 
-  qs('#hero-stat-grid').innerHTML = [
-    { value: activeMembers, label: copy.stats.current },
-    { value: alumniCount, label: copy.stats.alumni },
-    { value: ongoingCount, label: copy.stats.ongoing },
-    { value: publicationCount, label: copy.stats.publications }
-  ].map((item) => `
+  const heroStat = qs('#hero-stat-grid');
+  if (heroStat) {
+    heroStat.innerHTML = [
+      { value: activeMembers, label: copy.stats.current },
+      { value: alumniCount, label: copy.stats.alumni },
+      { value: ongoingCount, label: copy.stats.ongoing },
+      { value: publicationCount, label: copy.stats.publications }
+    ].map((item) => `
       <article class="stat-card reveal">
         <strong class="count-up" data-target="${escapeHTML(item.value)}">0</strong>
         <span>${escapeHTML(item.label)}</span>
       </article>
     `).join('');
+  }
 
-  qs('#focus-grid').innerHTML = copy.focusCards.map((item, index) => `
+  qs('#focus-grid')?.replaceChildren();
+  const focusGrid = qs('#focus-grid');
+  if (focusGrid) {
+    focusGrid.innerHTML = copy.focusCards.map((item, index) => `
       <article class="focus-card reveal">
         <div class="focus-card-media"><img src="${escapeHTML(focusImages[index])}" alt="${escapeHTML(item.label)}"></div>
         <div class="focus-card-copy">
@@ -242,9 +214,11 @@ function renderHome() {
         </div>
       </article>
     `).join('');
+  }
 
   const ongoingPreview = state.projects.filter((item) => item.status === 'ongoing').slice(0, 3);
-  qs('#ongoing-preview-grid').innerHTML = ongoingPreview.map((project) => projectCard(project, { compact: true })).join('');
+  const previewGrid = qs('#ongoing-preview-grid');
+  if (previewGrid) previewGrid.innerHTML = ongoingPreview.map((project) => projectCard(project, { compact: true })).join('');
 }
 
 function renderMembers() {
@@ -252,109 +226,154 @@ function renderMembers() {
   const pi = members.find((item) => item.group === 'pi' && item.status !== 'alumni');
   const researchProfessors = members.filter((item) => item.group === 'researchProfessor' && item.status !== 'alumni');
   const graduateStudents = members.filter((item) => item.group === 'graduateStudent' && item.status !== 'alumni');
-  const studentResearchers = members.filter((item) => item.group === 'studentResearcher' && item.status !== 'alumni');
+  const undergrads = members.filter((item) => item.group === 'studentResearcher' && item.status !== 'alumni');
   const alumni = members.filter((item) => item.status === 'alumni');
 
-  qs('#page-stat-grid').innerHTML = [
-    { value: members.filter((item) => item.status !== 'alumni').length, label: copy.stats.current },
-    { value: alumni.length, label: copy.stats.alumni },
-    { value: researchProfessors.length, label: copy.researchProfessorSection },
-    { value: graduateStudents.length, label: copy.graduateStudent }
-  ].map((item) => `
+  const pageStats = qs('#page-stat-grid');
+  if (pageStats) {
+    pageStats.innerHTML = [
+      { value: members.filter((item) => item.status !== 'alumni').length, label: copy.stats.current },
+      { value: alumni.length, label: copy.stats.alumni },
+      { value: researchProfessors.length, label: copy.researchProfessor },
+      { value: graduateStudents.length, label: copy.graduateStudent }
+    ].map((item) => `
       <article class="stat-card reveal">
         <strong class="count-up" data-target="${escapeHTML(item.value)}">0</strong>
         <span>${escapeHTML(item.label)}</span>
       </article>
     `).join('');
-
-  if (pi) {
-    qs('#pi-card').innerHTML = `
-      <div class="pi-card-head">
-        <span class="eyebrow">${escapeHTML(copy.pi)}</span>
-        <h2>${escapeHTML(pi.name)}</h2>
-        <p class="pi-title">${escapeHTML(pi.bio || (lang === 'en' ? 'Professor, Chungnam National University' : '충남대학교 교수'))}</p>
-      </div>
-      <div class="pi-card-grid">
-        <article>
-          <h3>${escapeHTML(copy.education)}</h3>
-          <p>${escapeHTML(pi.education)}</p>
-        </article>
-        <article>
-          <h3>${escapeHTML(copy.experience)}</h3>
-          <p>${escapeHTML(pi.experience)}</p>
-        </article>
-        <article>
-          <h3>${escapeHTML(copy.interest)}</h3>
-          <p>${escapeHTML(pi.researchInterest)}</p>
-        </article>
-        <article>
-          <h3>${escapeHTML(copy.contact)}</h3>
-          <p><a class="member-link" href="mailto:${escapeHTML(pi.email)}">${escapeHTML(pi.email)}</a></p>
-        </article>
-      </div>
-    `;
   }
 
-  qs('#research-professor-list').innerHTML = researchProfessors.length
-    ? `<div class="member-grid member-grid--wide">${researchProfessors.map((item) => memberCard(item)).join('')}</div>`
-    : emptyState(copy.noMembers);
+  const piCard = qs('#pi-card');
+  if (piCard) {
+    if (!pi) {
+      piCard.innerHTML = emptyState(copy.noMembers);
+    } else {
+      piCard.innerHTML = `
+        <div class="pi-card-layout">
+          <div class="pi-photo">
+            ${pi.photoUrl ? `<img src="${escapeHTML(rootAsset(pi.photoUrl, root))}" alt="${escapeHTML(pi.name)}">` : `<span>${escapeHTML(getInitials(pi.name))}</span>`}
+          </div>
+          <div class="pi-card-main">
+            <div class="pi-card-head">
+              <span class="eyebrow">${escapeHTML(copy.pi)}</span>
+              <h2>${escapeHTML(pi.name)}</h2>
+              <p class="pi-title">${escapeHTML(pi.bio || (lang === 'en' ? 'Professor, Chungnam National University' : '충남대학교 교수'))}</p>
+              ${memberYearLabel(pi, lang) ? `<div class="member-chip-row"><span class="member-chip member-chip--soft">${escapeHTML(memberYearLabel(pi, lang))}</span></div>` : ''}
+            </div>
+            <div class="pi-card-grid">
+              <article>
+                <h3>${escapeHTML(copy.education)}</h3>
+                <p>${escapeHTML(pi.education)}</p>
+              </article>
+              <article>
+                <h3>${escapeHTML(copy.experience)}</h3>
+                <p>${escapeHTML(pi.experience)}</p>
+              </article>
+              <article>
+                <h3>${escapeHTML(copy.interest)}</h3>
+                <p>${escapeHTML(pi.researchInterest)}</p>
+              </article>
+              <article>
+                <h3>${escapeHTML(copy.contact)}</h3>
+                <p><a class="member-link" href="mailto:${escapeHTML(pi.email)}">${escapeHTML(pi.email)}</a></p>
+              </article>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  }
 
-  const gradSections = [
-    { title: copy.phdFullTime, items: graduateStudents.filter((item) => item.course === 'phd' && item.track === 'fullTime') },
-    { title: copy.phdPartTime, items: graduateStudents.filter((item) => item.course === 'phd' && item.track === 'partTime') },
-    { title: copy.msFullTime, items: graduateStudents.filter((item) => item.course === 'ms' && item.track === 'fullTime') },
-    { title: copy.msPartTime, items: graduateStudents.filter((item) => item.course === 'ms' && item.track === 'partTime') }
-  ];
+  const researchList = qs('#research-professor-list');
+  if (researchList) {
+    researchList.innerHTML = researchProfessors.length
+      ? `<div class="member-grid member-grid--wide">${researchProfessors.map((item) => memberCard(item)).join('')}</div>`
+      : emptyState(copy.noMembers);
+  }
 
-  qs('#graduate-accordion').innerHTML = gradSections.map((section, index) => {
-    const content = section.items.length ? `<div class="member-grid">${section.items.map((item) => memberCard(item)).join('')}</div>` : emptyState(copy.noMembers);
-    return accordionMarkup(section.title, section.items.length, content, index === 0);
-  }).join('');
+  const graduateAccordion = qs('#graduate-accordion');
+  if (graduateAccordion) {
+    const gradSections = [
+      { title: copy.phdFullTime, items: graduateStudents.filter((item) => item.course === 'phd' && item.track === 'fullTime') },
+      { title: copy.phdPartTime, items: graduateStudents.filter((item) => item.course === 'phd' && item.track === 'partTime') },
+      { title: copy.msFullTime, items: graduateStudents.filter((item) => item.course === 'ms' && item.track === 'fullTime') },
+      { title: copy.msPartTime, items: graduateStudents.filter((item) => item.course === 'ms' && item.track === 'partTime') }
+    ];
+    graduateAccordion.innerHTML = gradSections.map((section, index) => {
+      const content = section.items.length
+        ? `<div class="member-grid">${section.items.map((item) => memberCard(item)).join('')}</div>`
+        : emptyState(copy.noMembers);
+      return accordionMarkup(section.title, section.items.length, content, index === 0);
+    }).join('');
+  }
 
-  qs('#student-researcher-accordion').innerHTML = accordionMarkup(
-    copy.studentResearcherSection,
-    studentResearchers.length,
-    studentResearchers.length ? `<div class="member-grid member-grid--wide">${studentResearchers.map((item) => memberCard(item)).join('')}</div>` : emptyState(copy.noMembers),
-    true
-  );
+  const researcherAccordion = qs('#student-researcher-accordion');
+  if (researcherAccordion) {
+    researcherAccordion.innerHTML = accordionMarkup(
+      copy.studentResearcherSection,
+      undergrads.length,
+      undergrads.length
+        ? `<div class="member-grid member-grid--wide">${undergrads.map((item) => memberCard(item)).join('')}</div>`
+        : emptyState(copy.noMembers),
+      true
+    );
+  }
 
-  const alumniByYear = Object.entries(groupBy(alumni, (item) => item.graduationYear || (lang === 'en' ? 'Earlier' : '이전')))
-    .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
-  qs('#alumni-accordion').innerHTML = alumniByYear.map(([year, items], index) => {
-    return accordionMarkup(year, items.length, `<div class="member-grid member-grid--alumni">${items.map((item) => alumniCard(item)).join('')}</div>`, index === 0);
-  }).join('');
+  const alumniAccordion = qs('#alumni-accordion');
+  if (alumniAccordion) {
+    const alumniByYear = Object.entries(groupBy(alumni, (item) => item.graduationYear || (lang === 'en' ? 'Earlier' : '이전')))
+      .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
+    alumniAccordion.innerHTML = alumniByYear.map(([year, items], index) => {
+      return accordionMarkup(
+        year,
+        items.length,
+        `<div class="member-grid member-grid--alumni">${items.map((item) => alumniCard(item)).join('')}</div>`,
+        index === 0
+      );
+    }).join('');
+  }
 }
 
 function renderProjects() {
   const ongoing = state.projects.filter((item) => item.status === 'ongoing');
   const completed = state.projects.filter((item) => item.status === 'completed');
-  qs('#project-summary').textContent = lang === 'en'
+  const summary = qs('#project-summary');
+  if (summary) summary.textContent = lang === 'en'
     ? `${ongoing.length} ongoing · ${completed.length} archived`
     : `${ongoing.length}건 진행 중 · ${completed.length}건 종료`;
 
-  qs('#ongoing-project-grid').innerHTML = ongoing.map((project) => projectCard(project)).join('');
+  const ongoingGrid = qs('#ongoing-project-grid');
+  if (ongoingGrid) ongoingGrid.innerHTML = ongoing.map((project) => projectCard(project)).join('');
 
-  const completedByYear = Object.entries(groupBy(completed, (item) => item.year || (lang === 'en' ? 'Earlier' : '이전')))
-    .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
-  qs('#completed-project-accordion').innerHTML = completedByYear.map(([year, items], index) => {
-    return accordionMarkup(year, items.length, `<div class="archive-list">${items.map((item) => archiveProjectItem(item)).join('')}</div>`, index === 0);
-  }).join('');
+  const completedAccordion = qs('#completed-project-accordion');
+  if (completedAccordion) {
+    const completedByYear = Object.entries(groupBy(completed, (item) => item.year || extractYearFromText(item.period) || (lang === 'en' ? 'Earlier' : '이전')))
+      .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
+    completedAccordion.innerHTML = completedByYear.map(([year, items], index) => {
+      return accordionMarkup(year, items.length, `<div class="archive-list">${items.map((item) => archiveProjectItem(item)).join('')}</div>`, index === 0);
+    }).join('');
+  }
 }
 
 function renderPublications() {
   const query = state.publicationQuery.trim().toLowerCase();
   const filtered = !query ? state.publications : state.publications.filter((item) => {
-    const haystack = [item.title, item.authors, item.journal, item.doi, item.url].join(' ').toLowerCase();
+    const haystack = [item.title, item.authors, item.journal, item.doi, item.url, item.year, item.month].join(' ').toLowerCase();
     return haystack.includes(query);
   });
 
-  qs('#publication-summary').textContent = lang === 'en' ? `${filtered.length} publications` : `${filtered.length}편`;
+  const summary = qs('#publication-summary');
+  if (summary) summary.textContent = lang === 'en' ? `${filtered.length} publications` : `${filtered.length}편`;
 
-  const grouped = Object.entries(groupBy(filtered, (item) => item.year || (lang === 'en' ? 'Earlier' : '이전')))
-    .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
-  qs('#publication-accordion').innerHTML = grouped.map(([year, items], index) => {
-    return accordionMarkup(year, items.length, `<div class="publication-list">${items.map((item) => publicationCard(item)).join('')}</div>`, index === 0);
-  }).join('');
+  const publicationAccordion = qs('#publication-accordion');
+  if (publicationAccordion) {
+    const grouped = Object.entries(groupBy(filtered, (item) => item.year || (lang === 'en' ? 'Earlier' : '이전')))
+      .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
+    publicationAccordion.innerHTML = grouped.map(([year, items], index) => {
+      return accordionMarkup(year, items.length, `<div class="publication-list">${items.map((item) => publicationCard(item)).join('')}</div>`, index === 0);
+    }).join('');
+  }
 }
 
 function setupSearch() {
@@ -363,6 +382,7 @@ function setupSearch() {
     renderPublications();
     setUpdatedDate();
     setupRevealAnimations();
+    setupAccordions();
   });
 }
 
@@ -376,12 +396,40 @@ function setUpdatedDate() {
   target.textContent = `${copy.updated} ${formatDate(source, lang === 'en' ? 'en-CA' : 'ko-KR')}`;
 }
 
+function yearSort(label) {
+  const match = String(label).match(/(?:19|20)\d{2}/);
+  return match ? Number(match[0]) : 0;
+}
+
+function extractYearFromText(value = '') {
+  const years = String(value || '').match(/(?:19|20)\d{2}/g);
+  return years?.length ? years[years.length - 1] : '';
+}
+
+function isGenericOngoingPeriod(value = '') {
+  const normalized = String(value || '').trim().toLowerCase().replace(/\s+/g, '');
+  return !normalized || /^(진행중|진행中|inprogress|ongoing)$/.test(normalized);
+}
+
+function getProjectPeriodDisplay(project = {}) {
+  const raw = String(project.period || '').trim();
+  if (!raw) return '';
+  if (isGenericOngoingPeriod(raw)) return '';
+  if (project.status === 'completed' && raw === String(project.year || '').trim()) return raw;
+  return raw;
+}
+
 function memberMetaChips(member) {
   const chips = [];
   if (member.group === 'graduateStudent') {
     if (member.course) chips.push(memberCourseLabel(member.course, lang));
     if (member.track && member.track !== 'none') chips.push(memberTrackLabel(member.track, lang));
   }
+  if (member.group === 'studentResearcher') {
+    chips.push(memberCourseLabel('undergrad', lang));
+  }
+  const years = memberYearLabel(member, lang);
+  if (years) chips.push(years);
   return chips.map((chip) => `<span class="member-chip member-chip--soft">${escapeHTML(chip)}</span>`).join('');
 }
 
@@ -427,14 +475,14 @@ function projectCard(project, { compact = false } = {}) {
         ${period ? `<span class="meta-pill">${escapeHTML(period)}</span>` : ''}
       </div>
       <h3>${escapeHTML(project.title)}</h3>
-      <p>${escapeHTML(project.description)}</p>
+      <p>${escapeHTML(project.description || '')}</p>
       ${!compact && project.tags?.length ? `<div class="tag-row">${project.tags.map((tag) => `<span>${escapeHTML(tag)}</span>`).join('')}</div>` : ''}
     </article>
   `;
 }
 
 function archiveProjectItem(project) {
-  const period = getProjectPeriodDisplay(project);
+  const period = getProjectPeriodDisplay(project) || project.year || '';
   return `
     <article class="archive-item reveal">
       <div>
@@ -450,10 +498,11 @@ function archiveProjectItem(project) {
 
 function publicationCard(item) {
   const link = resolvePublicationLink(item);
+  const monthLabel = item.month ? (lang === 'en' ? `Month ${item.month}` : `${Number(item.month)}월`) : '';
   return `
     <article class="publication-card reveal">
       <div class="publication-topline">
-        ${item.year ? `<span class="year-pill">${escapeHTML(item.year)}</span>` : ''}
+        ${monthLabel ? `<span class="year-pill">${escapeHTML(monthLabel)}</span>` : ''}
         ${item.journal ? `<span class="journal-pill">${escapeHTML(item.journal)}</span>` : ''}
       </div>
       <h3>${escapeHTML(item.title)}</h3>
@@ -486,19 +535,19 @@ function emptyState(text) {
 }
 
 function setupAccordions() {
-  if (setupAccordions.bound) return;
-  setupAccordions.bound = true;
-  document.addEventListener('click', (event) => {
-    const button = event.target.closest('.accordion-trigger');
-    if (!button) return;
-    const article = button.closest('.accordion');
-    const panel = article?.querySelector('.accordion-panel');
-    if (!article || !panel) return;
-    const isOpen = !article.classList.contains('is-open');
-    article.classList.toggle('is-open', isOpen);
-    panel.hidden = !isOpen;
-    button.setAttribute('aria-expanded', String(isOpen));
-    const icon = button.querySelector('.accordion-icon');
-    if (icon) icon.textContent = isOpen ? '−' : '+';
+  qsa('.accordion-trigger').forEach((button) => {
+    if (button.dataset.bound === 'true') return;
+    button.dataset.bound = 'true';
+    button.addEventListener('click', () => {
+      const article = button.closest('.accordion');
+      const panel = article?.querySelector('.accordion-panel');
+      if (!article || !panel) return;
+      const isOpen = !article.classList.contains('is-open');
+      article.classList.toggle('is-open', isOpen);
+      panel.hidden = !isOpen;
+      button.setAttribute('aria-expanded', String(isOpen));
+      const icon = button.querySelector('.accordion-icon');
+      if (icon) icon.textContent = isOpen ? '−' : '+';
+    });
   });
 }
