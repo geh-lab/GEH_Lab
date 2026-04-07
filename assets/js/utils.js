@@ -64,6 +64,10 @@ export function publicationSemanticKey(item = {}) {
   return semanticKey(item.doi || item.url || `${item.year || ''}-${item.title || item.id || ''}`);
 }
 
+export function boardSemanticKey(item = {}) {
+  return semanticKey(item.title || item.id || '');
+}
+
 export function groupBy(items = [], keyGetter) {
   return items.reduce((acc, item) => {
     const key = keyGetter(item);
@@ -168,6 +172,20 @@ function mapGroup(value = '', status = '', course = '') {
   return 'graduateStudent';
 }
 
+
+function inferPublicationIndexing(journal = '') {
+  const name = normalizeString(journal);
+  if (!name) return '';
+  const kciKeywords = [
+    'journal of bio-environment control',
+    'the korean society for bio-environment control',
+    'horticultural science and technology',
+    'horticulture journal'
+  ];
+  if (kciKeywords.some((keyword) => name.includes(keyword))) return 'KCI';
+  return 'SCI';
+}
+
 export function normalizeMember(item = {}, options = {}) {
   const preserveMissing = Boolean(options.preserveMissing);
   const courseSource = item.course || item.degree || '';
@@ -196,6 +214,9 @@ export function normalizeMember(item = {}, options = {}) {
     education: item.education || '',
     experience: item.experience || '',
     researchInterest: item.researchInterest || '',
+    coursesInfo: item.coursesInfo || item.courseInfo || '',
+    relatedProjects: item.relatedProjects || '',
+    authorshipNote: item.authorshipNote || '',
     currentPosition: item.currentPosition || item.employment || '',
     status,
     graduationYear: item.graduationYear || '',
@@ -228,6 +249,11 @@ export function normalizeProject(item = {}, options = {}) {
     status: preserveMissing ? explicitStatus : (explicitStatus || 'ongoing'),
     period,
     year,
+    principalInvestigator: item.principalInvestigator || item.pi || '',
+    coResearchers: item.coResearchers || item.coInvestigator || '',
+    figureUrl: item.figureUrl || item.imageUrl || '',
+    figurePath: item.figurePath || '',
+    figureAspect: item.figureAspect || '16:9',
     tags,
     sortOrder,
     createdAt: item.createdAt || undefined,
@@ -248,7 +274,24 @@ export function normalizePublication(item = {}, options = {}) {
     doi: item.doi || '',
     url: item.url || '',
     abstract: item.abstract || '',
+    indexing: item.indexing || inferPublicationIndexing(item.journal || ''),
     sortOrder,
+    createdAt: item.createdAt || undefined,
+    updatedAt: item.updatedAt || undefined
+  };
+}
+
+export function normalizeBoardPost(item = {}, options = {}) {
+  const preserveMissing = Boolean(options.preserveMissing);
+  return {
+    id: item.id || (!preserveMissing ? slugify(item.title || crypto.randomUUID()) : undefined),
+    category: item.category || 'notice',
+    title: item.title || '',
+    description: item.description || item.body || '',
+    linkUrl: item.linkUrl || item.url || '',
+    imageUrl: item.imageUrl || '',
+    imagePath: item.imagePath || '',
+    date: item.date || '',
     createdAt: item.createdAt || undefined,
     updatedAt: item.updatedAt || undefined
   };
@@ -296,6 +339,10 @@ export function mergeProjects(fallbackItems = [], remoteItems = []) {
 
 export function mergePublications(fallbackItems = [], remoteItems = []) {
   return mergeBySemanticKey(fallbackItems, remoteItems, normalizePublication, publicationSemanticKey);
+}
+
+export function mergeBoardPosts(fallbackItems = [], remoteItems = []) {
+  return mergeBySemanticKey(fallbackItems, remoteItems, normalizeBoardPost, boardSemanticKey);
 }
 
 const GROUP_ORDER = { pi: 0, researchProfessor: 1, graduateStudent: 2, studentResearcher: 3, alumni: 4 };
@@ -357,6 +404,16 @@ export function sortPublications(items = []) {
     });
 }
 
+export function sortBoardPosts(items = []) {
+  return [...items]
+    .map((item) => normalizeBoardPost(item))
+    .sort((a, b) => {
+      const byDate = yearValue(b.date) - yearValue(a.date);
+      if (byDate) return byDate;
+      return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
+    });
+}
+
 export function lastUpdated(items = [], fallback) {
   const max = items.reduce((acc, item) => Math.max(acc, toTimeValue(item.updatedAt), toTimeValue(item.createdAt)), 0);
   return max || fallback;
@@ -408,6 +465,12 @@ export function memberCourseLabel(course, lang = 'kr') {
 export function projectStatusLabel(status, lang = 'kr') {
   if (lang === 'en') return status === 'completed' ? 'Archived' : 'In progress';
   return status === 'completed' ? '종료' : '진행중';
+}
+
+export function publicationIndexingLabel(indexing = '', lang = 'kr') {
+  const normalized = normalizeString(indexing).toUpperCase();
+  if (!normalized) return '';
+  return normalized;
 }
 
 export function memberYearLabel(member = {}, lang = 'kr') {

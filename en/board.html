@@ -3,13 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Projects · GEH Lab</title>
-  <meta name="description" content="GEH Lab">
+  <title>Board · GEH Lab</title>
+  <meta name="description" content="GEH Lab Board">
   <link rel="stylesheet" href="../assets/css/styles.css">
 </head>
-<body class="public-body" data-page="projects" data-lang="en" data-root="..">
+<body class="public-body" data-page="board" data-lang="en" data-root="..">
 <div class="site-shell">
-
 <header class="site-header">
   <a href="index.html" class="brand">
     <span class="brand-mark"><img src="../assets/images/logos/geh-logo.png" alt="GEH Lab"></span>
@@ -21,45 +20,19 @@
     <a href="members.html" data-nav-page="members">Members</a>
     <a href="projects.html" data-nav-page="projects">Projects</a>
     <a href="publications.html" data-nav-page="publications">Publications</a>
-      <a href="board.html" data-nav-page="board">Board</a>
+    <a href="board.html" data-nav-page="board">Board</a>
   </nav>
   <div class="header-tools">
-    <div class="lang-switch"><a class="lang-link" href="../projects.html">Ko</a><span class="lang-divider">|</span><a class="lang-link is-active" href="projects.html">En</a></div>
+    <div class="lang-switch"><a class="lang-link" href="../board.html">Ko</a><span class="lang-divider">|</span><a class="lang-link is-active" href="board.html">En</a></div>
     <a class="icon-button" href="../admin.html" aria-label="Admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="M19.4 15a1.6 1.6 0 0 0 .32 1.76l.06.06a2 2 0 1 1-2.82 2.82l-.06-.06a1.6 1.6 0 0 0-1.76-.32 1.6 1.6 0 0 0-.98 1.46V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-.98-1.46 1.6 1.6 0 0 0-1.76.32l-.06.06a2 2 0 1 1-2.82-2.82l.06-.06A1.6 1.6 0 0 0 4.6 15a1.6 1.6 0 0 0-1.46-.98H3a2 2 0 1 1 0-4h.14A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.32-1.76l-.06-.06a2 2 0 1 1 2.82-2.82l.06.06A1.6 1.6 0 0 0 8.86 4.6a1.6 1.6 0 0 0 .98-1.46V3a2 2 0 1 1 4 0v.14a1.6 1.6 0 0 0 .98 1.46 1.6 1.6 0 0 0 1.76-.32l.06-.06a2 2 0 1 1 2.82 2.82l-.06.06A1.6 1.6 0 0 0 19.4 9c.23.35.35.77.35 1.2s-.12.85-.35 1.2Z"></path></svg></a>
   </div>
 </header>
-
 <main>
-
-<section class="page-hero" id="projects-page">
-  <div class="page-hero-card reveal">
-    <span class="eyebrow">PROJECTS</span>
-    <h1>Projects</h1>
-    <p>Ongoing projects are separated from archived projects, and completed projects are grouped by year in accordions. Each card can include a project period.</p>
-    <div class="page-hero-meta"><span id="project-summary"></span><span id="page-updated"></span></div>
-  </div>
-</section>
-<section class="page-section container">
-  <div class="section-header reveal"><span class="eyebrow">CURRENT</span><h2>Ongoing projects</h2></div>
-  <div class="project-grid" id="ongoing-project-grid"></div>
-</section>
-<section class="page-section container">
-  <div class="section-header reveal"><span class="eyebrow">ARCHIVE</span><h2>Archived projects</h2></div>
-  <div class="accordion-stack" id="completed-project-accordion"></div>
-</section>
-
+<section class="page-hero" id="board-page"><div class="page-hero-card reveal"><span class="eyebrow">BOARD</span><h1>Board</h1><p>Notices, poster presentations, oral presentations, and lab updates in one place.</p><div class="page-hero-meta"><span id="board-summary"></span><span id="page-updated"></span></div></div></section>
+<section class="page-section container"><div class="board-grid" id="board-grid"></div></section>
 </main>
-
-<footer class="site-footer">
-  <div class="footer-brand">
-    <img src="../assets/images/logos/cnu-emblem-blue.jpg" alt="CNU">
-    <div><strong>GEH Lab</strong><br><small>Greenhouse & Environmental Horticulture Lab</small></div>
-  </div>
-  <div class="footer-meta">COPYRIGHT © Chungnam National University Greenhouse & Environmental Horticulture Lab</div>
-</footer>
-
+<footer class="site-footer"><div class="footer-brand"><img src="../assets/images/logos/cnu-emblem-blue.jpg" alt="CNU"><div><strong>GEH Lab</strong><br><small>Greenhouse & Environmental Horticulture Lab</small></div></div><div class="footer-meta">COPYRIGHT © Chungnam National University Greenhouse & Environmental Horticulture Lab</div></footer>
 </div>
 <script src="../firebase-config.js"></script>
 <script type="module" src="../assets/js/public.js"></script>
-</body>
-</html>
+</body></html>

@@ -3,15 +3,17 @@ export const BUILD_DATE = '2026-04-07';
 export const SITE_COPY = {
   "kr": {
     "siteName": "충남대학교 환경원예학연구실",
+    "copyright": "COPYRIGHT © Chungnam National University Greenhouse & Environmental Horticulture Lab",
     "siteShort": "GEH Lab",
     "brandSub": "Greenhouse & Environmental Horticulture Lab",
     "nav": {
       "home": "홈",
       "members": "멤버",
       "projects": "과제",
-      "publications": "논문"
+      "publications": "논문",
+      "board": "게시판"
     },
-    "switch": "EN",
+    "switch": "Ko | En",
     "heroEyebrow": "CHUNGNAM NATIONAL UNIVERSITY",
     "heroTitle": "원예 환경의 다음 기준을 설계합니다.",
     "heroSubtitle": "식물공장, 스마트팜, 기능성 작물, 지속가능한 수분 관리, 그리고 데이터 기반 재배 제어.",
@@ -24,7 +26,8 @@ export const SITE_COPY = {
       "current": "재학 구성원",
       "alumni": "졸업생",
       "ongoing": "진행 중 과제",
-      "publications": "논문"
+      "publications": "논문",
+      "board": "게시판"
     },
     "focusEyebrow": "RESEARCH LINEUP",
     "focusTitle": "Indoor Farm · Hemp · Artificial Intelligence.",
@@ -73,7 +76,7 @@ export const SITE_COPY = {
     "experience": "경력",
     "interest": "연구 관심 분야",
     "contact": "이메일",
-    "currentPosition": "현재 진로",
+    "currentPosition": "현재 소속",
     "statusEnrolled": "재학중",
     "statusAlumni": "졸업",
     "ongoingSection": "진행 중 과제",
@@ -84,19 +87,25 @@ export const SITE_COPY = {
     "doi": "DOI",
     "open": "열기",
     "countItems": "건",
-    "footerNote": "Greenhouse & Environmental Horticulture Lab"
+    "footerNote": "Greenhouse & Environmental Horticulture Lab",
+    "boardHeroTitle": "게시판",
+    "boardHeroDesc": "공지, 포스터 발표, 구두 발표, 연구실 소식을 한 곳에서 관리합니다.",
+    "boardNav": "게시판",
+    "boardCount": "게시글"
   },
   "en": {
     "siteName": "CNU GEH Lab",
+    "copyright": "COPYRIGHT © Chungnam National University Greenhouse & Environmental Horticulture Lab",
     "siteShort": "GEH Lab",
     "brandSub": "Greenhouse & Environmental Horticulture Lab",
     "nav": {
       "home": "Home",
       "members": "Members",
       "projects": "Projects",
-      "publications": "Publications"
+      "publications": "Publications",
+      "board": "Board"
     },
-    "switch": "KR",
+    "switch": "Ko | En",
     "heroEyebrow": "CHUNGNAM NATIONAL UNIVERSITY",
     "heroTitle": "Grow the next environment for horticulture.",
     "heroSubtitle": "Plant factory, smart farm, medicinal crops, sustainable water management, and data-driven cultivation control.",
@@ -109,7 +118,8 @@ export const SITE_COPY = {
       "current": "Current members",
       "alumni": "Alumni",
       "ongoing": "Ongoing projects",
-      "publications": "Publications"
+      "publications": "Publications",
+      "board": "Board"
     },
     "focusEyebrow": "RESEARCH LINEUP",
     "focusTitle": "Indoor Farm · Hemp · Artificial Intelligence.",
@@ -158,7 +168,7 @@ export const SITE_COPY = {
     "experience": "Experience",
     "interest": "Research interests",
     "contact": "Email",
-    "currentPosition": "Current position",
+    "currentPosition": "Current affiliation",
     "statusEnrolled": "Enrolled",
     "statusAlumni": "Alumni",
     "ongoingSection": "Ongoing projects",
@@ -169,7 +179,11 @@ export const SITE_COPY = {
     "doi": "DOI",
     "open": "Open",
     "countItems": "items",
-    "footerNote": "Greenhouse & Environmental Horticulture Lab"
+    "footerNote": "Greenhouse & Environmental Horticulture Lab",
+    "boardHeroTitle": "Board",
+    "boardHeroDesc": "Notices, poster presentations, oral presentations, and lab updates in one place.",
+    "boardNav": "Board",
+    "boardCount": "Posts"
   }
 };
 
@@ -1594,5 +1608,31 @@ export const FALLBACK_PUBLICATIONS = [
     "sortOrder": 48,
     "updatedAt": "2026-04-06",
     "month": ""
+  }
+];
+
+
+export const FALLBACK_BOARD_POSTS = [
+  {
+    "id": "lab-notice-1",
+    "category": "notice",
+    "title": "연구실 공지",
+    "description": "관리자 페이지에서 게시판 항목을 추가·수정·삭제할 수 있습니다.",
+    "linkUrl": "",
+    "imageUrl": "",
+    "imagePath": "",
+    "date": "2026-04-07",
+    "updatedAt": "2026-04-07"
+  },
+  {
+    "id": "presentation-guide",
+    "category": "poster",
+    "title": "학회 발표 자료",
+    "description": "포스터 발표나 구두 발표 자료도 게시판에서 별도 카테고리로 관리할 수 있도록 준비했습니다.",
+    "linkUrl": "",
+    "imageUrl": "",
+    "imagePath": "",
+    "date": "2026-04-07",
+    "updatedAt": "2026-04-07"
   }
 ];

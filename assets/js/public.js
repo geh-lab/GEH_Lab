@@ -1,4 +1,4 @@
-import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS } from './data.js';
+import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js';
 import {
   escapeHTML,
   getInitials,
@@ -7,6 +7,7 @@ import {
   sortMembers,
   sortProjects,
   sortPublications,
+  sortBoardPosts,
   lastUpdated,
   formatDate,
   resolvePublicationLink,
@@ -16,7 +17,9 @@ import {
   mergeMembers,
   mergeProjects,
   mergePublications,
-  memberYearLabel
+  mergeBoardPosts,
+  memberYearLabel,
+  publicationIndexingLabel
 } from './utils.js';
 import { hasFirebaseConfig, fetchCollection, COLLECTIONS } from './firebase.js';
 
@@ -39,11 +42,20 @@ const state = {
   members: sortMembers(FALLBACK_MEMBERS),
   projects: sortProjects(FALLBACK_PROJECTS),
   publications: sortPublications(FALLBACK_PUBLICATIONS),
+  board: sortBoardPosts(FALLBACK_BOARD_POSTS),
   publicationQuery: ''
+};
+
+const modalState = {
+  root: null,
+  title: null,
+  body: null,
+  closeButtons: []
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
   setupHeader();
+  ensureModal();
   setupRevealAnimations();
   setupSearch();
   if (page === 'home') setupHeroSlider();
@@ -54,14 +66,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function hydrate() {
   if (!hasFirebaseConfig) return;
   try {
-    const [members, projects, publications] = await Promise.all([
+    const [members, projects, publications, board] = await Promise.all([
       fetchCollection(COLLECTIONS.members),
       fetchCollection(COLLECTIONS.projects),
-      fetchCollection(COLLECTIONS.publications)
+      fetchCollection(COLLECTIONS.publications),
+      COLLECTIONS.board ? fetchCollection(COLLECTIONS.board) : Promise.resolve([])
     ]);
     state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, members));
     state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, projects));
     state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, publications));
+    state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, board));
   } catch (error) {
     console.warn('Firebase 데이터를 불러오지 못해 기본 데이터를 사용합니다.', error);
   }
@@ -72,10 +86,12 @@ function renderPage() {
   if (page === 'members') renderMembers();
   if (page === 'projects') renderProjects();
   if (page === 'publications') renderPublications();
+  if (page === 'board') renderBoard();
   setUpdatedDate();
   setupRevealAnimations();
   setupAccordions();
   setupCountAnimations();
+  bindInteractiveCards();
 }
 
 function setupHeader() {
@@ -101,6 +117,173 @@ function setupHeader() {
   const onScroll = () => header?.classList.toggle('is-scrolled', window.scrollY > 16);
   onScroll();
   window.addEventListener('scroll', onScroll, { passive: true });
+}
+
+function ensureModal() {
+  if (modalState.root) return;
+  const wrapper = document.createElement('div');
+  wrapper.className = 'site-modal';
+  wrapper.hidden = true;
+  wrapper.innerHTML = `
+    <div class="site-modal__backdrop" data-modal-close></div>
+    <div class="site-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="site-modal-title">
+      <button type="button" class="site-modal__close" data-modal-close aria-label="close">×</button>
+      <div class="site-modal__scroll">
+        <div class="site-modal__head">
+          <h2 id="site-modal-title"></h2>
+        </div>
+        <div class="site-modal__content"></div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(wrapper);
+  modalState.root = wrapper;
+  modalState.title = wrapper.querySelector('#site-modal-title');
+  modalState.body = wrapper.querySelector('.site-modal__content');
+  modalState.closeButtons = qsa('[data-modal-close]', wrapper);
+  modalState.closeButtons.forEach((button) => button.addEventListener('click', closeModal));
+  wrapper.addEventListener('click', (event) => {
+    if (event.target === wrapper) closeModal();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !wrapper.hidden) closeModal();
+  });
+}
+
+function openModal(title, html) {
+  ensureModal();
+  modalState.title.textContent = title;
+  modalState.body.innerHTML = html;
+  modalState.root.hidden = false;
+  document.body.classList.add('modal-open');
+}
+
+function closeModal() {
+  if (!modalState.root) return;
+  modalState.root.hidden = true;
+  modalState.body.innerHTML = '';
+  document.body.classList.remove('modal-open');
+}
+
+function bindInteractiveCards() {
+  qsa('[data-member-id]').forEach((card) => {
+    if (card.dataset.bound === 'true') return;
+    card.dataset.bound = 'true';
+    card.addEventListener('click', (event) => {
+      const interactive = event.target.closest('a, button');
+      if (interactive) return;
+      const member = state.members.find((item) => item.id === card.dataset.memberId);
+      if (member) openMemberModal(member);
+    });
+  });
+
+  qsa('[data-project-id]').forEach((card) => {
+    if (card.dataset.bound === 'true') return;
+    card.dataset.bound = 'true';
+    card.addEventListener('click', (event) => {
+      const interactive = event.target.closest('a, button');
+      if (interactive) return;
+      const project = state.projects.find((item) => item.id === card.dataset.projectId);
+      if (project) openProjectModal(project);
+    });
+  });
+
+  qsa('[data-board-id]').forEach((card) => {
+    if (card.dataset.bound === 'true') return;
+    card.dataset.bound = 'true';
+    card.addEventListener('click', (event) => {
+      const interactive = event.target.closest('a, button');
+      if (interactive) return;
+      const post = state.board.find((item) => item.id === card.dataset.boardId);
+      if (post) openBoardModal(post);
+    });
+  });
+}
+
+function openMemberModal(member) {
+  const chips = [];
+  if (member.group !== 'alumni') chips.push(member.group === 'pi' ? copy.pi : (member.group === 'researchProfessor' ? copy.researchProfessor : member.group === 'studentResearcher' ? copy.studentResearcherSection : copy.graduateStudent));
+  if (member.group === 'graduateStudent') {
+    chips.push(memberCourseLabel(member.course, lang));
+    if (member.track && member.track !== 'none') chips.push(memberTrackLabel(member.track, lang));
+  }
+  if (member.group === 'studentResearcher') chips.push(memberCourseLabel('undergrad', lang));
+  if (member.status === 'alumni') chips.push(`${copy.alumniSection}${member.graduationYear ? ` · ${member.graduationYear}` : ''}`);
+  const yearLabel = memberYearLabel(member, lang);
+  if (yearLabel) chips.push(yearLabel);
+  const title = member.name;
+  const photo = member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(member.name)}">` : `<div class="modal-avatar__placeholder">${escapeHTML(getInitials(member.name))}</div>`;
+  const currentLabel = member.status === 'alumni' ? copy.currentPosition : (lang === 'en' ? 'Current role' : '현재 역할');
+  const courseSectionTitle = member.group === 'pi' ? (lang === 'en' ? 'Courses' : '수업 정보') : (member.group === 'researchProfessor' ? (lang === 'en' ? 'Related projects' : '관련 과제') : '');
+  const courseSectionValue = member.group === 'pi' ? (member.coursesInfo || (lang === 'en' ? 'To be updated by the administrator.' : '관리자에서 수업 정보를 추가할 수 있습니다.')) : (member.group === 'researchProfessor' ? (member.relatedProjects || (lang === 'en' ? 'To be updated by the administrator.' : '관리자에서 관련 과제 정보를 추가할 수 있습니다.')) : '');
+  openModal(title, `
+    <div class="detail-modal detail-modal--member">
+      <div class="detail-modal__hero">
+        <div class="detail-modal__media">${photo}</div>
+        <div class="detail-modal__summary">
+          <div class="member-chip-row">${chips.map((chip) => `<span class="member-chip member-chip--soft">${escapeHTML(chip)}</span>`).join('')}</div>
+          <h3>${escapeHTML(member.name)}</h3>
+          ${member.bio ? `<p class="detail-lead">${escapeHTML(member.bio)}</p>` : ''}
+          ${member.email ? `<a class="member-link" href="mailto:${escapeHTML(member.email)}">${escapeHTML(member.email)}</a>` : ''}
+        </div>
+      </div>
+      <div class="detail-grid">
+        ${detailSection(copy.education, member.education)}
+        ${detailSection(copy.experience, member.experience)}
+        ${detailSection(copy.interest, member.researchInterest)}
+        ${detailSection(currentLabel, member.currentPosition || member.bio)}
+        ${courseSectionTitle ? detailSection(courseSectionTitle, courseSectionValue) : ''}
+        ${detailSection(lang === 'en' ? 'Authorship / publications' : '저자 / 논문 메모', member.authorshipNote || (lang === 'en' ? 'Administrator can add first-author / co-author notes here.' : '관리자에서 제1저자 / 공동저자 메모를 추가할 수 있습니다.'))}
+      </div>
+    </div>
+  `);
+}
+
+function openProjectModal(project) {
+  const title = project.title;
+  const media = project.figureUrl ? `<div class="detail-figure detail-figure--${escapeHTML((project.figureAspect || '16:9').replace(':','-'))}"><img src="${escapeHTML(rootAsset(project.figureUrl, root))}" alt="${escapeHTML(project.title)}"></div>` : '';
+  openModal(title, `
+    <div class="detail-modal detail-modal--project">
+      <div class="member-chip-row">
+        <span class="status-pill">${escapeHTML(projectStatusLabel(project.status, lang))}</span>
+        ${project.period ? `<span class="meta-pill">${escapeHTML(project.period)}</span>` : ''}
+      </div>
+      <p class="detail-lead">${escapeHTML(project.description || '')}</p>
+      ${media}
+      <div class="detail-grid">
+        ${detailSection(copy.projectPeriod, project.period)}
+        ${detailSection(lang === 'en' ? 'Principal investigator' : '연구책임자', project.principalInvestigator || (lang === 'en' ? 'Not set' : '미설정'))}
+        ${detailSection(lang === 'en' ? 'Co-researchers' : '공동연구원', project.coResearchers || (lang === 'en' ? 'Not set' : '미설정'))}
+        ${detailSection(lang === 'en' ? 'Keywords' : '키워드', Array.isArray(project.tags) ? project.tags.join(', ') : '')}
+      </div>
+    </div>
+  `);
+}
+
+function openBoardModal(post) {
+  const tag = boardCategoryLabel(post.category);
+  const media = post.imageUrl ? `<div class="detail-figure detail-figure--16-9"><img src="${escapeHTML(rootAsset(post.imageUrl, root))}" alt="${escapeHTML(post.title)}"></div>` : '';
+  openModal(post.title, `
+    <div class="detail-modal detail-modal--board">
+      <div class="member-chip-row">
+        <span class="member-chip member-chip--soft">${escapeHTML(tag)}</span>
+        ${post.date ? `<span class="member-chip member-chip--soft">${escapeHTML(post.date)}</span>` : ''}
+      </div>
+      ${media}
+      <p class="detail-lead">${escapeHTML(post.description || '')}</p>
+      ${post.linkUrl ? `<p><a class="button primary" href="${escapeHTML(post.linkUrl)}" target="_blank" rel="noreferrer">${lang === 'en' ? 'Open link' : '링크 열기'}</a></p>` : ''}
+    </div>
+  `);
+}
+
+function detailSection(title, value = '') {
+  if (!value) return '';
+  return `
+    <article class="detail-block">
+      <h4>${escapeHTML(title)}</h4>
+      <p>${escapeHTML(value)}</p>
+    </article>
+  `;
 }
 
 function setupRevealAnimations() {
@@ -201,7 +384,6 @@ function renderHome() {
     `).join('');
   }
 
-  qs('#focus-grid')?.replaceChildren();
   const focusGrid = qs('#focus-grid');
   if (focusGrid) {
     focusGrid.innerHTML = copy.focusCards.map((item, index) => `
@@ -251,33 +433,22 @@ function renderMembers() {
     } else {
       piCard.innerHTML = `
         <div class="pi-card-layout">
-          <div class="pi-photo">
+          <button type="button" class="pi-photo pi-photo-button" data-member-id="${escapeHTML(pi.id)}">
             ${pi.photoUrl ? `<img src="${escapeHTML(rootAsset(pi.photoUrl, root))}" alt="${escapeHTML(pi.name)}">` : `<span>${escapeHTML(getInitials(pi.name))}</span>`}
-          </div>
+          </button>
           <div class="pi-card-main">
             <div class="pi-card-head">
               <span class="eyebrow">${escapeHTML(copy.pi)}</span>
               <h2>${escapeHTML(pi.name)}</h2>
               <p class="pi-title">${escapeHTML(pi.bio || (lang === 'en' ? 'Professor, Chungnam National University' : '충남대학교 교수'))}</p>
               ${memberYearLabel(pi, lang) ? `<div class="member-chip-row"><span class="member-chip member-chip--soft">${escapeHTML(memberYearLabel(pi, lang))}</span></div>` : ''}
+              <button type="button" class="button secondary detail-open-button" data-member-id="${escapeHTML(pi.id)}">${lang === 'en' ? 'View profile' : '상세 보기'}</button>
             </div>
             <div class="pi-card-grid">
-              <article>
-                <h3>${escapeHTML(copy.education)}</h3>
-                <p>${escapeHTML(pi.education)}</p>
-              </article>
-              <article>
-                <h3>${escapeHTML(copy.experience)}</h3>
-                <p>${escapeHTML(pi.experience)}</p>
-              </article>
-              <article>
-                <h3>${escapeHTML(copy.interest)}</h3>
-                <p>${escapeHTML(pi.researchInterest)}</p>
-              </article>
-              <article>
-                <h3>${escapeHTML(copy.contact)}</h3>
-                <p><a class="member-link" href="mailto:${escapeHTML(pi.email)}">${escapeHTML(pi.email)}</a></p>
-              </article>
+              <article><h3>${escapeHTML(copy.education)}</h3><p>${escapeHTML(pi.education || '')}</p></article>
+              <article><h3>${escapeHTML(copy.experience)}</h3><p>${escapeHTML(pi.experience || '')}</p></article>
+              <article><h3>${escapeHTML(copy.interest)}</h3><p>${escapeHTML(pi.researchInterest || '')}</p></article>
+              <article><h3>${escapeHTML(copy.contact)}</h3><p>${pi.email ? `<a class="member-link" href="mailto:${escapeHTML(pi.email)}">${escapeHTML(pi.email)}</a>` : ''}</p></article>
             </div>
           </div>
         </div>
@@ -301,9 +472,7 @@ function renderMembers() {
       { title: copy.msPartTime, items: graduateStudents.filter((item) => item.course === 'ms' && item.track === 'partTime') }
     ];
     graduateAccordion.innerHTML = gradSections.map((section, index) => {
-      const content = section.items.length
-        ? `<div class="member-grid">${section.items.map((item) => memberCard(item)).join('')}</div>`
-        : emptyState(copy.noMembers);
+      const content = section.items.length ? `<div class="member-grid">${section.items.map((item) => memberCard(item)).join('')}</div>` : emptyState(copy.noMembers);
       return accordionMarkup(section.title, section.items.length, content, index === 0);
     }).join('');
   }
@@ -313,9 +482,7 @@ function renderMembers() {
     researcherAccordion.innerHTML = accordionMarkup(
       copy.studentResearcherSection,
       undergrads.length,
-      undergrads.length
-        ? `<div class="member-grid member-grid--wide">${undergrads.map((item) => memberCard(item)).join('')}</div>`
-        : emptyState(copy.noMembers),
+      undergrads.length ? `<div class="member-grid member-grid--wide">${undergrads.map((item) => memberCard(item)).join('')}</div>` : emptyState(copy.noMembers),
       true
     );
   }
@@ -324,14 +491,12 @@ function renderMembers() {
   if (alumniAccordion) {
     const alumniByYear = Object.entries(groupBy(alumni, (item) => item.graduationYear || (lang === 'en' ? 'Earlier' : '이전')))
       .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
-    alumniAccordion.innerHTML = alumniByYear.map(([year, items], index) => {
-      return accordionMarkup(
-        year,
-        items.length,
-        `<div class="member-grid member-grid--alumni">${items.map((item) => alumniCard(item)).join('')}</div>`,
-        index === 0
-      );
-    }).join('');
+    alumniAccordion.innerHTML = alumniByYear.map(([year, items], index) => accordionMarkup(
+      year,
+      items.length,
+      `<div class="member-grid member-grid--alumni">${items.map((item) => alumniCard(item)).join('')}</div>`,
+      index === 0
+    )).join('');
   }
 }
 
@@ -341,7 +506,7 @@ function renderProjects() {
   const summary = qs('#project-summary');
   if (summary) summary.textContent = lang === 'en'
     ? `${ongoing.length} ongoing · ${completed.length} archived`
-    : `${ongoing.length}건 진행 중 · ${completed.length}건 종료`;
+    : `진행 중 과제 ${ongoing.length}건 · 종료 ${completed.length}건`;
 
   const ongoingGrid = qs('#ongoing-project-grid');
   if (ongoingGrid) ongoingGrid.innerHTML = ongoing.map((project) => projectCard(project)).join('');
@@ -350,29 +515,34 @@ function renderProjects() {
   if (completedAccordion) {
     const completedByYear = Object.entries(groupBy(completed, (item) => item.year || extractYearFromText(item.period) || (lang === 'en' ? 'Earlier' : '이전')))
       .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
-    completedAccordion.innerHTML = completedByYear.map(([year, items], index) => {
-      return accordionMarkup(year, items.length, `<div class="archive-list">${items.map((item) => archiveProjectItem(item)).join('')}</div>`, index === 0);
-    }).join('');
+    completedAccordion.innerHTML = completedByYear.map(([year, items], index) => accordionMarkup(year, items.length, `<div class="archive-list">${items.map((item) => archiveProjectItem(item)).join('')}</div>`, index === 0)).join('');
   }
 }
 
 function renderPublications() {
   const query = state.publicationQuery.trim().toLowerCase();
   const filtered = !query ? state.publications : state.publications.filter((item) => {
-    const haystack = [item.title, item.authors, item.journal, item.doi, item.url, item.year, item.month].join(' ').toLowerCase();
+    const haystack = [item.title, item.authors, item.journal, item.doi, item.url, item.year, item.month, item.indexing].join(' ').toLowerCase();
     return haystack.includes(query);
   });
 
   const summary = qs('#publication-summary');
-  if (summary) summary.textContent = lang === 'en' ? `${filtered.length} publications` : `${filtered.length}편`;
+  if (summary) summary.textContent = lang === 'en' ? `${filtered.length} publications` : `논문 ${filtered.length}편`;
 
   const publicationAccordion = qs('#publication-accordion');
   if (publicationAccordion) {
     const grouped = Object.entries(groupBy(filtered, (item) => item.year || (lang === 'en' ? 'Earlier' : '이전')))
       .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
-    publicationAccordion.innerHTML = grouped.map(([year, items], index) => {
-      return accordionMarkup(year, items.length, `<div class="publication-list">${items.map((item) => publicationCard(item)).join('')}</div>`, index === 0);
-    }).join('');
+    publicationAccordion.innerHTML = grouped.map(([year, items], index) => accordionMarkup(year, items.length, `<div class="publication-list">${items.map((item) => publicationCard(item)).join('')}</div>`, index === 0)).join('');
+  }
+}
+
+function renderBoard() {
+  const summary = qs('#board-summary');
+  if (summary) summary.textContent = lang === 'en' ? `${state.board.length} posts` : `게시글 ${state.board.length}건`;
+  const grid = qs('#board-grid');
+  if (grid) {
+    grid.innerHTML = state.board.map((post) => boardCard(post)).join('');
   }
 }
 
@@ -383,6 +553,7 @@ function setupSearch() {
     setUpdatedDate();
     setupRevealAnimations();
     setupAccordions();
+    bindInteractiveCards();
   });
 }
 
@@ -393,6 +564,7 @@ function setUpdatedDate() {
   if (page === 'members') source = lastUpdated(state.members, BUILD_DATE);
   if (page === 'projects') source = lastUpdated(state.projects, BUILD_DATE);
   if (page === 'publications') source = lastUpdated(state.publications, BUILD_DATE);
+  if (page === 'board') source = lastUpdated(state.board, BUILD_DATE);
   target.textContent = `${copy.updated} ${formatDate(source, lang === 'en' ? 'en-CA' : 'ko-KR')}`;
 }
 
@@ -408,7 +580,7 @@ function extractYearFromText(value = '') {
 
 function isGenericOngoingPeriod(value = '') {
   const normalized = String(value || '').trim().toLowerCase().replace(/\s+/g, '');
-  return !normalized || /^(진행중|진행中|inprogress|ongoing)$/.test(normalized);
+  return !normalized || /^(진행중|진행中|inprogress|ongoing|in-progress)$/.test(normalized);
 }
 
 function getProjectPeriodDisplay(project = {}) {
@@ -425,9 +597,7 @@ function memberMetaChips(member) {
     if (member.course) chips.push(memberCourseLabel(member.course, lang));
     if (member.track && member.track !== 'none') chips.push(memberTrackLabel(member.track, lang));
   }
-  if (member.group === 'studentResearcher') {
-    chips.push(memberCourseLabel('undergrad', lang));
-  }
+  if (member.group === 'studentResearcher') chips.push(memberCourseLabel('undergrad', lang));
   const years = memberYearLabel(member, lang);
   if (years) chips.push(years);
   return chips.map((chip) => `<span class="member-chip member-chip--soft">${escapeHTML(chip)}</span>`).join('');
@@ -435,7 +605,7 @@ function memberMetaChips(member) {
 
 function memberCard(member) {
   return `
-    <article class="member-card reveal">
+    <article class="member-card reveal interactive-card" data-member-id="${escapeHTML(member.id)}" tabindex="0" role="button" aria-label="${escapeHTML(member.name)}">
       <div class="member-thumb">
         ${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(member.name)}">` : `<span>${escapeHTML(getInitials(member.name))}</span>`}
       </div>
@@ -452,7 +622,7 @@ function memberCard(member) {
 
 function alumniCard(member) {
   return `
-    <article class="member-card member-card--alumni reveal">
+    <article class="member-card member-card--alumni reveal interactive-card" data-member-id="${escapeHTML(member.id)}" tabindex="0" role="button" aria-label="${escapeHTML(member.name)}">
       <div class="member-thumb">
         ${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(member.name)}">` : `<span>${escapeHTML(getInitials(member.name))}</span>`}
       </div>
@@ -469,13 +639,14 @@ function alumniCard(member) {
 function projectCard(project, { compact = false } = {}) {
   const period = getProjectPeriodDisplay(project);
   return `
-    <article class="project-card${compact ? ' compact-card' : ''} reveal">
+    <article class="project-card${compact ? ' compact-card' : ''} reveal interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(project.title)}">
       <div class="card-head">
         <span class="status-pill">${escapeHTML(projectStatusLabel(project.status, lang))}</span>
         ${period ? `<span class="meta-pill">${escapeHTML(period)}</span>` : ''}
       </div>
       <h3>${escapeHTML(project.title)}</h3>
       <p>${escapeHTML(project.description || '')}</p>
+      ${project.principalInvestigator ? `<p class="project-meta-inline"><strong>${lang === 'en' ? 'PI' : '연구책임자'}</strong> ${escapeHTML(project.principalInvestigator)}</p>` : ''}
       ${!compact && project.tags?.length ? `<div class="tag-row">${project.tags.map((tag) => `<span>${escapeHTML(tag)}</span>`).join('')}</div>` : ''}
     </article>
   `;
@@ -484,7 +655,7 @@ function projectCard(project, { compact = false } = {}) {
 function archiveProjectItem(project) {
   const period = getProjectPeriodDisplay(project) || project.year || '';
   return `
-    <article class="archive-item reveal">
+    <article class="archive-item reveal interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(project.title)}">
       <div>
         <h3>${escapeHTML(project.title)}</h3>
         ${project.description ? `<p>${escapeHTML(project.description)}</p>` : ''}
@@ -498,17 +669,52 @@ function archiveProjectItem(project) {
 
 function publicationCard(item) {
   const link = resolvePublicationLink(item);
-  const monthLabel = item.month ? (lang === 'en' ? `Month ${item.month}` : `${Number(item.month)}월`) : '';
+  const monthLabel = item.month ? (lang === 'en' ? `${item.month}` : `${Number(item.month)}월`) : '';
+  const indexing = publicationIndexingLabel(item.indexing, lang);
   return `
     <article class="publication-card reveal">
-      <div class="publication-topline">
-        ${monthLabel ? `<span class="year-pill">${escapeHTML(monthLabel)}</span>` : ''}
-        ${item.journal ? `<span class="journal-pill">${escapeHTML(item.journal)}</span>` : ''}
+      <div class="publication-head-row">
+        <div class="publication-topline">
+          ${item.year ? `<span class="year-pill">${escapeHTML(item.year)}</span>` : ''}
+          ${monthLabel ? `<span class="year-pill">${escapeHTML(monthLabel)}</span>` : ''}
+          ${item.journal ? `<span class="journal-pill">${escapeHTML(item.journal)}</span>` : ''}
+          ${indexing ? `<span class="index-pill">${escapeHTML(indexing)}</span>` : ''}
+        </div>
+        <span class="publication-updated">${escapeHTML(copy.updated)} ${escapeHTML(formatDate(item.updatedAt || item.createdAt || BUILD_DATE, lang === 'en' ? 'en-CA' : 'ko-KR'))}</span>
       </div>
       <h3>${escapeHTML(item.title)}</h3>
-      ${item.authors ? `<p class="publication-authors">${escapeHTML(item.authors)}</p>` : ''}
-      ${item.doi ? `<p class="publication-doi"><a href="${escapeHTML(link || `https://doi.org/${item.doi}`)}" target="_blank" rel="noreferrer">${escapeHTML(copy.doi)} · ${escapeHTML(item.doi)}</a></p>` : link ? `<p class="publication-doi"><a href="${escapeHTML(link)}" target="_blank" rel="noreferrer">${escapeHTML(copy.open)}</a></p>` : ''}
+      <div class="publication-meta-row">
+        ${item.authors ? `<p class="publication-authors">${escapeHTML(item.authors)}</p>` : '<span></span>'}
+        ${link ? `<a class="publication-doi-link" href="${escapeHTML(link)}" target="_blank" rel="noreferrer">${escapeHTML(copy.doi)}</a>` : ''}
+      </div>
       ${item.abstract ? `<p class="muted">${escapeHTML(item.abstract)}</p>` : ''}
+    </article>
+  `;
+}
+
+function boardCategoryLabel(category = '') {
+  const map = {
+    notice: lang === 'en' ? 'Notice' : '공지',
+    poster: lang === 'en' ? 'Poster' : '포스터 발표',
+    oral: lang === 'en' ? 'Oral' : '구두 발표',
+    news: lang === 'en' ? 'News' : '소식'
+  };
+  return map[category] || (lang === 'en' ? 'Board' : '게시판');
+}
+
+function boardCard(post) {
+  return `
+    <article class="board-card reveal interactive-card" data-board-id="${escapeHTML(post.id)}">
+      ${post.imageUrl ? `<div class="board-card__media"><img src="${escapeHTML(rootAsset(post.imageUrl, root))}" alt="${escapeHTML(post.title)}"></div>` : ''}
+      <div class="board-card__copy">
+        <div class="member-chip-row">
+          <span class="member-chip member-chip--soft">${escapeHTML(boardCategoryLabel(post.category))}</span>
+          ${post.date ? `<span class="member-chip member-chip--soft">${escapeHTML(post.date)}</span>` : ''}
+        </div>
+        <h3>${escapeHTML(post.title)}</h3>
+        ${post.description ? `<p>${escapeHTML(post.description)}</p>` : ''}
+        ${post.linkUrl ? `<a class="member-link" href="${escapeHTML(post.linkUrl)}" target="_blank" rel="noreferrer">${lang === 'en' ? 'Open link' : '링크 열기'}</a>` : ''}
+      </div>
     </article>
   `;
 }

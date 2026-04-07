@@ -21,5 +21,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    match /boardPosts/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
   }
 }

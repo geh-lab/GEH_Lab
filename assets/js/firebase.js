@@ -31,7 +31,8 @@ import {
 export const COLLECTIONS = {
   members: 'members',
   projects: 'projects',
-  publications: 'publications'
+  publications: 'publications',
+  board: 'boardPosts'
 };
 
 const firebaseConfig = window.GEH_FIREBASE_CONFIG?.apiKey ? window.GEH_FIREBASE_CONFIG : null;
@@ -170,17 +171,36 @@ export async function deleteDocumentById(collectionName, documentId) {
   await deleteDoc(doc(db, collectionName, documentId));
 }
 
-export async function uploadMemberPhoto(file) {
+export async function uploadAsset(file, folder = 'uploads') {
   if (!storage) throw new Error('Firebase Storage가 연결되지 않았습니다.');
   const ext = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
-  const path = `member-photos/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+  const path = `${folder}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
   const fileRef = ref(storage, path);
   await uploadBytes(fileRef, file, { contentType: file.type || 'image/jpeg' });
-  const photoUrl = await getDownloadURL(fileRef);
-  return { photoUrl, photoPath: path };
+  const url = await getDownloadURL(fileRef);
+  return { url, path };
+}
+
+export async function uploadMemberPhoto(file) {
+  const asset = await uploadAsset(file, 'member-photos');
+  return { photoUrl: asset.url, photoPath: asset.path };
+}
+
+export async function uploadProjectFigure(file) {
+  const asset = await uploadAsset(file, 'project-media');
+  return { figureUrl: asset.url, figurePath: asset.path };
+}
+
+export async function uploadBoardImage(file) {
+  const asset = await uploadAsset(file, 'board-media');
+  return { imageUrl: asset.url, imagePath: asset.path };
+}
+
+export async function deleteStoragePath(path) {
+  if (!storage || !path) return;
+  await deleteObject(ref(storage, path));
 }
 
 export async function deleteMemberPhoto(photoPath) {
-  if (!storage || !photoPath) return;
-  await deleteObject(ref(storage, photoPath));
+  await deleteStoragePath(photoPath);
 }
