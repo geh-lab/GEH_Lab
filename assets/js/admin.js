@@ -2,6 +2,7 @@ import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BO
 import {
   escapeHTML,
   getInitials,
+  groupBy,
   normalizeMember,
   normalizeProject,
   normalizePublication,
@@ -25,7 +26,8 @@ import {
   publicationSemanticKey,
   boardSemanticKey,
   memberYearLabel,
-  publicationIndexingLabel
+  publicationIndexingLabel,
+  leadRoleLabel
 } from './utils.js';
 import {
   auth,
@@ -97,6 +99,7 @@ const elements = {
   projectList: qs('#project-list'),
   projectTitle: qs('#project-form-title'),
   projectFilterTabs: qs('#project-filter-tabs'),
+  projectPrincipalSelect: qs('#project-principal-select'),
   projectFigureInput: qs('#project-figure-input'),
   projectFigurePreview: qs('#project-figure-preview'),
   projectFigureRemove: qs('#project-figure-remove'),
@@ -134,6 +137,58 @@ function setTopbarAuthState(isAuthenticated, email = '') {
   }
 }
 
+
+function populateProjectPrincipalOptions(selected = '') {
+  const select = elements.projectPrincipalSelect;
+  if (!select) return;
+  const candidates = state.members
+    .filter((item) => item.status !== 'alumni' && ['pi','researchProfessor'].includes(item.group))
+    .map((item) => ({ value: item.name, label: `${item.name} · ${memberGroupLabel(item.group, 'kr')}` }));
+  select.innerHTML = `<option value="">선택</option>` + candidates.map((item) => `<option value="${escapeHTML(item.value)}">${escapeHTML(item.label)}</option>`).join('');
+  select.value = selected || '';
+}
+
+function ensureDialogRoot() {
+  let root = document.querySelector('#admin-dialog-root');
+  if (root) return root;
+  root = document.createElement('div');
+  root.id = 'admin-dialog-root';
+  root.className = 'site-modal';
+  root.hidden = true;
+  root.innerHTML = `
+    <div class="site-modal__backdrop" data-dialog-close></div>
+    <div class="site-modal__dialog admin-dialog" role="dialog" aria-modal="true">
+      <button type="button" class="site-modal__close" data-dialog-close aria-label="close">×</button>
+      <div class="site-modal__scroll">
+        <div class="site-modal__head"><h2 id="admin-dialog-title"></h2></div>
+        <div class="site-modal__content" id="admin-dialog-body"></div>
+        <div class="form-actions admin-dialog-actions" id="admin-dialog-actions"></div>
+      </div>
+    </div>`;
+  document.body.appendChild(root);
+  root.querySelectorAll('[data-dialog-close]').forEach((btn)=>btn.addEventListener('click', closeDialog));
+  root.addEventListener('click',(e)=>{ if(e.target===root) closeDialog(); });
+  return root;
+}
+function closeDialog(){ const root=ensureDialogRoot(); root.hidden=true; document.body.classList.remove('modal-open'); }
+function openDialog({title='', body='', onConfirm=null, onCancel=null, confirmText='확인', cancelText='취소'}) {
+  const root = ensureDialogRoot();
+  root.querySelector('#admin-dialog-title').textContent = title;
+  root.querySelector('#admin-dialog-body').innerHTML = body;
+  const actions = root.querySelector('#admin-dialog-actions');
+  actions.innerHTML = '';
+  const cancel = document.createElement('button');
+  cancel.type='button'; cancel.className='button secondary'; cancel.textContent=cancelText;
+  cancel.addEventListener('click', async()=>{ closeDialog(); if (onCancel) await onCancel(); });
+  actions.appendChild(cancel);
+  const ok = document.createElement('button');
+  ok.type='button'; ok.className='button primary'; ok.textContent=confirmText;
+  ok.addEventListener('click', async()=>{ if (onConfirm) await onConfirm(root); closeDialog(); });
+  actions.appendChild(ok);
+  root.hidden=false; document.body.classList.add('modal-open');
+  return root;
+}
+
 function setFormValue(form, fieldName, value) {
   const field = form?.elements?.namedItem(fieldName);
   if (field) field.value = value ?? '';
@@ -147,6 +202,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindEvents();
   renderSetupMessage();
   renderAllLists();
+  populateProjectPrincipalOptions();
   setTopbarAuthState(false);
   togglePending(false);
 
@@ -312,6 +368,7 @@ function attachListeners() {
   state.unsubs = [
     listenCollection(COLLECTIONS.members, (items) => {
       state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, items));
+      populateProjectPrincipalOptions(state.editingProject?.principalInvestigator || '');
       renderMembersList();
       renderSummary();
     }),
@@ -456,6 +513,7 @@ function resetProjectForm() {
   if (state.pendingProjectPreview) URL.revokeObjectURL(state.pendingProjectPreview);
   state.pendingProjectPreview = '';
   if (elements.projectTitle) elements.projectTitle.textContent = '과제 추가';
+  populateProjectPrincipalOptions('');
   renderProjectFigurePreview();
 }
 function resetPublicationForm() {
@@ -532,8 +590,8 @@ async function handleProjectSubmit(event) {
     status: String(formData.get('status') || 'ongoing'),
     period,
     year: extractYearFromPeriod(period),
+    leadRole: String(formData.get('leadRole') || 'principal').trim(),
     principalInvestigator: String(formData.get('principalInvestigator') || '').trim(),
-    coResearchers: String(formData.get('coResearchers') || '').trim(),
     figureUrl: state.editingProject?.figureUrl || '',
     figurePath: state.editingProject?.figurePath || '',
     figureAspect: String(formData.get('figureAspect') || '16:9'),
@@ -719,8 +777,7 @@ function projectItemMarkup(project) {
             <span class="status-badge ${project.status === 'completed' ? 'is-alumni' : ''}">${escapeHTML(projectStatusLabel(project.status, 'kr'))}</span>
           </div>
           ${project.period ? `<p class="muted">기간 · ${escapeHTML(project.period)}</p>` : ''}
-          ${project.principalInvestigator ? `<p class="muted">연구책임자 · ${escapeHTML(project.principalInvestigator)}</p>` : ''}
-          ${project.coResearchers ? `<p class="muted">공동연구원 · ${escapeHTML(project.coResearchers)}</p>` : ''}
+          ${project.principalInvestigator ? `<p class="muted">${escapeHTML(leadRoleLabel(project.leadRole || 'principal', 'kr'))} · ${escapeHTML(project.principalInvestigator)}</p>` : ''}
           ${project.description ? `<p>${escapeHTML(project.description)}</p>` : ''}
         </div>
       </div>
@@ -873,7 +930,8 @@ function loadProjectForm(project) {
   state.editingProject = project;
   elements.projectTitle.textContent = '과제 수정';
   const form = elements.projectForm;
-  ['title','description','status','period','principalInvestigator','coResearchers','figureAspect'].forEach((field) => setFormValue(form, field, project[field] || ''));
+  ['title','description','status','period','leadRole','figureAspect'].forEach((field) => setFormValue(form, field, project[field] || ''));
+  populateProjectPrincipalOptions(project.principalInvestigator || '');
   setFormValue(form, 'tags', (project.tags || []).join(', '));
   renderProjectFigurePreview();
 }
@@ -892,39 +950,71 @@ function loadBoardForm(item) {
 }
 
 async function quickGraduate(member) {
-  const year = window.prompt('졸업 연도를 입력하세요.', member.graduationYear || new Date().getFullYear().toString());
-  if (year === null) return;
-  const currentPosition = window.prompt('현재 소속을 입력하세요.', member.currentPosition || '');
-  if (currentPosition === null) return;
-  await saveDocument(COLLECTIONS.members, member.id, { ...member, status: 'alumni', graduationYear: year, currentPosition });
-  showNotice('졸업 처리되었습니다.', 'success');
+  openDialog({
+    title: '졸업 처리',
+    body: `
+      <label class="field"><span>졸업 연도</span><input id="dialog-graduation-year" type="text" value="${escapeHTML(member.graduationYear || new Date().getFullYear().toString())}"></label>
+      <label class="field"><span>현재 소속</span><input id="dialog-current-position" type="text" value="${escapeHTML(member.currentPosition || '')}"></label>
+    `,
+    confirmText: '저장',
+    onConfirm: async (root) => {
+      const year = root.querySelector('#dialog-graduation-year')?.value?.trim() || '';
+      const currentPosition = root.querySelector('#dialog-current-position')?.value?.trim() || '';
+      await saveDocument(COLLECTIONS.members, member.id, { ...member, status: 'alumni', graduationYear: year, currentPosition });
+      showNotice('졸업 처리되었습니다.', 'success');
+    }
+  });
 }
 async function quickRestore(member) {
   await saveDocument(COLLECTIONS.members, member.id, { ...member, status: 'enrolled', graduationYear: '' });
   showNotice('재학 상태로 변경되었습니다.', 'success');
 }
 async function removeMember(member) {
-  if (!window.confirm(`${member.name} 멤버를 삭제할까요?`)) return;
-  if (member.photoPath) { try { await deleteStoragePath(member.photoPath); } catch {} }
-  await deleteDocumentById(COLLECTIONS.members, member.id);
-  showNotice('멤버가 삭제되었습니다.', 'success');
+  openDialog({
+    title: '멤버 삭제',
+    body: `<p>${escapeHTML(member.name)} 멤버를 삭제할까요?</p>`,
+    confirmText: '삭제',
+    onConfirm: async () => {
+      if (member.photoPath) { try { await deleteStoragePath(member.photoPath); } catch {} }
+      await deleteDocumentById(COLLECTIONS.members, member.id);
+      showNotice('멤버가 삭제되었습니다.', 'success');
+    }
+  });
 }
 async function removeProject(project) {
-  if (!window.confirm(`${project.title} 과제를 삭제할까요?`)) return;
-  if (project.figurePath) { try { await deleteStoragePath(project.figurePath); } catch {} }
-  await deleteDocumentById(COLLECTIONS.projects, project.id);
-  showNotice('과제가 삭제되었습니다.', 'success');
+  openDialog({
+    title: '과제 삭제',
+    body: `<p>${escapeHTML(project.title)} 과제를 삭제할까요?</p>`,
+    confirmText: '삭제',
+    onConfirm: async () => {
+      if (project.figurePath) { try { await deleteStoragePath(project.figurePath); } catch {} }
+      await deleteDocumentById(COLLECTIONS.projects, project.id);
+      showNotice('과제가 삭제되었습니다.', 'success');
+    }
+  });
 }
 async function removePublication(item) {
-  if (!window.confirm(`${item.title} 논문을 삭제할까요?`)) return;
-  await deleteDocumentById(COLLECTIONS.publications, item.id);
-  showNotice('논문이 삭제되었습니다.', 'success');
+  openDialog({
+    title: '논문 삭제',
+    body: `<p>${escapeHTML(item.title)} 논문을 삭제할까요?</p>`,
+    confirmText: '삭제',
+    onConfirm: async () => {
+      await deleteDocumentById(COLLECTIONS.publications, item.id);
+      showNotice('논문이 삭제되었습니다.', 'success');
+    }
+  });
 }
 async function removeBoard(item) {
-  if (!window.confirm(`${item.title} 게시글을 삭제할까요?`)) return;
-  if (item.imagePath) { try { await deleteStoragePath(item.imagePath); } catch {} }
-  await deleteDocumentById(COLLECTIONS.board, item.id);
-  showNotice('게시글이 삭제되었습니다.', 'success');
+  openDialog({
+    title: '게시글 삭제',
+    body: `<p>${escapeHTML(item.title)} 게시글을 삭제할까요?</p>`,
+    confirmText: '삭제',
+    onConfirm: async () => {
+      if (item.imagePath) { try { await deleteStoragePath(item.imagePath); } catch {} }
+      await deleteDocumentById(COLLECTIONS.board, item.id);
+      showNotice('게시글이 삭제되었습니다.', 'success');
+    }
+  });
 }
 
 function showNotice(message, tone = 'info') {

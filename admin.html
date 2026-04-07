@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GEH Lab 관리자</title>
   <meta name="description" content="GEH Lab Firebase 관리자 페이지">
-  <link rel="stylesheet" href="assets/css/styles.css?v=9">
+  <link rel="stylesheet" href="assets/css/styles.css?v=10">
 </head>
 <body class="admin-body" data-root=".">
   <div class="admin-shell">
@@ -115,8 +115,8 @@
             <div class="form-grid form-grid--double">
               <label class="field"><span>상태</span><select name="status"><option value="ongoing" selected>진행중</option><option value="completed">종료</option></select></label>
               <label class="field"><span>기간</span><input name="period" type="text" placeholder="예: 2024–2026 / 2020 / 2018–2020"></label>
-              <label class="field"><span>연구책임자</span><input name="principalInvestigator" type="text"></label>
-              <label class="field"><span>공동연구원</span><input name="coResearchers" type="text" placeholder="쉼표 또는 텍스트로 입력"></label>
+              <label class="field"><span>책임 구분</span><select name="leadRole"><option value="principal" selected>연구책임자</option><option value="co">공동연구책임자</option><option value="host">주관책임자</option></select></label>
+              <label class="field"><span>책임자 선택</span><select name="principalInvestigator" id="project-principal-select"><option value="">선택</option></select></label>
               <label class="field"><span>이미지 비율</span><select name="figureAspect"><option value="16:9" selected>16:9</option><option value="9:16">9:16</option></select></label>
               <label class="field"><span>태그 (쉼표 구분)</span><input name="tags" type="text" placeholder="AI, Smart Farm"></label>
             </div>
@@ -172,6 +172,6 @@
   </div>
 
   <script src="firebase-config.js"></script>
-  <script type="module" src="assets/js/admin.js?v=9"></script>
+  <script type="module" src="assets/js/admin.js?v=10"></script>
 </body>
 </html>

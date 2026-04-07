@@ -19,7 +19,9 @@ import {
   mergePublications,
   mergeBoardPosts,
   memberYearLabel,
-  publicationIndexingLabel
+  publicationIndexingLabel,
+  journalToneClass,
+  leadRoleLabel
 } from './utils.js';
 import { hasFirebaseConfig, fetchCollection, COLLECTIONS } from './firebase.js';
 
@@ -267,8 +269,7 @@ function openProjectModal(project) {
       ${media}
       <div class="detail-grid detail-grid--project">
         ${detailSection(lang === 'en' ? 'Project description' : '과제 설명', project.description || (lang === 'en' ? 'No description provided.' : '설명이 아직 입력되지 않았습니다.'))}
-        ${detailSection(lang === 'en' ? 'Principal investigator' : '연구책임자', project.principalInvestigator || (lang === 'en' ? 'Not set' : '미설정'))}
-        ${detailSection(lang === 'en' ? 'Co-researchers' : '공동연구원', project.coResearchers || (lang === 'en' ? 'Not set' : '미설정'))}
+        ${detailSection(leadRoleLabel(project.leadRole || 'principal', lang), project.principalInvestigator || (lang === 'en' ? 'Not set' : '미설정'))}
         ${detailSection(lang === 'en' ? 'Keywords' : '키워드', Array.isArray(project.tags) ? project.tags.join(', ') : '')}
       </div>
     </div>
@@ -645,6 +646,17 @@ function getProjectPeriodDisplay(project = {}) {
   return raw;
 }
 
+function projectLeadMeta(project = {}) {
+  if (!project.principalInvestigator) return '';
+  const label = leadRoleLabel(project.leadRole || 'principal', lang);
+  return `<strong>${escapeHTML(label)}</strong> ${escapeHTML(project.principalInvestigator)}`;
+}
+
+function publicationYearMonth(item = {}) {
+  if (!item.year) return '';
+  return item.month ? `${item.year}.${String(item.month).padStart(2, '0')}` : String(item.year);
+}
+
 function memberMetaChips(member) {
   const chips = [];
   if (member.group === 'graduateStudent') {
@@ -692,9 +704,7 @@ function alumniCard(member) {
 
 function projectCard(project, { compact = false } = {}) {
   const period = getProjectPeriodDisplay(project);
-  const leadMeta = project.principalInvestigator
-    ? `<strong>${lang === 'en' ? 'PI' : '연구책임자'}</strong> ${escapeHTML(project.principalInvestigator)}`
-    : (project.coResearchers ? `<strong>${lang === 'en' ? 'Co-researchers' : '공동연구원'}</strong> ${escapeHTML(project.coResearchers)}` : '');
+  const leadMeta = projectLeadMeta(project);
   return `
     <article class="project-card${compact ? ' compact-card' : ''} reveal interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(project.title)}">
       <div class="card-head">
@@ -711,9 +721,7 @@ function projectCard(project, { compact = false } = {}) {
 
 function archiveProjectItem(project) {
   const period = getProjectPeriodDisplay(project) || project.year || '';
-  const leadMeta = project.principalInvestigator
-    ? `<strong>${lang === 'en' ? 'PI' : '연구책임자'}</strong> ${escapeHTML(project.principalInvestigator)}`
-    : (project.coResearchers ? `<strong>${lang === 'en' ? 'Co-researchers' : '공동연구원'}</strong> ${escapeHTML(project.coResearchers)}` : '');
+  const leadMeta = projectLeadMeta(project);
   return `
     <article class="archive-item reveal interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(project.title)}">
       <div>
@@ -733,13 +741,14 @@ function publicationCard(item) {
   const monthLabel = item.month ? (lang === 'en' ? `${item.month}` : `${Number(item.month)}월`) : '';
   const indexing = publicationIndexingLabel(item.indexing, lang);
   const indexClass = indexing ? indexing.toLowerCase() : '';
-  const acceptedLabel = item.year ? `${lang === 'en' ? 'Accepted' : 'Accepted'} ${escapeHTML(item.year)}${item.month ? `.${escapeHTML(String(item.month).padStart(2, '0'))}` : ''}` : '';
+  const journalTone = journalToneClass(item.journal || '');
+  const acceptedLabel = item.year ? `${lang === 'en' ? 'Accepted' : 'Accepted'} ${escapeHTML(publicationYearMonth(item))}` : '';
   return `
     <article class="publication-card reveal">
       <div class="publication-head-row">
         <div class="publication-topline">
-          ${item.year ? `<span class="year-pill">${escapeHTML(item.year)}</span>` : ''}
-          ${item.journal ? `<span class="journal-pill ${indexClass ? `journal-pill--${escapeHTML(indexClass)}` : ''}">${escapeHTML(item.journal)}</span>` : ''}
+          ${item.year ? `<span class="year-pill">${escapeHTML(publicationYearMonth(item))}</span>` : ''}
+          ${item.journal ? `<span class="journal-pill ${journalTone} ${indexClass ? `journal-pill--${escapeHTML(indexClass)}` : ''}">${escapeHTML(item.journal)}</span>` : ''}
           ${indexing ? `<span class="index-pill ${indexClass ? `index-pill--${escapeHTML(indexClass)}` : ''}">${escapeHTML(indexing)}</span>` : ''}
         </div>
         ${acceptedLabel ? `<span class="publication-accepted">${acceptedLabel}</span>` : ''}

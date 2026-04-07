@@ -53,19 +53,19 @@ function semanticKey(value = '') {
 }
 
 export function memberSemanticKey(item = {}) {
-  return semanticKey(item.name || item.id || '');
+  return semanticKey(item.id || item.name || '');
 }
 
 export function projectSemanticKey(item = {}) {
-  return semanticKey(item.title || item.id || '');
+  return semanticKey(item.id || item.title || '');
 }
 
 export function publicationSemanticKey(item = {}) {
-  return semanticKey(item.doi || item.url || `${item.year || ''}-${item.title || item.id || ''}`);
+  return semanticKey(item.id || item.doi || item.url || `${item.year || ''}-${item.title || ''}`);
 }
 
 export function boardSemanticKey(item = {}) {
-  return semanticKey(item.title || item.id || '');
+  return semanticKey(item.id || item.title || '');
 }
 
 export function groupBy(items = [], keyGetter) {
@@ -141,6 +141,13 @@ function mapTrack(value = '') {
   if (text.includes('part') || text.includes('파트')) return 'partTime';
   if (text.includes('full') || text.includes('풀')) return 'fullTime';
   return 'none';
+}
+
+function mapLeadRole(value = '') {
+  const text = normalizeString(value);
+  if (text.includes('주관')) return 'host';
+  if (text.includes('공동')) return 'co';
+  return 'principal';
 }
 
 function mapCourse(value = '', group = '') {
@@ -252,6 +259,7 @@ export function normalizeProject(item = {}, options = {}) {
     status: preserveMissing ? explicitStatus : (explicitStatus || 'ongoing'),
     period,
     year,
+    leadRole: mapLeadRole(item.leadRole || item.principalRole || ''),
     principalInvestigator: item.principalInvestigator || item.pi || '',
     coResearchers: item.coResearchers || item.coInvestigator || '',
     figureUrl: item.figureUrl || item.imageUrl || '',
@@ -475,6 +483,43 @@ export function publicationIndexingLabel(indexing = '', lang = 'kr') {
   const normalized = normalizeString(indexing).toUpperCase();
   if (!normalized) return '';
   return normalized;
+}
+
+
+export function leadRoleLabel(role = 'principal', lang = 'kr') {
+  const map = {
+    principal: { kr: '연구책임자', en: 'Principal investigator' },
+    co: { kr: '공동연구책임자', en: 'Co-principal investigator' },
+    host: { kr: '주관책임자', en: 'Lead investigator' }
+  };
+  return map[role]?.[lang] || map.principal[lang];
+}
+
+export function journalToneClass(journal = '') {
+  const key = semanticKey(journal);
+  const map = {
+    'thekoreansocietyforbioenvironmentcontrol': 'journal-tone-red',
+    'journalofbioenvironmentcontrol': 'journal-tone-red',
+    'horticulturalscienceandtechnology': 'journal-tone-purple',
+    'frontiersinplantscience': 'journal-tone-blue',
+    'plants': 'journal-tone-green',
+    'agronomy': 'journal-tone-orange',
+    'agriculture': 'journal-tone-orange',
+    'horticulturae': 'journal-tone-teal',
+    'horticultureenvironmentandbiotechnology': 'journal-tone-indigo',
+    'ozonescienceengineering': 'journal-tone-sky',
+    'plosone': 'journal-tone-rose',
+    'canadianjournalofplantscience': 'journal-tone-amber',
+    'plantgrowthregulation': 'journal-tone-emerald',
+    'foods': 'journal-tone-lime',
+    'heliyon': 'journal-tone-pink',
+    'chemicalandbiologicaltechnologiesinagriculture': 'journal-tone-cyan',
+    'phyton': 'journal-tone-violet',
+    'australianjournalofcropscience': 'journal-tone-fuchsia',
+    'journalofphytology': 'journal-tone-brown',
+    'horticulturejournal': 'journal-tone-slate'
+  };
+  return map[key] || 'journal-tone-default';
 }
 
 export function memberYearLabel(member = {}, lang = 'kr') {
