@@ -46,9 +46,14 @@ export const db = app ? getFirestore(app) : null;
 export const storage = app ? getStorage(app) : null;
 const googleProvider = auth ? new GoogleAuthProvider() : null;
 
+const authPersistenceReady = auth
+  ? setPersistence(auth, browserLocalPersistence).catch((error) => {
+      console.warn(error);
+    })
+  : Promise.resolve();
+
 if (googleProvider) {
   googleProvider.setCustomParameters({ prompt: 'select_account' });
-  setPersistence(auth, browserLocalPersistence).catch((error) => console.warn(error));
 }
 
 export function isAllowedAdmin(email = '') {
@@ -69,6 +74,7 @@ async function validateCredential(credential) {
 
 export async function signInAdminWithGoogle(forceRedirect = false) {
   if (!auth || !googleProvider) throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
+  await authPersistenceReady;
   const useRedirect = forceRedirect || window.matchMedia('(max-width: 820px)').matches;
   if (useRedirect) {
     await signInWithRedirect(auth, googleProvider);
@@ -87,6 +93,7 @@ export async function signInAdminWithGoogle(forceRedirect = false) {
 
 export async function resolveRedirectResult() {
   if (!auth) return null;
+  await authPersistenceReady;
   const credential = await getRedirectResult(auth);
   if (!credential) return null;
   return validateCredential(credential);
@@ -97,14 +104,18 @@ export function watchAdminState(callback) {
     callback(null);
     return () => {};
   }
-  return onAuthStateChanged(auth, async (user) => {
-    if (user && !isAllowedAdmin(user.email)) {
-      await signOut(auth);
-      callback(null);
-      return;
-    }
-    callback(user);
+  let unsubscribe = () => {};
+  authPersistenceReady.then(() => {
+    unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user && !isAllowedAdmin(user.email)) {
+        await signOut(auth);
+        callback(null);
+        return;
+      }
+      callback(user);
+    });
   });
+  return () => unsubscribe();
 }
 
 export async function signOutAdmin() {

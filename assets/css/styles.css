@@ -659,3 +659,65 @@ main { padding-bottom: 5rem; }
   .archive-item, .admin-item-card { flex-direction: column; }
   .publication-card h3, .project-card h3, .focus-card-copy strong, .member-card h3 { font-size: 1.38rem; }
 }
+
+.member-grid--wide {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.member-copy {
+  min-width: 0;
+}
+
+.member-link {
+  word-break: break-all;
+}
+
+.publication-doi a {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.accordion-trigger {
+  cursor: pointer;
+  position: relative;
+  z-index: 1;
+}
+
+.accordion-icon {
+  pointer-events: none;
+}
+
+.google-button[disabled] {
+  opacity: .56;
+  pointer-events: none;
+}
+
+.loading-card {
+  min-height: 220px;
+  align-content: center;
+}
+
+.notice-banner:empty {
+  display: none;
+}
+
+#auth-loading[hidden],
+#login-view[hidden],
+#dashboard-view[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 1100px) {
+  .member-grid--wide {
+    grid-template-columns: 1fr;
+  }
+}
+.member-grid--alumni {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 1100px) {
+  .member-grid--alumni {
+    grid-template-columns: 1fr;
+  }
+}

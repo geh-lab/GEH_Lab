@@ -48,7 +48,8 @@ const state = {
   pendingMemberFile: null,
   pendingMemberPreview: '',
   seeded: false,
-  unsubs: []
+  unsubs: [],
+  authResolved: false
 };
 
 const qs = (selector) => document.querySelector(selector);
@@ -56,6 +57,7 @@ const qsa = (selector) => Array.from(document.querySelectorAll(selector));
 const root = document.body.dataset.root || '.';
 
 const elements = {
+  authLoading: qs('#auth-loading'),
   loginView: qs('#login-view'),
   dashboardView: qs('#dashboard-view'),
   googleLoginButton: qs('#google-login-button'),
@@ -85,6 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindEvents();
   renderSetupMessage();
   renderAllLists();
+  togglePending(true);
   try {
     await resolveRedirectResult();
   } catch (error) {
@@ -94,9 +97,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     await handleAuthState(auth.currentUser);
   }
   watchAdminState(async (user) => {
-    if ((state.user?.uid || '') === (user?.uid || '')) return;
+    if ((state.user?.uid || '') === (user?.uid || '') && state.authResolved) return;
     await handleAuthState(user);
   });
+  if (!hasFirebaseConfig) {
+    togglePending(false);
+    toggleViews(false);
+  }
 });
 
 function bindEvents() {
@@ -151,16 +158,33 @@ async function handleGoogleLogin() {
 }
 
 async function handleAuthState(user) {
-  state.user = user;
+  const previousUid = state.user?.uid || '';
+  state.user = user || null;
+  state.authResolved = true;
+  togglePending(false);
   toggleViews(Boolean(user));
   if (!user) {
+    state.seeded = false;
     teardownListeners();
+    elements.currentUser.textContent = '로그인 필요';
     return;
   }
   elements.currentUser.textContent = user.email || '관리자';
   await ensureSeeded();
   attachListeners();
-  showNotice(`${user.email} 계정으로 로그인되었습니다.`, 'success');
+  setActiveTab('members');
+  if (previousUid !== user.uid) {
+    showNotice(`${user.email} 계정으로 로그인되었습니다.`, 'success');
+  }
+}
+
+function togglePending(isPending) {
+  if (elements.authLoading) elements.authLoading.hidden = !isPending;
+  if (isPending) {
+    elements.loginView.hidden = true;
+    elements.dashboardView.hidden = true;
+    elements.logoutButton.hidden = true;
+  }
 }
 
 function toggleViews(isAuthenticated) {

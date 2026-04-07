@@ -752,7 +752,7 @@ export const FALLBACK_PROJECTS = [
     "title": "Indoor Medicinal Cannabis Standard Model",
     "description": "Establishment of the standard model for indoor precision production and quality control in medicinal cannabis.",
     "status": "ongoing",
-    "period": "진행 중",
+    "period": "",
     "year": "",
     "tags": [
       "Cannabis",
@@ -767,7 +767,7 @@ export const FALLBACK_PROJECTS = [
     "title": "Rooftop Greenhouse System",
     "description": "Development and demonstration of building-integrated rooftop greenhouse systems using distributed polygeneration.",
     "status": "ongoing",
-    "period": "진행 중",
+    "period": "",
     "year": "",
     "tags": [
       "Greenhouse",
@@ -782,7 +782,7 @@ export const FALLBACK_PROJECTS = [
     "title": "Precision Water and Nutrient Supply System",
     "description": "Development of a precision water and nutrient supply system to enhance productivity and quality of horticultural crops.",
     "status": "ongoing",
-    "period": "진행 중",
+    "period": "",
     "year": "",
     "tags": [
       "Irrigation",
@@ -797,7 +797,7 @@ export const FALLBACK_PROJECTS = [
     "title": "AI-based Agricultural Water Management Platform",
     "description": "Development of an AI-driven platform for optimizing agricultural water management and improving sustainability.",
     "status": "ongoing",
-    "period": "진행 중",
+    "period": "",
     "year": "",
     "tags": [
       "AI",
@@ -812,7 +812,7 @@ export const FALLBACK_PROJECTS = [
     "title": "AI-based Artificial Light Control Platform",
     "description": "Development of an AI-based artificial lighting control platform for smart farms to optimize light intensity and spectrum.",
     "status": "ongoing",
-    "period": "진행 중",
+    "period": "",
     "year": "",
     "tags": [
       "AI",
@@ -827,7 +827,7 @@ export const FALLBACK_PROJECTS = [
     "title": "Greenhouse Waste Recycling Technology",
     "description": "Establishment of greenhouse cultivation waste recycling technology and assessment of its environmental and economic impact.",
     "status": "ongoing",
-    "period": "진행 중",
+    "period": "",
     "year": "",
     "tags": [
       "Recycling",

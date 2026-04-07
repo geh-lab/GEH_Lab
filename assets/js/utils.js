@@ -27,8 +27,6 @@ export function getInitials(name = '') {
   return initials || 'GEH';
 }
 
-
-
 function hasMeaningfulValue(value) {
   if (Array.isArray(value)) return value.length > 0;
   if (value === 0 || value === false) return true;
@@ -42,9 +40,7 @@ function mergeObjects(base = {}, override = {}) {
       if (value.length) result[key] = value;
       return;
     }
-    if (hasMeaningfulValue(value)) {
-      result[key] = value;
-    }
+    if (hasMeaningfulValue(value)) result[key] = value;
   });
   return result;
 }
@@ -66,34 +62,6 @@ export function projectSemanticKey(item = {}) {
 
 export function publicationSemanticKey(item = {}) {
   return semanticKey(item.doi || `${item.year || ''}-${item.title || item.id || ''}`);
-}
-
-function mergeBySemanticKey(fallbackItems = [], remoteItems = [], normalizer, keyGetter) {
-  const map = new Map();
-  fallbackItems.map(normalizer).forEach((item) => {
-    const key = keyGetter(item);
-    if (!key) return;
-    map.set(key, item);
-  });
-  remoteItems.map(normalizer).forEach((item) => {
-    const key = keyGetter(item);
-    if (!key) return;
-    const previous = map.get(key);
-    map.set(key, previous ? mergeObjects(previous, item) : item);
-  });
-  return Array.from(map.values());
-}
-
-export function mergeMembers(fallbackItems = [], remoteItems = []) {
-  return mergeBySemanticKey(fallbackItems, remoteItems, normalizeMember, memberSemanticKey);
-}
-
-export function mergeProjects(fallbackItems = [], remoteItems = []) {
-  return mergeBySemanticKey(fallbackItems, remoteItems, normalizeProject, projectSemanticKey);
-}
-
-export function mergePublications(fallbackItems = [], remoteItems = []) {
-  return mergeBySemanticKey(fallbackItems, remoteItems, normalizePublication, publicationSemanticKey);
 }
 
 export function groupBy(items = [], keyGetter) {
@@ -142,18 +110,20 @@ function normalizeString(value = '') {
   return String(value || '').trim().toLowerCase();
 }
 
-function mapGroup(value = '', status = '') {
+function hasExplicitKey(item = {}, key) {
+  return Object.prototype.hasOwnProperty.call(item, key) && String(item[key] ?? '').trim() !== '';
+}
+
+function mapStatus(value = '') {
   const text = normalizeString(value);
-  if (status === 'alumni') return 'alumni';
-  if (text.includes('principal') || text.includes('faculty') || text.includes('교수')) return 'pi';
-  if (text.includes('research professor') || text.includes('postdoctoral') || text.includes('postdoc') || text.includes('연구교수')) return 'researchProfessor';
-  if (text.includes('intern') || text.includes('student researcher') || text.includes('학생연구원')) return 'studentResearcher';
-  if (text.includes('alumni') || text.includes('졸업')) return 'alumni';
-  return 'graduateStudent';
+  if (text.includes('alumni') || text.includes('gradu') || text.includes('졸업')) return 'alumni';
+  if (text.includes('active') || text.includes('enrolled') || text.includes('재학')) return 'enrolled';
+  return 'enrolled';
 }
 
 function mapTrack(value = '') {
   const text = normalizeString(value);
+  if (!text || text === 'none' || text === '해당 없음') return 'none';
   if (text.includes('part') || text.includes('파트')) return 'partTime';
   if (text.includes('full') || text.includes('풀타임')) return 'fullTime';
   return 'none';
@@ -161,28 +131,61 @@ function mapTrack(value = '') {
 
 function mapCourse(value = '', group = '') {
   const text = normalizeString(value);
+  if (['professor', 'faculty'].includes(text) || text.includes('교수')) return 'professor';
+  if (['postdoc', 'postdoctoral', 'postdoctoralresearcher'].includes(text) || text.includes('박사후')) return 'postdoc';
+  if (['researcher', 'studentresearcher', 'research intern', 'intern'].includes(text) || text.includes('학생연구원')) return 'researcher';
+  if (['alumni'].includes(text) || text.includes('졸업')) return 'alumni';
+  if (['phd', 'ph.d', 'ph.d.', 'doctor'].includes(text) || text.includes('박사')) return 'phd';
+  if (['ms', 'm.s', 'm.s.', 'master'].includes(text) || text.includes('석사')) return 'ms';
   if (group === 'pi') return 'professor';
   if (group === 'researchProfessor') return 'postdoc';
   if (group === 'studentResearcher') return 'researcher';
   if (group === 'alumni') return 'alumni';
-  if (text.includes('ph') || text.includes('박사')) return 'phd';
-  if (text.includes('m.s') || text.includes('ms') || text.includes('석사')) return 'ms';
   return 'ms';
 }
 
-function mapStatus(value = '') {
+function mapGroup(value = '', status = '', course = '') {
   const text = normalizeString(value);
-  if (text.includes('alumni') || text.includes('gradu') || text.includes('졸업')) return 'alumni';
-  return 'enrolled';
+  const courseText = normalizeString(course);
+  if (status === 'alumni') return 'alumni';
+  if (['pi', 'principalinvestigator', 'principal-investigator'].includes(text)) return 'pi';
+  if (['researchprofessor', 'research professor', 'postdoc', 'postdoctoral', 'postdoctoralresearcher', 'research-professor'].includes(text)) return 'researchProfessor';
+  if (['studentresearcher', 'student-researcher', 'researchintern', 'research intern', 'intern'].includes(text)) return 'studentResearcher';
+  if (['graduatestudent', 'graduate-student', 'graduate student'].includes(text)) {
+    if (courseText.includes('professor') || courseText.includes('교수')) return 'pi';
+    if (courseText.includes('postdoc') || courseText.includes('박사후')) return 'researchProfessor';
+    if (courseText.includes('researcher') || courseText.includes('intern') || courseText.includes('학생연구원')) return 'studentResearcher';
+    return 'graduateStudent';
+  }
+  if (text.includes('principal') || text.includes('지도교수') || text.includes('연구책임') || text === '교수') return 'pi';
+  if (text.includes('research professor') || text.includes('postdoctoral') || text.includes('postdoc') || text.includes('연구교수')) return 'researchProfessor';
+  if (text.includes('student researcher') || text.includes('intern') || text.includes('학생연구원')) return 'studentResearcher';
+  if (text.includes('alumni') || text.includes('졸업')) return 'alumni';
+  if (courseText.includes('professor') || courseText.includes('교수')) return 'pi';
+  if (courseText.includes('postdoc') || courseText.includes('박사후')) return 'researchProfessor';
+  if (courseText.includes('researcher') || courseText.includes('intern') || courseText.includes('학생연구원')) return 'studentResearcher';
+  return 'graduateStudent';
 }
 
-export function normalizeMember(item = {}) {
-  const status = mapStatus(item.status);
-  const group = mapGroup(item.group, status);
-  const track = mapTrack(item.track);
-  const course = mapCourse(item.course, group);
+export function normalizeMember(item = {}, options = {}) {
+  const preserveMissing = Boolean(options.preserveMissing);
+  const courseSource = item.course || item.degree || '';
+  const trackSource = item.track || item.degree || '';
+  const explicitStatus = hasExplicitKey(item, 'status') ? mapStatus(item.status) : undefined;
+  const explicitCourse = (hasExplicitKey(item, 'course') || hasExplicitKey(item, 'degree')) ? mapCourse(courseSource) : undefined;
+  const explicitGroup = hasExplicitKey(item, 'group') ? mapGroup(item.group, explicitStatus || '', explicitCourse || courseSource || '') : undefined;
+  const explicitTrack = (hasExplicitKey(item, 'track') || hasExplicitKey(item, 'degree')) ? mapTrack(trackSource) : undefined;
+
+  const status = preserveMissing ? explicitStatus : (explicitStatus || 'enrolled');
+  const group = preserveMissing
+    ? (explicitGroup || (status === 'alumni' ? 'alumni' : undefined))
+    : mapGroup(item.group, status || 'enrolled', explicitCourse || courseSource || '');
+  const course = preserveMissing ? explicitCourse : mapCourse(item.course, group || '');
+  const track = preserveMissing ? explicitTrack : mapTrack(item.track);
+  const sortOrder = hasExplicitKey(item, 'sortOrder') ? Number(item.sortOrder) : (preserveMissing ? undefined : 999);
+
   return {
-    id: item.id || slugify(item.name || crypto.randomUUID()),
+    id: item.id || (!preserveMissing ? slugify(item.name || crypto.randomUUID()) : undefined),
     name: item.name || '',
     group,
     track,
@@ -195,39 +198,49 @@ export function normalizeMember(item = {}) {
     currentPosition: item.currentPosition || item.employment || '',
     status,
     graduationYear: item.graduationYear || '',
-    sortOrder: Number(item.sortOrder ?? 999),
+    sortOrder,
     photoUrl: item.photoUrl || item.image || '',
     photoPath: item.photoPath || '',
-    createdAt: item.createdAt || null,
-    updatedAt: item.updatedAt || null
+    createdAt: item.createdAt || undefined,
+    updatedAt: item.updatedAt || undefined
   };
 }
 
-export function normalizeProject(item = {}) {
-  const rawStatus = normalizeString(item.status);
-  const status = rawStatus.includes('complete') || rawStatus.includes('종료') ? 'completed' : 'ongoing';
-  return {
-    id: item.id || slugify(item.title || crypto.randomUUID()),
-    title: item.title || '',
-    description: item.description || item.desc || '',
-    status,
-    period: item.period || '',
-    year: item.year || '',
-    tags: Array.isArray(item.tags)
-      ? item.tags
-      : String(item.tags || '')
+export function normalizeProject(item = {}, options = {}) {
+  const preserveMissing = Boolean(options.preserveMissing);
+  const explicitStatus = hasExplicitKey(item, 'status')
+    ? (normalizeString(item.status).includes('complete') || normalizeString(item.status).includes('종료') ? 'completed' : 'ongoing')
+    : undefined;
+  const sortOrder = hasExplicitKey(item, 'sortOrder') ? Number(item.sortOrder) : (preserveMissing ? undefined : 999);
+  const tags = Array.isArray(item.tags)
+    ? item.tags
+    : hasExplicitKey(item, 'tags')
+      ? String(item.tags || '')
           .split(',')
           .map((tag) => tag.trim())
-          .filter(Boolean),
-    sortOrder: Number(item.sortOrder ?? 999),
-    createdAt: item.createdAt || null,
-    updatedAt: item.updatedAt || null
+          .filter(Boolean)
+      : preserveMissing
+        ? undefined
+        : [];
+  return {
+    id: item.id || (!preserveMissing ? slugify(item.title || crypto.randomUUID()) : undefined),
+    title: item.title || '',
+    description: item.description || item.desc || '',
+    status: preserveMissing ? explicitStatus : (explicitStatus || 'ongoing'),
+    period: item.period || '',
+    year: item.year || '',
+    tags,
+    sortOrder,
+    createdAt: item.createdAt || undefined,
+    updatedAt: item.updatedAt || undefined
   };
 }
 
-export function normalizePublication(item = {}) {
+export function normalizePublication(item = {}, options = {}) {
+  const preserveMissing = Boolean(options.preserveMissing);
+  const sortOrder = hasExplicitKey(item, 'sortOrder') ? Number(item.sortOrder) : (preserveMissing ? undefined : 999);
   return {
-    id: item.id || slugify(`${item.year || ''}-${item.title || crypto.randomUUID()}`),
+    id: item.id || (!preserveMissing ? slugify(`${item.year || ''}-${item.title || crypto.randomUUID()}`) : undefined),
     title: item.title || '',
     authors: item.authors || '',
     journal: item.journal || '',
@@ -235,34 +248,59 @@ export function normalizePublication(item = {}) {
     doi: item.doi || '',
     url: item.url || '',
     abstract: item.abstract || '',
-    sortOrder: Number(item.sortOrder ?? 999),
-    createdAt: item.createdAt || null,
-    updatedAt: item.updatedAt || null
+    sortOrder,
+    createdAt: item.createdAt || undefined,
+    updatedAt: item.updatedAt || undefined
   };
 }
 
-const GROUP_ORDER = {
-  pi: 0,
-  researchProfessor: 1,
-  graduateStudent: 2,
-  studentResearcher: 3,
-  alumni: 4
-};
+function preserveLegacyMemberGroup(previous, remoteRaw = {}, merged) {
+  const rawCourse = normalizeString(remoteRaw.course);
+  const normalizedRemoteGroup = merged.group || '';
+  const needsFallbackGroup = !hasExplicitKey(remoteRaw, 'group') || normalizedRemoteGroup === 'graduateStudent';
+  const needsFallbackCourse = !hasExplicitKey(remoteRaw, 'course') || !rawCourse || rawCourse === 'ms' || rawCourse === 'm.s' || rawCourse === 'm.s.';
+  if (!previous) return merged;
+  if (['pi', 'researchProfessor', 'studentResearcher'].includes(previous.group) && needsFallbackGroup) {
+    merged.group = previous.group;
+    if (needsFallbackCourse) merged.course = previous.course;
+    if (!hasExplicitKey(remoteRaw, 'track')) merged.track = previous.track;
+  }
+  return merged;
+}
 
-const TRACK_ORDER = {
-  fullTime: 0,
-  partTime: 1,
-  none: 2
-};
+function mergeBySemanticKey(fallbackItems = [], remoteItems = [], normalizer, keyGetter, mergeResolver) {
+  const map = new Map();
+  fallbackItems.map((item) => normalizer(item)).forEach((item) => {
+    const key = keyGetter(item);
+    if (!key) return;
+    map.set(key, item);
+  });
+  remoteItems.forEach((rawItem) => {
+    const normalizedRemote = normalizer(rawItem, { preserveMissing: true });
+    const key = keyGetter(normalizedRemote);
+    if (!key) return;
+    const previous = map.get(key);
+    const merged = previous ? mergeObjects(previous, normalizedRemote) : normalizer(rawItem);
+    map.set(key, mergeResolver ? mergeResolver(previous, rawItem, merged) : merged);
+  });
+  return Array.from(map.values());
+}
 
-const COURSE_ORDER = {
-  professor: 0,
-  postdoc: 1,
-  phd: 2,
-  ms: 3,
-  researcher: 4,
-  alumni: 5
-};
+export function mergeMembers(fallbackItems = [], remoteItems = []) {
+  return mergeBySemanticKey(fallbackItems, remoteItems, normalizeMember, memberSemanticKey, preserveLegacyMemberGroup);
+}
+
+export function mergeProjects(fallbackItems = [], remoteItems = []) {
+  return mergeBySemanticKey(fallbackItems, remoteItems, normalizeProject, projectSemanticKey);
+}
+
+export function mergePublications(fallbackItems = [], remoteItems = []) {
+  return mergeBySemanticKey(fallbackItems, remoteItems, normalizePublication, publicationSemanticKey);
+}
+
+const GROUP_ORDER = { pi: 0, researchProfessor: 1, graduateStudent: 2, studentResearcher: 3, alumni: 4 };
+const TRACK_ORDER = { fullTime: 0, partTime: 1, none: 2 };
+const COURSE_ORDER = { professor: 0, postdoc: 1, phd: 2, ms: 3, researcher: 4, alumni: 5 };
 
 function yearValue(value = '') {
   const match = String(value).match(/\d{4}/);
@@ -271,7 +309,7 @@ function yearValue(value = '') {
 
 export function sortMembers(items = []) {
   return [...items]
-    .map(normalizeMember)
+    .map((item) => normalizeMember(item))
     .sort((a, b) => {
       if (a.status !== b.status) return a.status === 'enrolled' ? -1 : 1;
       if (a.status === 'alumni') {
@@ -292,7 +330,7 @@ export function sortMembers(items = []) {
 
 export function sortProjects(items = []) {
   return [...items]
-    .map(normalizeProject)
+    .map((item) => normalizeProject(item))
     .sort((a, b) => {
       if (a.status !== b.status) return a.status === 'ongoing' ? -1 : 1;
       const byYear = yearValue(b.year || b.period) - yearValue(a.year || a.period);
@@ -305,7 +343,7 @@ export function sortProjects(items = []) {
 
 export function sortPublications(items = []) {
   return [...items]
-    .map(normalizePublication)
+    .map((item) => normalizePublication(item))
     .sort((a, b) => {
       const byYear = yearValue(b.year) - yearValue(a.year);
       if (byYear) return byYear;
@@ -316,15 +354,13 @@ export function sortPublications(items = []) {
 }
 
 export function lastUpdated(items = [], fallback) {
-  const max = items.reduce((acc, item) => {
-    return Math.max(acc, toTimeValue(item.updatedAt), toTimeValue(item.createdAt));
-  }, 0);
+  const max = items.reduce((acc, item) => Math.max(acc, toTimeValue(item.updatedAt), toTimeValue(item.createdAt)), 0);
   return max || fallback;
 }
 
 export function resolvePublicationLink(item = {}) {
   if (item.url) return item.url;
-  if (item.doi) return `https://doi.org/${item.doi}`;
+  if (item.doi) return /^https?:/i.test(item.doi) ? item.doi : `https://doi.org/${item.doi}`;
   return '';
 }
 
@@ -335,7 +371,7 @@ export function memberStatusLabel(member, lang = 'kr') {
 
 export function memberGroupLabel(group, lang = 'kr') {
   const map = {
-    pi: { kr: '연구책임자', en: 'Principal Investigator' },
+    pi: { kr: '지도교수', en: 'Principal Investigator' },
     researchProfessor: { kr: '연구교수', en: 'Research Professor' },
     graduateStudent: { kr: '대학원생', en: 'Graduate Student' },
     studentResearcher: { kr: '학생연구원', en: 'Student Researcher' },
