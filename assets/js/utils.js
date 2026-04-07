@@ -176,12 +176,15 @@ function mapGroup(value = '', status = '', course = '') {
 function inferPublicationIndexing(journal = '') {
   const name = normalizeString(journal);
   if (!name) return '';
+  const sciKeywords = [
+    'horticultural science and technology'
+  ];
   const kciKeywords = [
     'journal of bio-environment control',
     'the korean society for bio-environment control',
-    'horticultural science and technology',
     'horticulture journal'
   ];
+  if (sciKeywords.some((keyword) => name.includes(keyword))) return 'SCI';
   if (kciKeywords.some((keyword) => name.includes(keyword))) return 'KCI';
   return 'SCI';
 }

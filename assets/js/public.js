@@ -43,7 +43,8 @@ const state = {
   projects: sortProjects(FALLBACK_PROJECTS),
   publications: sortPublications(FALLBACK_PUBLICATIONS),
   board: sortBoardPosts(FALLBACK_BOARD_POSTS),
-  publicationQuery: ''
+  publicationQuery: '',
+  boardTab: 'news'
 };
 
 const modalState = {
@@ -201,6 +202,17 @@ function bindInteractiveCards() {
   bindCard('[data-board-id]', 'boardId', (id) => () => {
     const post = state.board.find((item) => item.id === id);
     if (post) openBoardModal(post);
+  });
+
+  qsa('.detail-open-button, .pi-photo-button').forEach((button) => {
+    if (button.dataset.modalBound === 'true') return;
+    button.dataset.modalBound = 'true';
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const member = state.members.find((item) => item.id === button.dataset.memberId);
+      if (member) openMemberModal(member);
+    });
   });
 }
 
@@ -442,10 +454,9 @@ function renderMembers() {
           <div class="pi-card-main">
             <div class="pi-card-head">
               <span class="eyebrow">${escapeHTML(copy.pi)}</span>
-              <h2>${escapeHTML(pi.name)}</h2>
+              <div class="pi-name-row"><h2>${escapeHTML(pi.name)}</h2>${memberYearLabel(pi, lang) ? `<span class="member-chip member-chip--soft">${escapeHTML(memberYearLabel(pi, lang))}</span>` : ''}</div>
               <p class="pi-title">${escapeHTML(pi.bio || (lang === 'en' ? 'Professor, Chungnam National University' : '충남대학교 교수'))}</p>
-              ${memberYearLabel(pi, lang) ? `<div class="member-chip-row"><span class="member-chip member-chip--soft">${escapeHTML(memberYearLabel(pi, lang))}</span></div>` : ''}
-              <button type="button" class="button secondary detail-open-button" data-member-id="${escapeHTML(pi.id)}">${lang === 'en' ? 'View profile' : '상세 보기'}</button>
+              <div class="pi-head-actions"><button type="button" class="button secondary detail-open-button" data-member-id="${escapeHTML(pi.id)}">${lang === 'en' ? 'View profile' : '상세 보기'}</button></div>
             </div>
             <div class="pi-card-grid">
               <article><h3>${escapeHTML(copy.education)}</h3><p>${escapeHTML(pi.education || '')}</p></article>
@@ -507,9 +518,7 @@ function renderProjects() {
   const ongoing = state.projects.filter((item) => item.status === 'ongoing');
   const completed = state.projects.filter((item) => item.status === 'completed');
   const summary = qs('#project-summary');
-  if (summary) summary.textContent = lang === 'en'
-    ? `${ongoing.length} ongoing projects · ${completed.length} archived projects`
-    : `진행 중 과제 ${ongoing.length}건 · 종료 과제 ${completed.length}건`;
+  if (summary) summary.textContent = '';
 
   const statGrid = qs('#project-stat-grid');
   if (statGrid) {
@@ -541,7 +550,7 @@ function renderPublications() {
   const allKci = state.publications.filter((item) => publicationIndexingLabel(item.indexing, lang).toUpperCase() === 'KCI').length;
 
   const summary = qs('#publication-summary');
-  if (summary) summary.textContent = lang === 'en' ? `Publications ${filtered.length}` : `논문 ${filtered.length}편`;
+  if (summary) summary.textContent = '';
 
   const statGrid = qs('#publication-stat-grid');
   if (statGrid) {
@@ -565,16 +574,30 @@ function renderBoard() {
   const presentationPosts = state.board.filter((item) => ['poster', 'oral'].includes(item.category));
   const summary = qs('#board-summary');
   if (summary) summary.textContent = lang === 'en' ? `${state.board.length} posts` : `게시글 ${state.board.length}건`;
-  const newsSummary = qs('#board-news-summary');
-  const presentationSummary = qs('#board-presentation-summary');
-  if (newsSummary) newsSummary.textContent = lang === 'en' ? `${noticePosts.length} items` : `${noticePosts.length}건`;
-  if (presentationSummary) presentationSummary.textContent = lang === 'en' ? `${presentationPosts.length} items` : `${presentationPosts.length}건`;
-  const newsGrid = qs('#board-news-grid');
-  const presentationGrid = qs('#board-presentation-grid');
-  if (newsGrid) newsGrid.innerHTML = noticePosts.length ? noticePosts.map((post) => boardCard(post)).join('') : emptyState(lang === 'en' ? 'No notices or news yet.' : '공지와 소식이 아직 없습니다.');
-  if (presentationGrid) presentationGrid.innerHTML = presentationPosts.length ? presentationPosts.map((post) => boardCard(post)).join('') : emptyState(lang === 'en' ? 'No presentation items yet.' : '학회 발표 자료가 아직 없습니다.');
-  const legacyGrid = qs('#board-grid');
-  if (legacyGrid) legacyGrid.innerHTML = '';
+  const newsTab = qs('[data-board-tab="news"]');
+  const presentationTab = qs('[data-board-tab="presentations"]');
+  const grid = qs('#board-tab-grid');
+  const tabCount = qs('#board-tab-count');
+  const tabTitle = qs('#board-tab-title');
+  const tabEyebrow = qs('#board-tab-eyebrow');
+  const isNews = state.boardTab !== 'presentations';
+  newsTab?.classList.toggle('is-active', isNews);
+  presentationTab?.classList.toggle('is-active', !isNews);
+  const activePosts = isNews ? noticePosts : presentationPosts;
+  if (tabCount) tabCount.textContent = lang === 'en' ? `${activePosts.length} items` : `${activePosts.length}건`;
+  if (tabTitle) tabTitle.textContent = isNews ? (lang === 'en' ? 'Lab news · notices' : '연구실 공지 · 소식') : (lang === 'en' ? 'Conference presentations' : '학회 발표');
+  if (tabEyebrow) tabEyebrow.textContent = isNews ? 'NEWS' : 'PRESENTATIONS';
+  if (grid) grid.innerHTML = activePosts.length ? activePosts.map((post) => boardCard(post)).join('') : emptyState(isNews ? (lang === 'en' ? 'No notices or news yet.' : '공지와 소식이 아직 없습니다.') : (lang === 'en' ? 'No presentation items yet.' : '학회 발표 자료가 아직 없습니다.'));
+  qsa('[data-board-tab]').forEach((button) => {
+    if (button.dataset.bound === 'true') return;
+    button.dataset.bound = 'true';
+    button.addEventListener('click', () => {
+      state.boardTab = button.dataset.boardTab;
+      renderBoard();
+      setupRevealAnimations();
+      bindInteractiveCards();
+    });
+  });
 }
 
 function setupSearch() {
@@ -710,16 +733,16 @@ function publicationCard(item) {
   const monthLabel = item.month ? (lang === 'en' ? `${item.month}` : `${Number(item.month)}월`) : '';
   const indexing = publicationIndexingLabel(item.indexing, lang);
   const indexClass = indexing ? indexing.toLowerCase() : '';
+  const acceptedLabel = item.year ? `${lang === 'en' ? 'Accepted' : 'Accepted'} ${escapeHTML(item.year)}${item.month ? `.${escapeHTML(String(item.month).padStart(2, '0'))}` : ''}` : '';
   return `
     <article class="publication-card reveal">
       <div class="publication-head-row">
         <div class="publication-topline">
           ${item.year ? `<span class="year-pill">${escapeHTML(item.year)}</span>` : ''}
-          ${monthLabel ? `<span class="year-pill">${escapeHTML(monthLabel)}</span>` : ''}
           ${item.journal ? `<span class="journal-pill ${indexClass ? `journal-pill--${escapeHTML(indexClass)}` : ''}">${escapeHTML(item.journal)}</span>` : ''}
           ${indexing ? `<span class="index-pill ${indexClass ? `index-pill--${escapeHTML(indexClass)}` : ''}">${escapeHTML(indexing)}</span>` : ''}
         </div>
-        <span class="publication-updated">${escapeHTML(copy.updated)} ${escapeHTML(formatDate(item.updatedAt || item.createdAt || BUILD_DATE, lang === 'en' ? 'en-CA' : 'ko-KR'))}</span>
+        ${acceptedLabel ? `<span class="publication-accepted">${acceptedLabel}</span>` : ''}
       </div>
       <h3>${escapeHTML(item.title)}</h3>
       <div class="publication-meta-row">

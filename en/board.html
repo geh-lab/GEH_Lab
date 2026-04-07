@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Board · GEH Lab</title>
   <meta name="description" content="GEH Lab Board">
-  <link rel="stylesheet" href="../assets/css/styles.css">
+  <link rel="stylesheet" href="../assets/css/styles.css?v=9">
 </head>
 <body class="public-body" data-page="board" data-lang="en" data-root="..">
 <div class="site-shell">
@@ -28,20 +28,21 @@
   </div>
 </header>
 <main>
-<section class="page-hero" id="board-page"><div class="page-hero-card reveal"><span class="eyebrow">BOARD</span><h1>Board</h1><p>Notices, poster presentations, oral presentations, and lab updates in one place.</p><div class="page-hero-meta"><span id="board-summary"></span><span id="page-updated"></span></div></div></section>
-<section class="page-section container"><div class="board-section-grid">
-  <div>
-    <div class="section-header reveal board-section-head"><div><span class="eyebrow">NEWS</span><h2>Lab news · notices</h2></div><span id="board-news-summary" class="muted"></span></div>
-    <div class="board-grid" id="board-news-grid"></div>
+<section class="page-hero" id="board-page"><div class="page-hero-card page-hero-card--overview reveal"><span class="eyebrow">BOARD</span><h1>Board</h1><div class="page-hero-meta"><span id="board-summary"></span><span id="page-updated"></span></div></div></section>
+<section class="page-section container board-tab-section">
+  <div class="board-tabs" id="board-tablist" role="tablist" aria-label="Board categories">
+    <button type="button" class="board-tab is-active" data-board-tab="news">Lab news · notices</button>
+    <button type="button" class="board-tab" data-board-tab="presentations">Conference presentations</button>
   </div>
-  <div>
-    <div class="section-header reveal board-section-head"><div><span class="eyebrow">PRESENTATIONS</span><h2>Conference presentations</h2></div><span id="board-presentation-summary" class="muted"></span></div>
-    <div class="board-grid" id="board-presentation-grid"></div>
+  <div class="section-header reveal board-section-head">
+    <div><span class="eyebrow" id="board-tab-eyebrow">NEWS</span><h2 id="board-tab-title">Lab news · notices</h2></div>
+    <span id="board-tab-count" class="muted"></span>
   </div>
-</div></section>
+  <div class="board-grid" id="board-tab-grid"></div>
+</section>
 </main>
 <footer class="site-footer"><div class="footer-brand"><img src="../assets/images/logos/cnu-emblem-blue.jpg" alt="CNU"><div><strong>GEH Lab</strong><br><small>Greenhouse & Environmental Horticulture Lab</small></div></div><div class="footer-meta">COPYRIGHT © Chungnam National University Greenhouse & Environmental Horticulture Lab</div></footer>
 </div>
 <script src="../firebase-config.js"></script>
-<script type="module" src="../assets/js/public.js"></script>
+<script type="module" src="../assets/js/public.js?v=9"></script>
 </body></html>

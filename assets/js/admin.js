@@ -80,6 +80,7 @@ const elements = {
   loginView: qs('#login-view'),
   dashboardView: qs('#dashboard-view'),
   googleLoginButton: qs('#google-login-button'),
+  loginShortcutButton: qs('#login-shortcut-button'),
   logoutButton: qs('#logout-button'),
   currentUser: qs('#current-user-label'),
   authNotice: qs('#auth-notice'),
@@ -121,6 +122,11 @@ function setTopbarAuthState(isAuthenticated, email = '') {
     elements.currentUser.textContent = isAuthenticated ? (email || '관리자') : '로그인 필요';
     elements.currentUser.classList.toggle('is-authenticated', Boolean(isAuthenticated));
   }
+  if (elements.loginShortcutButton) {
+    elements.loginShortcutButton.hidden = Boolean(isAuthenticated);
+    elements.loginShortcutButton.style.display = isAuthenticated ? 'none' : 'inline-flex';
+    elements.loginShortcutButton.setAttribute('aria-hidden', String(Boolean(isAuthenticated)));
+  }
   if (elements.logoutButton) {
     elements.logoutButton.hidden = !isAuthenticated;
     elements.logoutButton.style.display = isAuthenticated ? 'inline-flex' : 'none';
@@ -142,39 +148,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderSetupMessage();
   renderAllLists();
   setTopbarAuthState(false);
-  togglePending(true);
+  togglePending(false);
 
   if (!hasFirebaseConfig) {
-    togglePending(false);
     toggleViews(false);
     return;
   }
-
-  let fallbackTimer = window.setTimeout(() => {
-    if (!state.authResolved) handleAuthState(auth?.currentUser || null);
-  }, 900);
 
   try {
     const redirectCredential = await resolveRedirectResult();
     if (redirectCredential?.user) {
       await handleAuthState(redirectCredential.user);
+    } else {
+      await handleAuthState(auth?.currentUser || null);
     }
   } catch (error) {
+    console.error(error);
     showNotice(error.message || 'Google 로그인 처리 중 오류가 발생했습니다.', 'danger');
-  }
-
-  if (auth?.currentUser) {
-    await handleAuthState(auth.currentUser);
+    await handleAuthState(auth?.currentUser || null);
   }
 
   watchAdminState(async (user) => {
-    window.clearTimeout(fallbackTimer);
     await handleAuthState(user);
   });
 });
 
 function bindEvents() {
   elements.googleLoginButton?.addEventListener('click', handleGoogleLogin);
+  elements.loginShortcutButton?.addEventListener('click', handleGoogleLogin);
   elements.logoutButton?.addEventListener('click', async () => {
     if (!state.user) {
       await handleAuthState(null);
@@ -225,14 +226,19 @@ async function handleGoogleLogin() {
     return;
   }
   elements.googleLoginButton?.setAttribute('disabled', 'disabled');
+  elements.loginShortcutButton?.setAttribute('disabled', 'disabled');
   showNotice('Google 로그인 페이지로 이동합니다.', 'info');
   try {
-    await signInAdminWithGoogle();
+    const credential = await signInAdminWithGoogle();
+    if (credential?.user) {
+      await handleAuthState(credential.user);
+    }
   } catch (error) {
     console.error(error);
     showNotice(error.message || 'Google 로그인에 실패했습니다.', 'danger');
   } finally {
     elements.googleLoginButton?.removeAttribute('disabled');
+    elements.loginShortcutButton?.removeAttribute('disabled');
   }
 }
 
@@ -257,8 +263,8 @@ async function handleAuthState(user) {
 function togglePending(isPending) {
   if (elements.authLoading) elements.authLoading.hidden = !isPending;
   if (isPending) {
-    elements.loginView.hidden = true;
-    elements.dashboardView.hidden = true;
+    if (elements.loginView) elements.loginView.hidden = true;
+    if (elements.dashboardView) elements.dashboardView.hidden = true;
     setTopbarAuthState(false);
   }
 }
