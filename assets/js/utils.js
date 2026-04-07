@@ -264,6 +264,7 @@ export function normalizeProject(item = {}, options = {}) {
 export function normalizePublication(item = {}, options = {}) {
   const preserveMissing = Boolean(options.preserveMissing);
   const sortOrder = hasExplicitKey(item, 'sortOrder') ? Number(item.sortOrder) : (preserveMissing ? undefined : 999);
+  const inferredIndexing = inferPublicationIndexing(item.journal || '');
   return {
     id: item.id || (!preserveMissing ? slugify(`${item.year || ''}-${item.title || crypto.randomUUID()}`) : undefined),
     title: item.title || '',
@@ -274,7 +275,7 @@ export function normalizePublication(item = {}, options = {}) {
     doi: item.doi || '',
     url: item.url || '',
     abstract: item.abstract || '',
-    indexing: item.indexing || inferPublicationIndexing(item.journal || ''),
+    indexing: inferredIndexing || item.indexing || '',
     sortOrder,
     createdAt: item.createdAt || undefined,
     updatedAt: item.updatedAt || undefined

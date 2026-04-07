@@ -322,7 +322,7 @@ main { padding-bottom: 5rem; }
   color: var(--muted);
   font-size: 1.04rem;
 }
-.page-hero-meta { margin-top: 1rem; color: var(--muted); }
+.page-hero-meta { margin-top: 1rem; color: var(--muted); width: 100%; justify-content: space-between; align-items: center; }
 .meta-pill, .status-pill, .member-chip, .journal-pill, .year-pill {
   display: inline-flex;
   align-items: center;
@@ -519,6 +519,7 @@ main { padding-bottom: 5rem; }
 .admin-topbar-links a { padding:.64rem .85rem; border-radius:14px; color:var(--muted); }
 .admin-topbar-links a.is-active, .admin-topbar-links a:hover { background:#111317; color:#fff; }
 .user-chip {
+  min-width: 96px;
   padding: .7rem .95rem;
   border-radius: 999px;
   background: #f3f5f8;
@@ -1139,5 +1140,60 @@ body.modal-open {
   }
   .site-modal__dialog {
     width: calc(100% - 1rem);
+  }
+}
+
+
+.user-chip.is-authenticated {
+  color: var(--accent);
+  background: rgba(10,108,255,.08);
+}
+
+.page-stat-grid {
+  margin-top: 1.2rem;
+}
+
+.board-section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.board-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.index-pill--sci,
+.journal-pill--sci {
+  background: rgba(10,108,255,.08);
+  color: var(--accent);
+  border: 1px solid rgba(10,108,255,.16);
+}
+
+.index-pill--kci,
+.journal-pill--kci {
+  background: rgba(16,185,129,.12);
+  color: #0f766e;
+  border: 1px solid rgba(16,185,129,.2);
+}
+
+.journal-pill--sci {
+  color: #1d4ed8;
+}
+
+.journal-pill--kci {
+  color: #0f766e;
+}
+
+.publication-doi-link {
+  letter-spacing: .02em;
+}
+
+@media (max-width: 980px) {
+  .board-section-grid {
+    grid-template-columns: 1fr;
   }
 }

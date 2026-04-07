@@ -3,7 +3,6 @@ import {
   getAuth,
   onAuthStateChanged,
   GoogleAuthProvider,
-  signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
   signOut,
@@ -73,23 +72,11 @@ async function validateCredential(credential) {
   return credential;
 }
 
-export async function signInAdminWithGoogle(forceRedirect = false) {
+export async function signInAdminWithGoogle() {
   if (!auth || !googleProvider) throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
   await authPersistenceReady;
-  const useRedirect = forceRedirect || window.matchMedia('(max-width: 820px)').matches;
-  if (useRedirect) {
-    await signInWithRedirect(auth, googleProvider);
-    return null;
-  }
-  try {
-    return await validateCredential(await signInWithPopup(auth, googleProvider));
-  } catch (error) {
-    if (['auth/popup-blocked', 'auth/popup-closed-by-user', 'auth/cancelled-popup-request'].includes(error?.code)) {
-      await signInWithRedirect(auth, googleProvider);
-      return null;
-    }
-    throw error;
-  }
+  await signInWithRedirect(auth, googleProvider);
+  return null;
 }
 
 export async function resolveRedirectResult() {

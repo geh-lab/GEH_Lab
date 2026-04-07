@@ -1,4 +1,4 @@
-export const BUILD_DATE = '2026-04-07';
+export const BUILD_DATE = "2026-04-07";
 
 export const SITE_COPY = {
   "kr": {
@@ -206,7 +206,10 @@ export const FALLBACK_MEMBERS = [
     "photoUrl": "assets/images/members/jongseok-park.png",
     "photoPath": "",
     "updatedAt": "2026-04-06",
-    "startYear": "2013"
+    "startYear": "2013",
+    "coursesInfo": "관리자에서 교수 수업 정보를 추가할 수 있습니다.",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "kwangya-lee",
@@ -225,7 +228,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 10,
     "photoUrl": "assets/images/members/kwangya-lee.png",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "관리자에서 연구교수 관련 과제 정보를 추가할 수 있습니다.",
+    "authorshipNote": ""
   },
   {
     "id": "vu-phong-lam",
@@ -244,7 +250,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 11,
     "photoUrl": "assets/images/members/vu-phong-lam.png",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "관리자에서 연구교수 관련 과제 정보를 추가할 수 있습니다.",
+    "authorshipNote": ""
   },
   {
     "id": "giju-eoh",
@@ -263,7 +272,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 20,
     "photoUrl": "assets/images/members/giju-eoh.png",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "seungyong-hahm",
@@ -282,7 +294,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 21,
     "photoUrl": "assets/images/members/seungyong-hahm.png",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "sunwoo-kim",
@@ -301,7 +316,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 22,
     "photoUrl": "assets/images/members/sunwoo-kim.png",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "jiwon-bae",
@@ -320,7 +338,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 23,
     "photoUrl": "assets/images/members/jiwon-bae.png",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "yongjae-lee",
@@ -339,7 +360,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 24,
     "photoUrl": "assets/images/members/yongjae-lee.png",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "eun-sun-choi",
@@ -358,7 +382,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 25,
     "photoUrl": "assets/images/members/eun-sun-choi.jpg",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "wonkyu-yi",
@@ -377,7 +404,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 46,
     "photoUrl": "assets/images/members/wonkyu-yi.png",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "byungjun-kim",
@@ -396,7 +426,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 47,
     "photoUrl": "assets/images/members/byungjun-kim.png",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "vang-a-me",
@@ -415,7 +448,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 48,
     "photoUrl": "assets/images/members/vang-a-me.png",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "inseong-choi",
@@ -434,7 +470,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 49,
     "photoUrl": "assets/images/members/inseong-choi.jpg",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "jiyeon-hwang",
@@ -453,7 +492,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 50,
     "photoUrl": "assets/images/members/jiyeon-hwang.png",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "hyunsoo-ha",
@@ -472,7 +514,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 60,
     "photoUrl": "assets/images/members/hyunsoo-ha.jpg",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "suyeon-kim",
@@ -491,7 +536,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 61,
     "photoUrl": "assets/images/members/suyeon-kim.png",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "sungjin-kim",
@@ -510,7 +558,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 100,
     "photoUrl": "",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "seungwon-noh",
@@ -529,7 +580,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 101,
     "photoUrl": "",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "vu-ky-anh",
@@ -548,7 +602,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 102,
     "photoUrl": "",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "gwon-jeong-bok",
@@ -567,7 +624,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 103,
     "photoUrl": "",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "younghwi-ahn",
@@ -586,7 +646,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 104,
     "photoUrl": "",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "jiwoo-park",
@@ -605,7 +668,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 105,
     "photoUrl": "assets/images/members/jiwoo.jpg",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "seungwoon-ha",
@@ -624,7 +690,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 106,
     "photoUrl": "",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "junyoung-kwak",
@@ -643,7 +712,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 107,
     "photoUrl": "",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "dao-nhan-loi",
@@ -662,7 +734,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 108,
     "photoUrl": "assets/images/members/loi.png",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "xin-wang",
@@ -681,7 +756,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 109,
     "photoUrl": "assets/images/members/xin.png",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "minji-nam",
@@ -700,7 +778,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 110,
     "photoUrl": "assets/images/members/minji.jpg",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "juseok-jeon",
@@ -719,7 +800,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 111,
     "photoUrl": "assets/images/members/jus.png",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "sumin-lee",
@@ -738,7 +822,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 112,
     "photoUrl": "assets/images/members/sumin-lee.png",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   },
   {
     "id": "to-kang",
@@ -757,7 +844,10 @@ export const FALLBACK_MEMBERS = [
     "sortOrder": 113,
     "photoUrl": "assets/images/members/to-kang.png",
     "photoPath": "",
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "coursesInfo": "",
+    "relatedProjects": "",
+    "authorshipNote": ""
   }
 ];
 
@@ -775,7 +865,10 @@ export const FALLBACK_PROJECTS = [
       "Quality Control"
     ],
     "sortOrder": 1,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "principalInvestigator": "Jongseok Park",
+    "coResearchers": "",
+    "figureAspect": "16:9"
   },
   {
     "id": "rooftop-greenhouse-system",
@@ -790,7 +883,10 @@ export const FALLBACK_PROJECTS = [
       "Urban Agriculture"
     ],
     "sortOrder": 2,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "principalInvestigator": "Jongseok Park",
+    "coResearchers": "",
+    "figureAspect": "16:9"
   },
   {
     "id": "precision-water-and-nutrient-supply-system",
@@ -805,7 +901,10 @@ export const FALLBACK_PROJECTS = [
       "Horticulture"
     ],
     "sortOrder": 3,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "principalInvestigator": "Jongseok Park",
+    "coResearchers": "",
+    "figureAspect": "16:9"
   },
   {
     "id": "ai-based-agricultural-water-management-platform",
@@ -820,7 +919,10 @@ export const FALLBACK_PROJECTS = [
       "Sustainability"
     ],
     "sortOrder": 4,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "principalInvestigator": "Jongseok Park",
+    "coResearchers": "",
+    "figureAspect": "16:9"
   },
   {
     "id": "ai-based-artificial-light-control-platform",
@@ -835,7 +937,10 @@ export const FALLBACK_PROJECTS = [
       "Smart Farm"
     ],
     "sortOrder": 5,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "principalInvestigator": "Jongseok Park",
+    "coResearchers": "",
+    "figureAspect": "16:9"
   },
   {
     "id": "greenhouse-waste-recycling-technology",
@@ -850,7 +955,10 @@ export const FALLBACK_PROJECTS = [
       "Sustainability"
     ],
     "sortOrder": 6,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "principalInvestigator": "Jongseok Park",
+    "coResearchers": "",
+    "figureAspect": "16:9"
   },
   {
     "id": "smart-agricultural-water-management",
@@ -863,7 +971,10 @@ export const FALLBACK_PROJECTS = [
       "Water Management"
     ],
     "sortOrder": 20,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "principalInvestigator": "Jongseok Park",
+    "coResearchers": "",
+    "figureAspect": "16:9"
   },
   {
     "id": "paddy-field-utilization-technology",
@@ -876,7 +987,10 @@ export const FALLBACK_PROJECTS = [
       "Paddy Field"
     ],
     "sortOrder": 21,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "principalInvestigator": "Jongseok Park",
+    "coResearchers": "",
+    "figureAspect": "16:9"
   },
   {
     "id": "digital-twin-core-technology",
@@ -889,7 +1003,10 @@ export const FALLBACK_PROJECTS = [
       "Digital Twin"
     ],
     "sortOrder": 22,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "principalInvestigator": "Jongseok Park",
+    "coResearchers": "",
+    "figureAspect": "16:9"
   },
   {
     "id": "chrysanthemum-farmer-consulting",
@@ -902,7 +1019,10 @@ export const FALLBACK_PROJECTS = [
       "Consulting"
     ],
     "sortOrder": 30,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "principalInvestigator": "Jongseok Park",
+    "coResearchers": "",
+    "figureAspect": "16:9"
   },
   {
     "id": "high-value-crop-selection-for-reclaimed-land",
@@ -915,7 +1035,10 @@ export const FALLBACK_PROJECTS = [
       "Crop Selection"
     ],
     "sortOrder": 31,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "principalInvestigator": "Jongseok Park",
+    "coResearchers": "",
+    "figureAspect": "16:9"
   },
   {
     "id": "agastache-cultivation-optimization",
@@ -928,7 +1051,10 @@ export const FALLBACK_PROJECTS = [
       "Agastache"
     ],
     "sortOrder": 40,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "principalInvestigator": "Jongseok Park",
+    "coResearchers": "",
+    "figureAspect": "16:9"
   },
   {
     "id": "nano-bubble-smart-farm-system",
@@ -941,7 +1067,10 @@ export const FALLBACK_PROJECTS = [
       "Nano-bubble"
     ],
     "sortOrder": 41,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "principalInvestigator": "Jongseok Park",
+    "coResearchers": "",
+    "figureAspect": "16:9"
   },
   {
     "id": "cultivation-technology-of-medicinal-plants",
@@ -954,7 +1083,10 @@ export const FALLBACK_PROJECTS = [
       "Medicinal Plants"
     ],
     "sortOrder": 42,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "principalInvestigator": "Jongseok Park",
+    "coResearchers": "",
+    "figureAspect": "16:9"
   },
   {
     "id": "tomato-industry-innovation-project",
@@ -967,7 +1099,10 @@ export const FALLBACK_PROJECTS = [
       "Tomato"
     ],
     "sortOrder": 43,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "principalInvestigator": "Jongseok Park",
+    "coResearchers": "",
+    "figureAspect": "16:9"
   },
   {
     "id": "angelica-cropping-system",
@@ -980,7 +1115,10 @@ export const FALLBACK_PROJECTS = [
       "Angelica"
     ],
     "sortOrder": 44,
-    "updatedAt": "2026-04-06"
+    "updatedAt": "2026-04-06",
+    "principalInvestigator": "Jongseok Park",
+    "coResearchers": "",
+    "figureAspect": "16:9"
   }
 ];
 
@@ -1610,7 +1748,6 @@ export const FALLBACK_PUBLICATIONS = [
     "month": ""
   }
 ];
-
 
 export const FALLBACK_BOARD_POSTS = [
   {

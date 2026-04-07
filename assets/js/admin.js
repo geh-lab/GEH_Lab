@@ -28,7 +28,6 @@ import {
   publicationIndexingLabel
 } from './utils.js';
 import {
-  ADMIN_EMAILS,
   auth,
   hasFirebaseConfig,
   COLLECTIONS,
@@ -117,6 +116,18 @@ const elements = {
   summaryBoard: qs('#summary-board')
 };
 
+function setTopbarAuthState(isAuthenticated, email = '') {
+  if (elements.currentUser) {
+    elements.currentUser.textContent = isAuthenticated ? (email || '관리자') : '로그인 필요';
+    elements.currentUser.classList.toggle('is-authenticated', Boolean(isAuthenticated));
+  }
+  if (elements.logoutButton) {
+    elements.logoutButton.hidden = !isAuthenticated;
+    elements.logoutButton.style.display = isAuthenticated ? 'inline-flex' : 'none';
+    elements.logoutButton.setAttribute('aria-hidden', String(!isAuthenticated));
+  }
+}
+
 function setFormValue(form, fieldName, value) {
   const field = form?.elements?.namedItem(fieldName);
   if (field) field.value = value ?? '';
@@ -130,6 +141,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindEvents();
   renderSetupMessage();
   renderAllLists();
+  setTopbarAuthState(false);
   togglePending(true);
 
   if (!hasFirebaseConfig) {
@@ -143,7 +155,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   }, 900);
 
   try {
-    await resolveRedirectResult();
+    const redirectCredential = await resolveRedirectResult();
+    if (redirectCredential?.user) {
+      await handleAuthState(redirectCredential.user);
+    }
   } catch (error) {
     showNotice(error.message || 'Google 로그인 처리 중 오류가 발생했습니다.', 'danger');
   }
@@ -160,7 +175,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function bindEvents() {
   elements.googleLoginButton?.addEventListener('click', handleGoogleLogin);
-  elements.logoutButton?.addEventListener('click', async () => { await signOutAdmin(); await handleAuthState(null); });
+  elements.logoutButton?.addEventListener('click', async () => {
+    if (!state.user) {
+      await handleAuthState(null);
+      return;
+    }
+    await signOutAdmin();
+    await handleAuthState(null);
+  });
   elements.tabButtons.forEach((button) => button.addEventListener('click', () => setActiveTab(button.dataset.adminTab)));
   elements.memberFilterTabs?.addEventListener('click', onMemberFilterClick);
   elements.projectFilterTabs?.addEventListener('click', onProjectFilterClick);
@@ -189,12 +211,12 @@ function bindEvents() {
 function renderSetupMessage() {
   if (!elements.authNotice) return;
   if (!hasFirebaseConfig) {
+    elements.authNotice.hidden = false;
     elements.authNotice.textContent = 'firebase-config.js 설정을 입력하면 Google 로그인과 관리자 저장 기능이 활성화됩니다.';
     return;
   }
-  elements.authNotice.textContent = ADMIN_EMAILS.length
-    ? `허용된 관리자 계정: ${ADMIN_EMAILS.join(', ')}`
-    : '허용 관리자 계정 목록이 비어 있습니다. 관리자 이메일을 설정하세요.';
+  elements.authNotice.textContent = '';
+  elements.authNotice.hidden = true;
 }
 
 async function handleGoogleLogin() {
@@ -203,6 +225,7 @@ async function handleGoogleLogin() {
     return;
   }
   elements.googleLoginButton?.setAttribute('disabled', 'disabled');
+  showNotice('Google 로그인 페이지로 이동합니다.', 'info');
   try {
     await signInAdminWithGoogle();
   } catch (error) {
@@ -219,13 +242,12 @@ async function handleAuthState(user) {
   state.authResolved = true;
   togglePending(false);
   toggleViews(Boolean(user));
+  setTopbarAuthState(Boolean(user), user?.email || '');
   if (!user) {
     teardownListeners();
     state.seeded = false;
-    if (elements.currentUser) elements.currentUser.textContent = '로그인 필요';
     return;
   }
-  if (elements.currentUser) elements.currentUser.textContent = user.email || '관리자';
   await ensureSeeded();
   attachListeners();
   setActiveTab(state.activeTab || 'members');
@@ -237,15 +259,14 @@ function togglePending(isPending) {
   if (isPending) {
     elements.loginView.hidden = true;
     elements.dashboardView.hidden = true;
-    elements.logoutButton.hidden = true;
+    setTopbarAuthState(false);
   }
 }
 
 function toggleViews(isAuthenticated) {
   if (elements.loginView) elements.loginView.hidden = isAuthenticated;
   if (elements.dashboardView) elements.dashboardView.hidden = !isAuthenticated;
-  if (elements.logoutButton) elements.logoutButton.hidden = !isAuthenticated;
-  if (!isAuthenticated && elements.currentUser) elements.currentUser.textContent = '로그인 필요';
+  setTopbarAuthState(isAuthenticated, state.user?.email || '');
 }
 
 async function ensureSeeded() {

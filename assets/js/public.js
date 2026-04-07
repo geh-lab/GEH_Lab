@@ -166,37 +166,41 @@ function closeModal() {
 }
 
 function bindInteractiveCards() {
-  qsa('[data-member-id]').forEach((card) => {
-    if (card.dataset.bound === 'true') return;
-    card.dataset.bound = 'true';
-    card.addEventListener('click', (event) => {
-      const interactive = event.target.closest('a, button');
-      if (interactive) return;
-      const member = state.members.find((item) => item.id === card.dataset.memberId);
-      if (member) openMemberModal(member);
+  const bindCard = (selector, datasetKey, resolver) => {
+    qsa(selector).forEach((card) => {
+      if (card.dataset.bound === 'true') return;
+      card.dataset.bound = 'true';
+      const open = () => {
+        const item = resolver(card.dataset[datasetKey]);
+        if (item) item();
+      };
+      card.addEventListener('click', (event) => {
+        const interactive = event.target.closest('a, button');
+        if (interactive && interactive !== card) return;
+        open();
+      });
+      card.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          open();
+        }
+      });
     });
+  };
+
+  bindCard('[data-member-id]', 'memberId', (id) => () => {
+    const member = state.members.find((item) => item.id === id);
+    if (member) openMemberModal(member);
   });
 
-  qsa('[data-project-id]').forEach((card) => {
-    if (card.dataset.bound === 'true') return;
-    card.dataset.bound = 'true';
-    card.addEventListener('click', (event) => {
-      const interactive = event.target.closest('a, button');
-      if (interactive) return;
-      const project = state.projects.find((item) => item.id === card.dataset.projectId);
-      if (project) openProjectModal(project);
-    });
+  bindCard('[data-project-id]', 'projectId', (id) => () => {
+    const project = state.projects.find((item) => item.id === id);
+    if (project) openProjectModal(project);
   });
 
-  qsa('[data-board-id]').forEach((card) => {
-    if (card.dataset.bound === 'true') return;
-    card.dataset.bound = 'true';
-    card.addEventListener('click', (event) => {
-      const interactive = event.target.closest('a, button');
-      if (interactive) return;
-      const post = state.board.find((item) => item.id === card.dataset.boardId);
-      if (post) openBoardModal(post);
-    });
+  bindCard('[data-board-id]', 'boardId', (id) => () => {
+    const post = state.board.find((item) => item.id === id);
+    if (post) openBoardModal(post);
   });
 }
 
@@ -246,12 +250,11 @@ function openProjectModal(project) {
     <div class="detail-modal detail-modal--project">
       <div class="member-chip-row">
         <span class="status-pill">${escapeHTML(projectStatusLabel(project.status, lang))}</span>
-        ${project.period ? `<span class="meta-pill">${escapeHTML(project.period)}</span>` : ''}
+        ${getProjectPeriodDisplay(project) ? `<span class="meta-pill">${escapeHTML(getProjectPeriodDisplay(project))}</span>` : ''}
       </div>
-      <p class="detail-lead">${escapeHTML(project.description || '')}</p>
       ${media}
-      <div class="detail-grid">
-        ${detailSection(copy.projectPeriod, project.period)}
+      <div class="detail-grid detail-grid--project">
+        ${detailSection(lang === 'en' ? 'Project description' : '과제 설명', project.description || (lang === 'en' ? 'No description provided.' : '설명이 아직 입력되지 않았습니다.'))}
         ${detailSection(lang === 'en' ? 'Principal investigator' : '연구책임자', project.principalInvestigator || (lang === 'en' ? 'Not set' : '미설정'))}
         ${detailSection(lang === 'en' ? 'Co-researchers' : '공동연구원', project.coResearchers || (lang === 'en' ? 'Not set' : '미설정'))}
         ${detailSection(lang === 'en' ? 'Keywords' : '키워드', Array.isArray(project.tags) ? project.tags.join(', ') : '')}
@@ -505,8 +508,16 @@ function renderProjects() {
   const completed = state.projects.filter((item) => item.status === 'completed');
   const summary = qs('#project-summary');
   if (summary) summary.textContent = lang === 'en'
-    ? `${ongoing.length} ongoing · ${completed.length} archived`
-    : `진행 중 과제 ${ongoing.length}건 · 종료 ${completed.length}건`;
+    ? `${ongoing.length} ongoing projects · ${completed.length} archived projects`
+    : `진행 중 과제 ${ongoing.length}건 · 종료 과제 ${completed.length}건`;
+
+  const statGrid = qs('#project-stat-grid');
+  if (statGrid) {
+    statGrid.innerHTML = [
+      { value: ongoing.length, label: lang === 'en' ? 'Ongoing projects' : '진행 중 과제' },
+      { value: completed.length, label: lang === 'en' ? 'Archived projects' : '종료 과제' }
+    ].map((item) => `<article class="stat-card reveal"><strong class="count-up" data-target="${escapeHTML(item.value)}">0</strong><span>${escapeHTML(item.label)}</span></article>`).join('');
+  }
 
   const ongoingGrid = qs('#ongoing-project-grid');
   if (ongoingGrid) ongoingGrid.innerHTML = ongoing.map((project) => projectCard(project)).join('');
@@ -526,8 +537,20 @@ function renderPublications() {
     return haystack.includes(query);
   });
 
+  const allSci = state.publications.filter((item) => publicationIndexingLabel(item.indexing, lang).toUpperCase() === 'SCI').length;
+  const allKci = state.publications.filter((item) => publicationIndexingLabel(item.indexing, lang).toUpperCase() === 'KCI').length;
+
   const summary = qs('#publication-summary');
-  if (summary) summary.textContent = lang === 'en' ? `${filtered.length} publications` : `논문 ${filtered.length}편`;
+  if (summary) summary.textContent = lang === 'en' ? `Publications ${filtered.length}` : `논문 ${filtered.length}편`;
+
+  const statGrid = qs('#publication-stat-grid');
+  if (statGrid) {
+    statGrid.innerHTML = [
+      { value: state.publications.length, label: lang === 'en' ? 'Publications' : '논문' },
+      { value: allSci, label: 'SCI' },
+      { value: allKci, label: 'KCI' }
+    ].map((item) => `<article class="stat-card reveal"><strong class="count-up" data-target="${escapeHTML(item.value)}">0</strong><span>${escapeHTML(item.label)}</span></article>`).join('');
+  }
 
   const publicationAccordion = qs('#publication-accordion');
   if (publicationAccordion) {
@@ -538,12 +561,20 @@ function renderPublications() {
 }
 
 function renderBoard() {
+  const noticePosts = state.board.filter((item) => ['notice', 'news'].includes(item.category));
+  const presentationPosts = state.board.filter((item) => ['poster', 'oral'].includes(item.category));
   const summary = qs('#board-summary');
   if (summary) summary.textContent = lang === 'en' ? `${state.board.length} posts` : `게시글 ${state.board.length}건`;
-  const grid = qs('#board-grid');
-  if (grid) {
-    grid.innerHTML = state.board.map((post) => boardCard(post)).join('');
-  }
+  const newsSummary = qs('#board-news-summary');
+  const presentationSummary = qs('#board-presentation-summary');
+  if (newsSummary) newsSummary.textContent = lang === 'en' ? `${noticePosts.length} items` : `${noticePosts.length}건`;
+  if (presentationSummary) presentationSummary.textContent = lang === 'en' ? `${presentationPosts.length} items` : `${presentationPosts.length}건`;
+  const newsGrid = qs('#board-news-grid');
+  const presentationGrid = qs('#board-presentation-grid');
+  if (newsGrid) newsGrid.innerHTML = noticePosts.length ? noticePosts.map((post) => boardCard(post)).join('') : emptyState(lang === 'en' ? 'No notices or news yet.' : '공지와 소식이 아직 없습니다.');
+  if (presentationGrid) presentationGrid.innerHTML = presentationPosts.length ? presentationPosts.map((post) => boardCard(post)).join('') : emptyState(lang === 'en' ? 'No presentation items yet.' : '학회 발표 자료가 아직 없습니다.');
+  const legacyGrid = qs('#board-grid');
+  if (legacyGrid) legacyGrid.innerHTML = '';
 }
 
 function setupSearch() {
@@ -638,6 +669,9 @@ function alumniCard(member) {
 
 function projectCard(project, { compact = false } = {}) {
   const period = getProjectPeriodDisplay(project);
+  const leadMeta = project.principalInvestigator
+    ? `<strong>${lang === 'en' ? 'PI' : '연구책임자'}</strong> ${escapeHTML(project.principalInvestigator)}`
+    : (project.coResearchers ? `<strong>${lang === 'en' ? 'Co-researchers' : '공동연구원'}</strong> ${escapeHTML(project.coResearchers)}` : '');
   return `
     <article class="project-card${compact ? ' compact-card' : ''} reveal interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(project.title)}">
       <div class="card-head">
@@ -646,7 +680,7 @@ function projectCard(project, { compact = false } = {}) {
       </div>
       <h3>${escapeHTML(project.title)}</h3>
       <p>${escapeHTML(project.description || '')}</p>
-      ${project.principalInvestigator ? `<p class="project-meta-inline"><strong>${lang === 'en' ? 'PI' : '연구책임자'}</strong> ${escapeHTML(project.principalInvestigator)}</p>` : ''}
+      ${leadMeta ? `<p class="project-meta-inline">${leadMeta}</p>` : ''}
       ${!compact && project.tags?.length ? `<div class="tag-row">${project.tags.map((tag) => `<span>${escapeHTML(tag)}</span>`).join('')}</div>` : ''}
     </article>
   `;
@@ -654,11 +688,15 @@ function projectCard(project, { compact = false } = {}) {
 
 function archiveProjectItem(project) {
   const period = getProjectPeriodDisplay(project) || project.year || '';
+  const leadMeta = project.principalInvestigator
+    ? `<strong>${lang === 'en' ? 'PI' : '연구책임자'}</strong> ${escapeHTML(project.principalInvestigator)}`
+    : (project.coResearchers ? `<strong>${lang === 'en' ? 'Co-researchers' : '공동연구원'}</strong> ${escapeHTML(project.coResearchers)}` : '');
   return `
     <article class="archive-item reveal interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(project.title)}">
       <div>
         <h3>${escapeHTML(project.title)}</h3>
         ${project.description ? `<p>${escapeHTML(project.description)}</p>` : ''}
+        ${leadMeta ? `<p class="muted">${leadMeta}</p>` : ''}
       </div>
       <div class="archive-meta">
         ${period ? `<span class="meta-pill">${escapeHTML(period)}</span>` : ''}
@@ -671,14 +709,15 @@ function publicationCard(item) {
   const link = resolvePublicationLink(item);
   const monthLabel = item.month ? (lang === 'en' ? `${item.month}` : `${Number(item.month)}월`) : '';
   const indexing = publicationIndexingLabel(item.indexing, lang);
+  const indexClass = indexing ? indexing.toLowerCase() : '';
   return `
     <article class="publication-card reveal">
       <div class="publication-head-row">
         <div class="publication-topline">
           ${item.year ? `<span class="year-pill">${escapeHTML(item.year)}</span>` : ''}
           ${monthLabel ? `<span class="year-pill">${escapeHTML(monthLabel)}</span>` : ''}
-          ${item.journal ? `<span class="journal-pill">${escapeHTML(item.journal)}</span>` : ''}
-          ${indexing ? `<span class="index-pill">${escapeHTML(indexing)}</span>` : ''}
+          ${item.journal ? `<span class="journal-pill ${indexClass ? `journal-pill--${escapeHTML(indexClass)}` : ''}">${escapeHTML(item.journal)}</span>` : ''}
+          ${indexing ? `<span class="index-pill ${indexClass ? `index-pill--${escapeHTML(indexClass)}` : ''}">${escapeHTML(indexing)}</span>` : ''}
         </div>
         <span class="publication-updated">${escapeHTML(copy.updated)} ${escapeHTML(formatDate(item.updatedAt || item.createdAt || BUILD_DATE, lang === 'en' ? 'en-CA' : 'ko-KR'))}</span>
       </div>
