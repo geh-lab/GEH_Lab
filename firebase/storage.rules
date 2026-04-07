@@ -1,13 +1,10 @@
 rules_version = '2';
-
 service firebase.storage {
   match /b/{bucket}/o {
     function isAdmin() {
       return request.auth != null
         && request.auth.token.email != null
-        && request.auth.token.email in [
-          "envlab1315@gmail.com"
-        ];
+        && request.auth.token.email in ["envlab1315@gmail.com"];
     }
 
     match /member-photos/{allPaths=**} {

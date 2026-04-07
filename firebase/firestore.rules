@@ -1,28 +1,25 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
     function isAdmin() {
       return request.auth != null
         && request.auth.token.email != null
-        && request.auth.token.email in [
-          "envlab1315@gmail.com"
-        ];
+        && request.auth.token.email in ["envlab1315@gmail.com"];
     }
 
-    match /members/{documentId} {
+    match /members/{docId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin();
+      allow write: if isAdmin();
     }
 
-    match /projects/{documentId} {
+    match /projects/{docId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin();
+      allow write: if isAdmin();
     }
 
-    match /publications/{documentId} {
+    match /publications/{docId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin();
+      allow write: if isAdmin();
     }
   }
 }

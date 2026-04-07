@@ -1,37 +1,5 @@
-export const GROUP_ORDER = {
-  'Principal Investigator': 1,
-  'Postdoctoral Researcher': 2,
-  'Graduate Students': 3,
-  Alumni: 4
-};
-
-export const TRACK_ORDER = {
-  Faculty: 1,
-  Researcher: 2,
-  'Full-time Students': 3,
-  'Part-time Students': 4,
-  Alumni: 5
-};
-
-export const COURSE_ORDER = {
-  Professor: 1,
-  Postdoc: 2,
-  'Ph.D. Course': 3,
-  'M.S. Course': 4
-};
-
-export function slugify(value = '') {
-  return value
-    .toString()
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9가-힣]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
 export function escapeHTML(value = '') {
-  return value
-    .toString()
+  return String(value)
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
@@ -39,64 +7,196 @@ export function escapeHTML(value = '') {
     .replaceAll("'", '&#39;');
 }
 
-export function timestampToMillis(value) {
-  if (!value) return 0;
-  if (typeof value === 'number') return value;
-  if (typeof value === 'string') {
-    const parsed = Date.parse(value);
-    return Number.isNaN(parsed) ? 0 : parsed;
-  }
-  if (value instanceof Date) return value.getTime();
-  if (typeof value.toMillis === 'function') return value.toMillis();
-  if (typeof value.seconds === 'number') return value.seconds * 1000;
-  return 0;
+export function slugify(value = '') {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 export function getInitials(name = '') {
-  const words = name
+  const initials = String(name)
     .trim()
     .split(/\s+/)
     .filter(Boolean)
-    .slice(0, 2);
-
-  if (!words.length) return 'GEH';
-
-  return words
-    .map((word) => word[0])
+    .slice(0, 2)
+    .map((chunk) => chunk[0])
     .join('')
     .toUpperCase();
+  return initials || 'GEH';
 }
 
-export function resolveLink(item = {}) {
-  if (item.url) return item.url;
-  if (item.doi) return `https://doi.org/${item.doi}`;
-  return '';
+
+
+function hasMeaningfulValue(value) {
+  if (Array.isArray(value)) return value.length > 0;
+  if (value === 0 || value === false) return true;
+  return value !== undefined && value !== null && String(value).trim() !== '';
 }
 
-export function parseTags(value = '') {
-  return value
-    .split(',')
-    .map((tag) => tag.trim())
-    .filter(Boolean);
+function mergeObjects(base = {}, override = {}) {
+  const result = { ...base };
+  Object.entries(override).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      if (value.length) result[key] = value;
+      return;
+    }
+    if (hasMeaningfulValue(value)) {
+      result[key] = value;
+    }
+  });
+  return result;
+}
+
+function semanticKey(value = '') {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9가-힣]+/g, '');
+}
+
+export function memberSemanticKey(item = {}) {
+  return semanticKey(item.name || item.id || '');
+}
+
+export function projectSemanticKey(item = {}) {
+  return semanticKey(item.title || item.id || '');
+}
+
+export function publicationSemanticKey(item = {}) {
+  return semanticKey(item.doi || `${item.year || ''}-${item.title || item.id || ''}`);
+}
+
+function mergeBySemanticKey(fallbackItems = [], remoteItems = [], normalizer, keyGetter) {
+  const map = new Map();
+  fallbackItems.map(normalizer).forEach((item) => {
+    const key = keyGetter(item);
+    if (!key) return;
+    map.set(key, item);
+  });
+  remoteItems.map(normalizer).forEach((item) => {
+    const key = keyGetter(item);
+    if (!key) return;
+    const previous = map.get(key);
+    map.set(key, previous ? mergeObjects(previous, item) : item);
+  });
+  return Array.from(map.values());
+}
+
+export function mergeMembers(fallbackItems = [], remoteItems = []) {
+  return mergeBySemanticKey(fallbackItems, remoteItems, normalizeMember, memberSemanticKey);
+}
+
+export function mergeProjects(fallbackItems = [], remoteItems = []) {
+  return mergeBySemanticKey(fallbackItems, remoteItems, normalizeProject, projectSemanticKey);
+}
+
+export function mergePublications(fallbackItems = [], remoteItems = []) {
+  return mergeBySemanticKey(fallbackItems, remoteItems, normalizePublication, publicationSemanticKey);
+}
+
+export function groupBy(items = [], keyGetter) {
+  return items.reduce((acc, item) => {
+    const key = keyGetter(item);
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+}
+
+export function rootAsset(path = '', root = '.') {
+  if (!path) return '';
+  if (/^(https?:|data:|blob:)/.test(path)) return path;
+  const normalized = path.replace(/^\.\//, '');
+  return root === '.' ? normalized : `${root}/${normalized}`;
+}
+
+export function toTimeValue(value) {
+  if (!value) return 0;
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const time = Date.parse(value);
+    return Number.isNaN(time) ? 0 : time;
+  }
+  if (value?.seconds) return value.seconds * 1000;
+  if (typeof value?.toDate === 'function') return value.toDate().getTime();
+  return 0;
+}
+
+export function formatDate(value, locale = 'ko-KR') {
+  const time = toTimeValue(value);
+  const date = time ? new Date(time) : new Date();
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(date);
+  } catch {
+    return date.toISOString().slice(0, 10);
+  }
+}
+
+function normalizeString(value = '') {
+  return String(value || '').trim().toLowerCase();
+}
+
+function mapGroup(value = '', status = '') {
+  const text = normalizeString(value);
+  if (status === 'alumni') return 'alumni';
+  if (text.includes('principal') || text.includes('faculty') || text.includes('교수')) return 'pi';
+  if (text.includes('research professor') || text.includes('postdoctoral') || text.includes('postdoc') || text.includes('연구교수')) return 'researchProfessor';
+  if (text.includes('intern') || text.includes('student researcher') || text.includes('학생연구원')) return 'studentResearcher';
+  if (text.includes('alumni') || text.includes('졸업')) return 'alumni';
+  return 'graduateStudent';
+}
+
+function mapTrack(value = '') {
+  const text = normalizeString(value);
+  if (text.includes('part') || text.includes('파트')) return 'partTime';
+  if (text.includes('full') || text.includes('풀타임')) return 'fullTime';
+  return 'none';
+}
+
+function mapCourse(value = '', group = '') {
+  const text = normalizeString(value);
+  if (group === 'pi') return 'professor';
+  if (group === 'researchProfessor') return 'postdoc';
+  if (group === 'studentResearcher') return 'researcher';
+  if (group === 'alumni') return 'alumni';
+  if (text.includes('ph') || text.includes('박사')) return 'phd';
+  if (text.includes('m.s') || text.includes('ms') || text.includes('석사')) return 'ms';
+  return 'ms';
+}
+
+function mapStatus(value = '') {
+  const text = normalizeString(value);
+  if (text.includes('alumni') || text.includes('gradu') || text.includes('졸업')) return 'alumni';
+  return 'enrolled';
 }
 
 export function normalizeMember(item = {}) {
+  const status = mapStatus(item.status);
+  const group = mapGroup(item.group, status);
+  const track = mapTrack(item.track);
+  const course = mapCourse(item.course, group);
   return {
-    id: item.id || slugify(`${item.name || 'member'}-${item.email || Math.random().toString(36).slice(2, 8)}`),
+    id: item.id || slugify(item.name || crypto.randomUUID()),
     name: item.name || '',
-    group: item.group || 'Graduate Students',
-    track: item.track || '',
-    course: item.course || '',
+    group,
+    track,
+    course,
     email: item.email || '',
     bio: item.bio || '',
     education: item.education || '',
     experience: item.experience || '',
     researchInterest: item.researchInterest || '',
-    currentPosition: item.currentPosition || '',
-    status: item.status || 'active',
+    currentPosition: item.currentPosition || item.employment || '',
+    status,
     graduationYear: item.graduationYear || '',
-    sortOrder: typeof item.sortOrder === 'number' ? item.sortOrder : 999,
-    photoUrl: item.photoUrl || '',
+    sortOrder: Number(item.sortOrder ?? 999),
+    photoUrl: item.photoUrl || item.image || '',
     photoPath: item.photoPath || '',
     createdAt: item.createdAt || null,
     updatedAt: item.updatedAt || null
@@ -104,15 +204,22 @@ export function normalizeMember(item = {}) {
 }
 
 export function normalizeProject(item = {}) {
+  const rawStatus = normalizeString(item.status);
+  const status = rawStatus.includes('complete') || rawStatus.includes('종료') ? 'completed' : 'ongoing';
   return {
-    id: item.id || slugify(item.title || 'project'),
+    id: item.id || slugify(item.title || crypto.randomUUID()),
     title: item.title || '',
-    description: item.description || '',
-    status: item.status || 'ongoing',
+    description: item.description || item.desc || '',
+    status,
     period: item.period || '',
     year: item.year || '',
-    tags: Array.isArray(item.tags) ? item.tags : parseTags(item.tags || ''),
-    sortOrder: typeof item.sortOrder === 'number' ? item.sortOrder : 999,
+    tags: Array.isArray(item.tags)
+      ? item.tags
+      : String(item.tags || '')
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+    sortOrder: Number(item.sortOrder ?? 999),
     createdAt: item.createdAt || null,
     updatedAt: item.updatedAt || null
   };
@@ -120,7 +227,7 @@ export function normalizeProject(item = {}) {
 
 export function normalizePublication(item = {}) {
   return {
-    id: item.id || slugify(`${item.year || ''}-${item.title || 'publication'}`),
+    id: item.id || slugify(`${item.year || ''}-${item.title || crypto.randomUUID()}`),
     title: item.title || '',
     authors: item.authors || '',
     journal: item.journal || '',
@@ -128,37 +235,58 @@ export function normalizePublication(item = {}) {
     doi: item.doi || '',
     url: item.url || '',
     abstract: item.abstract || '',
-    sortOrder: typeof item.sortOrder === 'number' ? item.sortOrder : 999,
+    sortOrder: Number(item.sortOrder ?? 999),
     createdAt: item.createdAt || null,
     updatedAt: item.updatedAt || null
   };
 }
 
-function yearPriority(value) {
-  if (!value) return 0;
-  if (/^\d{4}$/.test(String(value).trim())) return Number(value);
-  if (String(value).includes('Earlier')) return 1;
-  return 2;
+const GROUP_ORDER = {
+  pi: 0,
+  researchProfessor: 1,
+  graduateStudent: 2,
+  studentResearcher: 3,
+  alumni: 4
+};
+
+const TRACK_ORDER = {
+  fullTime: 0,
+  partTime: 1,
+  none: 2
+};
+
+const COURSE_ORDER = {
+  professor: 0,
+  postdoc: 1,
+  phd: 2,
+  ms: 3,
+  researcher: 4,
+  alumni: 5
+};
+
+function yearValue(value = '') {
+  const match = String(value).match(/\d{4}/);
+  return match ? Number(match[0]) : 0;
 }
 
 export function sortMembers(items = []) {
   return [...items]
     .map(normalizeMember)
     .sort((a, b) => {
-      if (a.status !== b.status) return a.status === 'active' ? -1 : 1;
-      const groupCompare = (GROUP_ORDER[a.group] || 99) - (GROUP_ORDER[b.group] || 99);
-      if (groupCompare !== 0) return groupCompare;
-      const trackCompare = (TRACK_ORDER[a.track] || 99) - (TRACK_ORDER[b.track] || 99);
-      if (trackCompare !== 0) return trackCompare;
-      const courseCompare = (COURSE_ORDER[a.course] || 99) - (COURSE_ORDER[b.course] || 99);
-      if (courseCompare !== 0) return courseCompare;
+      if (a.status !== b.status) return a.status === 'enrolled' ? -1 : 1;
       if (a.status === 'alumni') {
-        const yearCompare = yearPriority(b.graduationYear) - yearPriority(a.graduationYear);
-        if (yearCompare !== 0) return yearCompare;
+        const byYear = yearValue(b.graduationYear) - yearValue(a.graduationYear);
+        if (byYear) return byYear;
       }
-      const sortCompare = (a.sortOrder || 999) - (b.sortOrder || 999);
-      if (sortCompare !== 0) return sortCompare;
-      return (a.name || '').localeCompare(b.name || '', 'en');
+      const byGroup = (GROUP_ORDER[a.group] ?? 99) - (GROUP_ORDER[b.group] ?? 99);
+      if (byGroup) return byGroup;
+      const byTrack = (TRACK_ORDER[a.track] ?? 99) - (TRACK_ORDER[b.track] ?? 99);
+      if (byTrack) return byTrack;
+      const byCourse = (COURSE_ORDER[a.course] ?? 99) - (COURSE_ORDER[b.course] ?? 99);
+      if (byCourse) return byCourse;
+      const bySort = (a.sortOrder ?? 999) - (b.sortOrder ?? 999);
+      if (bySort) return bySort;
+      return a.name.localeCompare(b.name, 'en');
     });
 }
 
@@ -167,11 +295,11 @@ export function sortProjects(items = []) {
     .map(normalizeProject)
     .sort((a, b) => {
       if (a.status !== b.status) return a.status === 'ongoing' ? -1 : 1;
-      const yearCompare = yearPriority(b.year || b.period) - yearPriority(a.year || a.period);
-      if (yearCompare !== 0) return yearCompare;
-      const sortCompare = (a.sortOrder || 999) - (b.sortOrder || 999);
-      if (sortCompare !== 0) return sortCompare;
-      return (a.title || '').localeCompare(b.title || '', 'en');
+      const byYear = yearValue(b.year || b.period) - yearValue(a.year || a.period);
+      if (byYear) return byYear;
+      const bySort = (a.sortOrder ?? 999) - (b.sortOrder ?? 999);
+      if (bySort) return bySort;
+      return a.title.localeCompare(b.title, 'en');
     });
 }
 
@@ -179,33 +307,65 @@ export function sortPublications(items = []) {
   return [...items]
     .map(normalizePublication)
     .sort((a, b) => {
-      const yearCompare = yearPriority(b.year) - yearPriority(a.year);
-      if (yearCompare !== 0) return yearCompare;
-      const sortCompare = (a.sortOrder || 999) - (b.sortOrder || 999);
-      if (sortCompare !== 0) return sortCompare;
-      return (a.title || '').localeCompare(b.title || '', 'en');
+      const byYear = yearValue(b.year) - yearValue(a.year);
+      if (byYear) return byYear;
+      const bySort = (a.sortOrder ?? 999) - (b.sortOrder ?? 999);
+      if (bySort) return bySort;
+      return a.title.localeCompare(b.title, 'en');
     });
 }
 
-export function groupBy(items = [], keyGetter) {
-  return items.reduce((accumulator, item) => {
-    const key = keyGetter(item);
-    if (!accumulator[key]) accumulator[key] = [];
-    accumulator[key].push(item);
-    return accumulator;
-  }, {});
+export function lastUpdated(items = [], fallback) {
+  const max = items.reduce((acc, item) => {
+    return Math.max(acc, toTimeValue(item.updatedAt), toTimeValue(item.createdAt));
+  }, 0);
+  return max || fallback;
 }
 
-export function formatMemberMeta(member = {}) {
-  return [member.group, member.track, member.course].filter(Boolean).join(' · ');
+export function resolvePublicationLink(item = {}) {
+  if (item.url) return item.url;
+  if (item.doi) return `https://doi.org/${item.doi}`;
+  return '';
 }
 
-export function formatProjectMeta(project = {}) {
-  return [project.status === 'ongoing' ? 'In progress' : 'Completed', project.period || project.year]
-    .filter(Boolean)
-    .join(' · ');
+export function memberStatusLabel(member, lang = 'kr') {
+  if (lang === 'en') return member.status === 'alumni' ? 'Alumni' : 'Enrolled';
+  return member.status === 'alumni' ? '졸업' : '재학중';
 }
 
-export function formatPublicationMeta(publication = {}) {
-  return [publication.year, publication.journal].filter(Boolean).join(' · ');
+export function memberGroupLabel(group, lang = 'kr') {
+  const map = {
+    pi: { kr: '연구책임자', en: 'Principal Investigator' },
+    researchProfessor: { kr: '연구교수', en: 'Research Professor' },
+    graduateStudent: { kr: '대학원생', en: 'Graduate Student' },
+    studentResearcher: { kr: '학생연구원', en: 'Student Researcher' },
+    alumni: { kr: '졸업생', en: 'Alumni' }
+  };
+  return map[group]?.[lang] || group;
+}
+
+export function memberTrackLabel(track, lang = 'kr') {
+  const map = {
+    fullTime: { kr: '풀타임', en: 'Full-time' },
+    partTime: { kr: '파트타임', en: 'Part-time' },
+    none: { kr: '', en: '' }
+  };
+  return map[track]?.[lang] || '';
+}
+
+export function memberCourseLabel(course, lang = 'kr') {
+  const map = {
+    professor: { kr: '교수', en: 'Professor' },
+    postdoc: { kr: '박사후연구원', en: 'Postdoc' },
+    phd: { kr: '박사과정', en: 'Ph.D.' },
+    ms: { kr: '석사과정', en: 'M.S.' },
+    researcher: { kr: '학생연구원', en: 'Student Researcher' },
+    alumni: { kr: '졸업생', en: 'Alumni' }
+  };
+  return map[course]?.[lang] || course;
+}
+
+export function projectStatusLabel(status, lang = 'kr') {
+  if (lang === 'en') return status === 'completed' ? 'Archived' : 'In progress';
+  return status === 'completed' ? '종료' : '진행중';
 }

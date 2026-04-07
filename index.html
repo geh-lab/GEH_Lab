@@ -1,209 +1,84 @@
 <!DOCTYPE html>
 <html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CNU GEH Lab</title>
-    <meta
-      name="description"
-      content="Chungnam National University Greenhouse &amp; Environmental Horticulture Science Laboratory"
-    />
-    <link rel="stylesheet" href="assets/css/styles.css" />
-  </head>
-  <body class="public-body" data-page="home">
-    <div class="site-shell">
-      <header class="site-header">
-        <a href="./index.html" class="brand">
-          <span class="brand-mark">CNU</span>
-          <span class="brand-text">
-            <strong>GEH Lab</strong>
-            <small>Greenhouse &amp; Environmental Horticulture</small>
-          </span>
-        </a>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>충남대학교 환경원예학연구실</title>
+  <meta name="description" content="GEH Lab">
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body class="public-body" data-page="home" data-lang="kr" data-root=".">
+<div class="site-shell">
 
-        <button class="menu-toggle" type="button" aria-label="메뉴 열기" aria-expanded="false" data-menu-toggle>
-          <span></span>
-          <span></span>
-        </button>
+<header class="site-header">
+  <a href="index.html" class="brand">
+    <span class="brand-mark"><img src="assets/images/logos/geh-logo.png" alt="GEH Lab"></span>
+    <span class="brand-text"><strong>GEH Lab</strong><small>온실 및 환경원예</small></span>
+  </a>
+  <button class="menu-toggle" type="button" aria-label="menu" aria-expanded="false" data-menu-toggle><span></span><span></span></button>
+  <nav class="site-nav" data-nav-panel>
+    <a href="index.html" data-nav-page="home">홈</a>
+    <a href="members.html" data-nav-page="members">멤버</a>
+    <a href="projects.html" data-nav-page="projects">과제</a>
+    <a href="publications.html" data-nav-page="publications">논문</a>
+  </nav>
+  <div class="header-tools">
+    <div class="lang-switch"><a class="lang-link is-active" href="#">KR</a><a class="lang-link" href="en/index.html">EN</a></div>
+    <a class="icon-button" href="admin.html" aria-label="Admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="M19.4 15a1.6 1.6 0 0 0 .32 1.76l.06.06a2 2 0 1 1-2.82 2.82l-.06-.06a1.6 1.6 0 0 0-1.76-.32 1.6 1.6 0 0 0-.98 1.46V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-.98-1.46 1.6 1.6 0 0 0-1.76.32l-.06.06a2 2 0 1 1-2.82-2.82l.06-.06A1.6 1.6 0 0 0 4.6 15a1.6 1.6 0 0 0-1.46-.98H3a2 2 0 1 1 0-4h.14A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.32-1.76l-.06-.06a2 2 0 1 1 2.82-2.82l.06.06A1.6 1.6 0 0 0 8.86 4.6a1.6 1.6 0 0 0 .98-1.46V3a2 2 0 1 1 4 0v.14a1.6 1.6 0 0 0 .98 1.46 1.6 1.6 0 0 0 1.76-.32l.06-.06a2 2 0 1 1 2.82 2.82l-.06.06A1.6 1.6 0 0 0 19.4 9c.23.35.35.77.35 1.2s-.12.85-.35 1.2Z"></path></svg></a>
+  </div>
+</header>
 
-        <nav class="site-nav" data-nav-panel>
-          <a href="./index.html" data-nav-page="home">Home</a>
-          <a href="./members.html" data-nav-page="members">Members</a>
-          <a href="./projects.html" data-nav-page="projects">Projects</a>
-          <a href="./publications.html" data-nav-page="publications">Publications</a>
-          <a href="./admin.html" class="nav-admin-link">Admin</a>
-        </nav>
-      </header>
+<main>
 
-      <main>
-        <section class="hero" id="home">
-          <div class="hero-backdrop" aria-hidden="true">
-            <div
-              class="hero-slide"
-              data-hero-slide
-              style="background-image: url('assets/images/background/hero-1.jpg')"
-            ></div>
-            <div
-              class="hero-slide"
-              data-hero-slide
-              style="background-image: url('assets/images/background/hero-2.jpg')"
-            ></div>
-            <div
-              class="hero-slide"
-              data-hero-slide
-              style="background-image: url('assets/images/background/hero-3.jpg')"
-            ></div>
-            <div class="hero-glow hero-glow-a"></div>
-            <div class="hero-glow hero-glow-b"></div>
-          </div>
-
-          <div class="hero-content">
-            <span class="eyebrow" id="hero-eyebrow">Chungnam National University</span>
-            <h1 id="hero-title">Grow the next environment for horticulture.</h1>
-            <p class="hero-subtitle" id="hero-subtitle">Plant factory, smart farm, medicinal crops, sustainable water management, and AI-native cultivation systems.</p>
-            <p class="hero-description" id="hero-description">충남대학교 Greenhouse &amp; Environmental Horticulture Science Laboratory는 식물공장, 스마트팜, 기능성 작물, 환경반응, 데이터 기반 재배 제어를 연구합니다.</p>
-
-            <div class="hero-actions">
-              <a href="./members.html" class="button primary">멤버 보기</a>
-              <a href="./projects.html" class="button secondary">연구 과제 보기</a>
-            </div>
-
-            <div class="hero-stat-grid" id="hero-stat-grid"></div>
-          </div>
-
-          <div class="scroll-hint">
-            <span></span>
-            <small>Scroll</small>
-          </div>
-        </section>
-
-        <section class="quick-showcase reveal">
-          <div class="quick-showcase-head">
-            <span class="eyebrow">Research lineup</span>
-            <h2>Indoor Farm · Hemp · Artificial Intelligence.</h2>
-            <p>
-              홈 화면 안에서만 이동하는 구조가 아니라, 각 메뉴가 별도 페이지로 이동하도록
-              바꾸고 핵심 연구 주제는 한 구역에 3개의 카드로 정리했습니다.
-            </p>
-          </div>
-
-          <div class="quick-showcase-grid quick-showcase-grid--trio">
-            <a class="focus-card" href="./projects.html">
-              <div class="focus-card-media">
-                <img src="assets/images/background/hero-1.jpg" alt="Indoor Farm research" />
-              </div>
-              <div class="focus-card-copy">
-                <span>Indoor Farm</span>
-                <strong>정밀 환경 제어</strong>
-                <p>식물공장, 스마트팜, 생육 환경 최적화, 지속 가능한 재배 시스템.</p>
-              </div>
-            </a>
-
-            <a class="focus-card" href="./projects.html">
-              <div class="focus-card-media">
-                <img src="assets/images/background/hero-2.jpg" alt="Hemp research" />
-              </div>
-              <div class="focus-card-copy">
-                <span>Hemp</span>
-                <strong>기능성 작물 연구</strong>
-                <p>대마와 기능성 작물의 품질 제어, 대사물질 축적, 실내 정밀 생산.</p>
-              </div>
-            </a>
-
-            <a class="focus-card" href="./projects.html">
-              <div class="focus-card-media">
-                <img src="assets/images/background/hero-3.jpg" alt="Artificial intelligence research" />
-              </div>
-              <div class="focus-card-copy">
-                <span>Artificial Intelligence</span>
-                <strong>데이터 기반 제어</strong>
-                <p>AI, 디지털 트윈, 관수·광환경 예측 및 자동화 플랫폼.</p>
-              </div>
-            </a>
-          </div>
-        </section>
-
-        <section class="keyword-marquee">
-          <div class="keyword-track" data-keyword-track></div>
-          <div class="keyword-track keyword-track--reverse" data-keyword-track></div>
-        </section>
-
-        <section class="section reveal research-map" id="research-map">
-          <div class="section-header">
-            <span class="eyebrow">Research map</span>
-            <h2>Our specific research topics.</h2>
-            <p>
-              기존 ZIP 안에 있던 연구 토픽 이미지를 그대로 활용해 연구실의 주요 방향을
-              한눈에 볼 수 있게 배치했습니다.
-            </p>
-          </div>
-
-          <div class="research-map-card">
-            <img src="assets/images/mainpic.webp" alt="Research topics map" />
-          </div>
-        </section>
-
-        <section class="section reveal" id="explore">
-          <div class="section-header">
-            <span class="eyebrow">Explore pages</span>
-            <h2>Move by page, not just by section.</h2>
-            <p>
-              Members, Projects, Publications는 각각 독립 페이지로 열리게 구성했고,
-              관리자 페이지도 공개 사이트와 같은 톤으로 맞췄습니다.
-            </p>
-          </div>
-
-          <div id="home-explore-grid" class="overview-grid"></div>
-        </section>
-
-        <section class="section reveal" id="contact">
-          <div class="section-header">
-            <span class="eyebrow">Contact &amp; management</span>
-            <h2>One public site, one admin workflow.</h2>
-            <p>
-              연구실 소개는 방문자용으로 깔끔하게 유지하고, 관리자 페이지에서는 멤버 추가,
-              졸업 처리, 논문 등록, 과제 상태 전환을 진행할 수 있습니다.
-            </p>
-          </div>
-
-          <div class="contact-grid">
-            <article class="contact-card">
-              <span class="eyebrow">Principal contact</span>
-              <h3 id="contact-email">jongseok@cnu.ac.kr</h3>
-              <p id="contact-note">Chungnam National University · Greenhouse &amp; Environmental Horticulture Science Laboratory</p>
-              <a href="mailto:jongseok@cnu.ac.kr" class="button secondary">Send email</a>
-            </article>
-
-            <article class="contact-card">
-              <span class="eyebrow">Admin console</span>
-              <h3>Firebase-powered CMS</h3>
-              <p>
-                이름, 과정, 이메일, 사진 업로드, 졸업 여부, 취업처, 논문 DOI,
-                과제 상태 변경까지 모두 관리자 페이지에서 다룰 수 있게 구성했습니다.
-              </p>
-              <a href="./admin.html" class="button primary">Open admin page</a>
-            </article>
-          </div>
-        </section>
-      </main>
-
-      <footer class="site-footer">
-        <div>
-          <strong id="footer-lab-name">Greenhouse &amp; Environmental Horticulture Science Laboratory</strong>
-          <p>Static multi-page Vercel deployment + Firebase CMS structure.</p>
-        </div>
-        <div class="footer-links">
-          <a href="./index.html">Home</a>
-          <a href="./members.html">Members</a>
-          <a href="./projects.html">Projects</a>
-          <a href="./publications.html">Publications</a>
-          <a href="./admin.html">Admin</a>
-        </div>
-        <div class="footer-meta">© <span id="footer-year"></span></div>
-      </footer>
+<section class="hero">
+  <div class="hero-backdrop">
+    <div class="hero-slide is-active" data-hero-slide></div>
+    <div class="hero-slide" data-hero-slide></div>
+    <div class="hero-slide" data-hero-slide></div>
+  </div>
+  <img class="hero-logo-watermark" src="assets/images/logos/geh-logo.png" alt="">
+  <div class="hero-content reveal is-visible">
+    <span class="eyebrow">CHUNGNAM NATIONAL UNIVERSITY</span>
+    <h1>원예 환경의 다음 기준을 설계합니다.</h1>
+    <p class="hero-subtitle">식물공장, 스마트팜, 기능성 작물, 지속가능한 수분 관리, 그리고 데이터 기반 재배 제어.</p>
+    <p class="hero-description">충남대학교 환경원예학연구실은 생육 환경 제어와 작물 생리, 기능성 성분 축적, 인공지능 기반 재배 기술을 연구합니다.</p>
+    <div class="hero-actions">
+      <a class="button primary" href="members.html">멤버 보기</a>
+      <a class="button secondary" href="projects.html">연구 과제 보기</a>
     </div>
+    <div class="hero-stat-grid" id="hero-stat-grid"></div>
+  </div>
+</section>
+<section class="focus-section container">
+  <div class="section-header reveal"><span class="eyebrow">RESEARCH LINEUP</span><h2>Indoor Farm · Hemp · Artificial Intelligence.</h2><p>핵심 연구 주제를 세 개의 카드로 정리했습니다.</p></div>
+  <div class="focus-grid" id="focus-grid"></div>
+</section>
+<section class="ongoing-preview container">
+  <div class="section-head-inline reveal">
+    <div class="section-header"><span class="eyebrow">PROJECTS</span><h2>현재 진행 중인 연구</h2><p>현재 수행 중인 대표 과제를 미리 볼 수 있습니다.</p></div>
+    <a class="button secondary" href="projects.html">전체 과제 보기</a>
+  </div>
+  <div class="preview-grid" id="ongoing-preview-grid"></div>
+</section>
 
-    <script src="firebase-config.js"></script>
-    <script type="module" src="assets/js/app.js"></script>
-  </body>
+</main>
+
+<footer class="site-footer">
+  <div class="footer-brand">
+    <img src="assets/images/logos/cnu-emblem-blue.jpg" alt="CNU">
+    <div><strong>GEH Lab</strong><br><small>충남대학교 환경원예학연구실</small></div>
+  </div>
+  <div class="footer-links">
+    <a href="index.html">홈</a>
+    <a href="members.html">멤버</a>
+    <a href="projects.html">과제</a>
+    <a href="publications.html">논문</a>
+  </div>
+  <div class="footer-meta">© 2026</div>
+</footer>
+
+</div>
+<script src="firebase-config.js"></script>
+<script type="module" src="assets/js/public.js"></script>
+</body>
 </html>

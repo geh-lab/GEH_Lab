@@ -1,101 +1,80 @@
 <!DOCTYPE html>
 <html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Members · CNU GEH Lab</title>
-    <meta
-      name="description"
-      content="Members and alumni of the CNU GEH Lab"
-    />
-    <link rel="stylesheet" href="assets/css/styles.css" />
-  </head>
-  <body class="public-body" data-page="members">
-    <div class="site-shell">
-      <header class="site-header">
-        <a href="./index.html" class="brand">
-          <span class="brand-mark">CNU</span>
-          <span class="brand-text">
-            <strong>GEH Lab</strong>
-            <small>Greenhouse &amp; Environmental Horticulture</small>
-          </span>
-        </a>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>멤버 · GEH Lab</title>
+  <meta name="description" content="GEH Lab">
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body class="public-body" data-page="members" data-lang="kr" data-root=".">
+<div class="site-shell">
 
-        <button class="menu-toggle" type="button" aria-label="메뉴 열기" aria-expanded="false" data-menu-toggle>
-          <span></span>
-          <span></span>
-        </button>
+<header class="site-header">
+  <a href="index.html" class="brand">
+    <span class="brand-mark"><img src="assets/images/logos/geh-logo.png" alt="GEH Lab"></span>
+    <span class="brand-text"><strong>GEH Lab</strong><small>온실 및 환경원예</small></span>
+  </a>
+  <button class="menu-toggle" type="button" aria-label="menu" aria-expanded="false" data-menu-toggle><span></span><span></span></button>
+  <nav class="site-nav" data-nav-panel>
+    <a href="index.html" data-nav-page="home">홈</a>
+    <a href="members.html" data-nav-page="members">멤버</a>
+    <a href="projects.html" data-nav-page="projects">과제</a>
+    <a href="publications.html" data-nav-page="publications">논문</a>
+  </nav>
+  <div class="header-tools">
+    <div class="lang-switch"><a class="lang-link is-active" href="#">KR</a><a class="lang-link" href="en/members.html">EN</a></div>
+    <a class="icon-button" href="admin.html" aria-label="Admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="M19.4 15a1.6 1.6 0 0 0 .32 1.76l.06.06a2 2 0 1 1-2.82 2.82l-.06-.06a1.6 1.6 0 0 0-1.76-.32 1.6 1.6 0 0 0-.98 1.46V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-.98-1.46 1.6 1.6 0 0 0-1.76.32l-.06.06a2 2 0 1 1-2.82-2.82l.06-.06A1.6 1.6 0 0 0 4.6 15a1.6 1.6 0 0 0-1.46-.98H3a2 2 0 1 1 0-4h.14A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.32-1.76l-.06-.06a2 2 0 1 1 2.82-2.82l.06.06A1.6 1.6 0 0 0 8.86 4.6a1.6 1.6 0 0 0 .98-1.46V3a2 2 0 1 1 4 0v.14a1.6 1.6 0 0 0 .98 1.46 1.6 1.6 0 0 0 1.76-.32l.06-.06a2 2 0 1 1 2.82 2.82l-.06.06A1.6 1.6 0 0 0 19.4 9c.23.35.35.77.35 1.2s-.12.85-.35 1.2Z"></path></svg></a>
+  </div>
+</header>
 
-        <nav class="site-nav" data-nav-panel>
-          <a href="./index.html" data-nav-page="home">Home</a>
-          <a href="./members.html" data-nav-page="members">Members</a>
-          <a href="./projects.html" data-nav-page="projects">Projects</a>
-          <a href="./publications.html" data-nav-page="publications">Publications</a>
-          <a href="./admin.html" class="nav-admin-link">Admin</a>
-        </nav>
-      </header>
+<main>
 
-      <main>
-        <section class="page-hero reveal">
-          <div class="page-hero-card">
-            <span class="eyebrow">People</span>
-            <h1 id="page-hero-title">Members.</h1>
-            <p id="page-hero-description">교수진, 박사후연구원, 대학원생, 졸업생을 별도 페이지에서 편하게 볼 수 있도록 구성했습니다.</p>
-            <div id="page-stat-grid" class="hero-stat-grid page-stat-grid"></div>
-          </div>
-          <div class="page-hero-visual page-hero-visual--soft">
-            <img src="assets/images/members/jongseok-park.png" alt="Jongseok Park" />
-          </div>
-        </section>
+<section class="page-hero" id="members-page">
+  <div class="page-hero-card reveal">
+    <span class="eyebrow">MEMBERS</span>
+    <h1>멤버</h1>
+    <p>연구교수, 대학원생, 학생연구원, 졸업생을 연도와 과정별로 정리했습니다.</p>
+    <div class="page-hero-meta"><span id="page-updated"></span></div>
+    <div class="hero-stat-grid page-stat-grid" id="page-stat-grid"></div>
+  </div>
+</section>
+<section class="page-section container"><div class="pi-card block-card reveal" id="pi-card"></div></section>
+<section class="page-section container">
+  <div class="section-header reveal"><span class="eyebrow">SECTION</span><h2>연구교수</h2></div>
+  <div id="research-professor-list"></div>
+</section>
+<section class="page-section container">
+  <div class="section-header reveal"><span class="eyebrow">SECTION</span><h2>대학원생</h2></div>
+  <div class="accordion-stack" id="graduate-accordion"></div>
+</section>
+<section class="page-section container">
+  <div class="section-header reveal"><span class="eyebrow">SECTION</span><h2>학생연구원</h2></div>
+  <div class="accordion-stack" id="student-researcher-accordion"></div>
+</section>
+<section class="page-section container">
+  <div class="section-header reveal"><span class="eyebrow">ARCHIVE</span><h2>졸업생</h2></div>
+  <div class="accordion-stack" id="alumni-accordion"></div>
+</section>
 
-        <section class="section reveal" id="members">
-          <div class="section-header section-header--inline">
-            <div>
-              <span class="eyebrow">People</span>
-              <h2>Members &amp; alumni</h2>
-            </div>
-            <p id="member-result-label"></p>
-          </div>
+</main>
 
-          <div class="filter-row">
-            <button type="button" class="filter-chip is-active" data-member-filter="all">All current</button>
-            <button type="button" class="filter-chip" data-member-filter="faculty">Faculty</button>
-            <button type="button" class="filter-chip" data-member-filter="postdoc">Postdoc</button>
-            <button type="button" class="filter-chip" data-member-filter="graduate">Graduate</button>
-          </div>
+<footer class="site-footer">
+  <div class="footer-brand">
+    <img src="assets/images/logos/cnu-emblem-blue.jpg" alt="CNU">
+    <div><strong>GEH Lab</strong><br><small>충남대학교 환경원예학연구실</small></div>
+  </div>
+  <div class="footer-links">
+    <a href="index.html">홈</a>
+    <a href="members.html">멤버</a>
+    <a href="projects.html">과제</a>
+    <a href="publications.html">논문</a>
+  </div>
+  <div class="footer-meta">© 2026</div>
+</footer>
 
-          <div id="current-member-groups" class="member-group-stack"></div>
-
-          <div class="alumni-section">
-            <div class="section-inline-header">
-              <div>
-                <span class="eyebrow">Archive</span>
-                <h3>Graduated alumni</h3>
-              </div>
-              <p>관리자가 졸업 처리하면 이 영역으로 이동하고, 현재 진로도 함께 표시됩니다.</p>
-            </div>
-            <div id="alumni-groups"></div>
-          </div>
-        </section>
-      </main>
-
-      <footer class="site-footer">
-        <div>
-          <strong id="footer-lab-name">Greenhouse &amp; Environmental Horticulture Science Laboratory</strong>
-          <p>Static multi-page Vercel deployment + Firebase CMS structure.</p>
-        </div>
-        <div class="footer-links">
-          <a href="./index.html">Home</a>
-          <a href="./members.html">Members</a>
-          <a href="./projects.html">Projects</a>
-          <a href="./publications.html">Publications</a>
-          <a href="./admin.html">Admin</a>
-        </div>
-        <div class="footer-meta">© <span id="footer-year"></span></div>
-      </footer>
-    </div>
-
-    <script src="firebase-config.js"></script>
-    <script type="module" src="assets/js/app.js"></script>
-  </body>
+</div>
+<script src="firebase-config.js"></script>
+<script type="module" src="assets/js/public.js"></script>
+</body>
 </html>

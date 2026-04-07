@@ -1,4 +1,4 @@
-import { initializeApp, getApp, getApps } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js';
+import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js';
 import {
   getAuth,
   onAuthStateChanged,
@@ -30,17 +30,12 @@ import {
 
 export const COLLECTIONS = {
   members: 'members',
-  publications: 'publications',
-  projects: 'projects'
+  projects: 'projects',
+  publications: 'publications'
 };
 
-const firebaseConfig =
-  window.GEH_FIREBASE_CONFIG && window.GEH_FIREBASE_CONFIG.apiKey
-    ? window.GEH_FIREBASE_CONFIG
-    : null;
-
+const firebaseConfig = window.GEH_FIREBASE_CONFIG?.apiKey ? window.GEH_FIREBASE_CONFIG : null;
 export const hasFirebaseConfig = Boolean(firebaseConfig);
-
 export const ADMIN_EMAILS = Array.isArray(window.GEH_ADMIN_EMAILS)
   ? window.GEH_ADMIN_EMAILS.map((email) => String(email).trim().toLowerCase()).filter(Boolean)
   : [];
@@ -49,57 +44,40 @@ const app = hasFirebaseConfig ? (getApps().length ? getApp() : initializeApp(fir
 export const auth = app ? getAuth(app) : null;
 export const db = app ? getFirestore(app) : null;
 export const storage = app ? getStorage(app) : null;
-const googleProvider = app ? new GoogleAuthProvider() : null;
+const googleProvider = auth ? new GoogleAuthProvider() : null;
 
 if (googleProvider) {
   googleProvider.setCustomParameters({ prompt: 'select_account' });
+  setPersistence(auth, browserLocalPersistence).catch((error) => console.warn(error));
 }
 
 export function isAllowedAdmin(email = '') {
-  const normalizedEmail = String(email || '').trim().toLowerCase();
-  if (!normalizedEmail) return false;
+  const normalized = String(email || '').trim().toLowerCase();
+  if (!normalized) return false;
   if (!ADMIN_EMAILS.length) return true;
-  return ADMIN_EMAILS.includes(normalizedEmail);
+  return ADMIN_EMAILS.includes(normalized);
 }
 
-async function validateAdminCredential(credential) {
-  if (!credential?.user) {
-    throw new Error('Google 로그인 결과를 확인하지 못했습니다.');
-  }
-
+async function validateCredential(credential) {
+  if (!credential?.user) throw new Error('Google 로그인 결과를 확인하지 못했습니다.');
   if (!isAllowedAdmin(credential.user.email)) {
     await signOut(auth);
-    throw new Error('허용된 관리자 이메일이 아닙니다. firebase-config.js의 GEH_ADMIN_EMAILS를 확인하세요.');
+    throw new Error('허용된 관리자 계정이 아닙니다.');
   }
-
   return credential;
 }
 
-export async function signInAdminWithGoogle(options = {}) {
-  if (!auth || !googleProvider) {
-    throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
-  }
-
-  await setPersistence(auth, browserLocalPersistence);
-
-  const shouldUseRedirect =
-    options.redirect === true ||
-    (window.matchMedia && window.matchMedia('(max-width: 820px)').matches);
-
-  if (shouldUseRedirect) {
+export async function signInAdminWithGoogle(forceRedirect = false) {
+  if (!auth || !googleProvider) throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
+  const useRedirect = forceRedirect || window.matchMedia('(max-width: 820px)').matches;
+  if (useRedirect) {
     await signInWithRedirect(auth, googleProvider);
     return null;
   }
-
   try {
-    const credential = await signInWithPopup(auth, googleProvider);
-    return await validateAdminCredential(credential);
+    return await validateCredential(await signInWithPopup(auth, googleProvider));
   } catch (error) {
-    if (
-      error?.code === 'auth/popup-blocked' ||
-      error?.code === 'auth/popup-closed-by-user' ||
-      error?.code === 'auth/cancelled-popup-request'
-    ) {
+    if (['auth/popup-blocked', 'auth/popup-closed-by-user', 'auth/cancelled-popup-request'].includes(error?.code)) {
       await signInWithRedirect(auth, googleProvider);
       return null;
     }
@@ -107,16 +85,11 @@ export async function signInAdminWithGoogle(options = {}) {
   }
 }
 
-export async function resolveGoogleRedirectResult() {
+export async function resolveRedirectResult() {
   if (!auth) return null;
   const credential = await getRedirectResult(auth);
   if (!credential) return null;
-  return validateAdminCredential(credential);
-}
-
-export async function signOutAdmin() {
-  if (!auth) return;
-  await signOut(auth);
+  return validateCredential(credential);
 }
 
 export function watchAdminState(callback) {
@@ -124,106 +97,79 @@ export function watchAdminState(callback) {
     callback(null);
     return () => {};
   }
-
   return onAuthStateChanged(auth, async (user) => {
     if (user && !isAllowedAdmin(user.email)) {
       await signOut(auth);
       callback(null);
       return;
     }
-
     callback(user);
   });
 }
 
-function snapshotToItems(snapshot) {
-  return snapshot.docs.map((entry) => ({
-    id: entry.id,
-    ...entry.data()
-  }));
+export async function signOutAdmin() {
+  if (!auth) return;
+  await signOut(auth);
 }
 
-export async function fetchCollection(collectionName) {
+function snapshotToItems(snapshot) {
+  return snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
+}
+
+export async function fetchCollection(name) {
   if (!db) return [];
-  const snapshot = await getDocs(collection(db, collectionName));
+  const snapshot = await getDocs(collection(db, name));
   return snapshotToItems(snapshot);
 }
 
-export function listenCollection(collectionName, onData, onError) {
+export function listenCollection(name, onData, onError) {
   if (!db) {
     onData([]);
     return () => {};
   }
-
   return onSnapshot(
-    collection(db, collectionName),
+    collection(db, name),
     (snapshot) => onData(snapshotToItems(snapshot)),
     (error) => {
-      console.error(`[Firebase] ${collectionName} listen failed`, error);
-      if (typeof onError === 'function') onError(error);
+      console.error(error);
+      onError?.(error);
     }
   );
 }
 
 export async function saveDocument(collectionName, documentId, payload) {
-  if (!db) {
-    throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
-  }
-
-  const cleanPayload = { ...payload };
-  delete cleanPayload.id;
-
-  if (documentId) {
-    const documentRef = doc(db, collectionName, documentId);
-    await setDoc(
-      documentRef,
-      {
-        ...cleanPayload,
-        updatedAt: serverTimestamp()
-      },
-      { merge: true }
-    );
-    return documentId;
-  }
-
-  const documentRef = doc(collection(db, collectionName));
-  await setDoc(documentRef, {
-    ...cleanPayload,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
-  });
-  return documentRef.id;
+  if (!db) throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
+  const clean = { ...payload };
+  delete clean.id;
+  const targetRef = documentId ? doc(db, collectionName, documentId) : doc(collection(db, collectionName));
+  await setDoc(
+    targetRef,
+    {
+      ...clean,
+      createdAt: clean.createdAt || serverTimestamp(),
+      updatedAt: serverTimestamp()
+    },
+    { merge: true }
+  );
+  return targetRef.id;
 }
 
 export async function deleteDocumentById(collectionName, documentId) {
-  if (!db) {
-    throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
-  }
-
+  if (!db) throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
   await deleteDoc(doc(db, collectionName, documentId));
 }
 
 export async function uploadMemberPhoto(file) {
-  if (!storage) {
-    throw new Error('Firebase Storage가 연결되지 않았습니다.');
-  }
-
-  const extension = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
-  const fileName = `member-photos/${Date.now()}-${crypto.randomUUID()}.${extension}`;
-  const fileRef = ref(storage, fileName);
-  await uploadBytes(fileRef, file, {
-    contentType: file.type || 'image/jpeg'
-  });
+  if (!storage) throw new Error('Firebase Storage가 연결되지 않았습니다.');
+  const ext = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
+  const path = `member-photos/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+  const fileRef = ref(storage, path);
+  await uploadBytes(fileRef, file, { contentType: file.type || 'image/jpeg' });
   const photoUrl = await getDownloadURL(fileRef);
-
-  return {
-    photoUrl,
-    photoPath: fileName
-  };
+  return { photoUrl, photoPath: path };
 }
 
 export async function deleteMemberPhoto(photoPath) {
   if (!storage || !photoPath) return;
-  const fileRef = ref(storage, photoPath);
-  await deleteObject(fileRef);
+  await deleteObject(ref(storage, photoPath));
 }
