@@ -368,8 +368,7 @@ ${payload.bachelorsMajor}` : ''}`.trim());
 ${payload.mastersMajor}` : ''}`.trim());
   if (payload.doctoralSchool || payload.doctoralMajor) lines.push(`Ph.D. ${payload.doctoralSchool || ''}${payload.doctoralMajor ? `
 ${payload.doctoralMajor}` : ''}`.trim());
-  return lines.join('
-');
+  return lines.join('\n');
 }
 
 function updateMemberEducationVisibility() {
@@ -431,8 +430,7 @@ function publicationLinksSummary(links = []) {
     const roleMap = { first: '제1저자', co: '공동저자', corresponding: '교신저자' };
     const roleText = Array.isArray(item.roles) ? item.roles.map((key) => roleMap[key] || key).join(', ') : '';
     return `${item.title}${roleText ? ` (${roleText})` : ''}`;
-  }).join('
-');
+  }).join('\n');
 }
 
 function renderSetupMessage() {
