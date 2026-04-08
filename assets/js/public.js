@@ -294,8 +294,7 @@ function openMemberModal(member) {
         ${detailSection(copy.interest, member.researchInterest)}
         ${detailSection(currentLabel, member.currentPosition || member.bio)}
         ${courseSectionTitle ? detailSection(courseSectionTitle, courseSectionValue) : ''}
-        ${detailSection(lang === 'en' ? 'Related publications' : '관련 논문', (Array.isArray(member.publicationLinks) && member.publicationLinks.length) ? member.publicationLinks.map((item) => `${item.title}${Array.isArray(item.roles) && item.roles.length ? ` (${item.roles.map((role) => ({first: lang === 'en' ? 'First author' : '제1저자', co: lang === 'en' ? 'Co-author' : '공동저자', corresponding: lang === 'en' ? 'Corresponding author' : '교신저자'})[role] || role).join(', ')})` : ''}`).join('
-') : (member.authorshipNote || (lang === 'en' ? 'No linked publications yet.' : '연결된 논문이 아직 없습니다.')))}
+        ${detailSection(lang === 'en' ? 'Related publications' : '관련 논문', (Array.isArray(member.publicationLinks) && member.publicationLinks.length) ? member.publicationLinks.map((item) => `${item.title}${Array.isArray(item.roles) && item.roles.length ? ` (${item.roles.map((role) => ({first: lang === 'en' ? 'First author' : '제1저자', co: lang === 'en' ? 'Co-author' : '공동저자', corresponding: lang === 'en' ? 'Corresponding author' : '교신저자'})[role] || role).join(', ')})` : ''}`).join('\n') : (member.authorshipNote || (lang === 'en' ? 'No linked publications yet.' : '연결된 논문이 아직 없습니다.')))}
       </div>
     </div>
   `);
