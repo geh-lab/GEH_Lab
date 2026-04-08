@@ -198,6 +198,8 @@ function openEditor(kind) {
   state.openEditorKind = kind;
   target.hidden = false;
   target.classList.add('is-open');
+  target.style.background = '#ffffff';
+  target.style.backgroundImage = 'none';
   document.body.classList.add('modal-open');
 }
 
@@ -1103,7 +1105,7 @@ function projectItemMarkup(project) {
   const roleLabel = roleMap[project.leadRole] || '연구책임자';
   return `
     <article class="admin-item-card">
-      <div class="admin-item-main">
+      <div class="admin-item-main admin-item-main--single">
         <div>
           <div class="card-topline">
             <strong>${escapeHTML(localizedProjectTitle(project, 'kr'))}</strong>
@@ -1165,7 +1167,7 @@ function publicationItemMarkup(item) {
   const indexing = publicationIndexingLabel(item.indexing, 'kr');
   return `
     <article class="admin-item-card">
-      <div class="admin-item-main">
+      <div class="admin-item-main admin-item-main--single">
         <div>
           <div class="card-topline"><strong>${escapeHTML(item.title)}</strong>${indexing ? `<span class="status-badge">${escapeHTML(indexing)}</span>` : ''}</div>
           ${ym ? `<p class="muted">${escapeHTML(ym)}</p>` : ''}
