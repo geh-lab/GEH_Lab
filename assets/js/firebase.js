@@ -14,6 +14,7 @@ import {
   getFirestore,
   collection,
   getDocs,
+  getDocsFromServer,
   onSnapshot,
   doc,
   setDoc,
@@ -76,29 +77,28 @@ async function validateCredential(credential) {
 export async function signInAdminWithGoogle() {
   if (!auth || !googleProvider) throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
   await authPersistenceReady;
-  try {
-    const credential = await signInWithPopup(auth, googleProvider);
-    return validateCredential(credential);
-  } catch (error) {
-    const fallbackCodes = [
-      'auth/popup-blocked',
-      'auth/popup-closed-by-user',
-      'auth/cancelled-popup-request',
-      'auth/operation-not-supported-in-this-environment'
-    ];
-    if (fallbackCodes.includes(error?.code)) {
-      await signInWithRedirect(auth, googleProvider);
-      return null;
-    }
-    throw error;
-  }
+  await signInWithRedirect(auth, googleProvider);
+  return null;
 }
 
 export async function resolveRedirectResult() {
   if (!auth) return null;
   await authPersistenceReady;
-  const credential = await getRedirectResult(auth);
-  if (!credential) return null;
+  let credential = null;
+  try {
+    credential = await getRedirectResult(auth);
+  } catch (error) {
+    if (auth.currentUser && isAllowedAdmin(auth.currentUser.email)) {
+      return { user: auth.currentUser };
+    }
+    throw error;
+  }
+  if (!credential) {
+    if (auth.currentUser && isAllowedAdmin(auth.currentUser.email)) {
+      return { user: auth.currentUser };
+    }
+    return null;
+  }
   return validateCredential(credential);
 }
 
@@ -108,7 +108,7 @@ export function watchAdminState(callback) {
     return () => {};
   }
   let unsubscribe = () => {};
-  authPersistenceReady.then(() => {
+  authPersistenceReady.finally(() => {
     unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && !isAllowedAdmin(user.email)) {
         await signOut(auth);
@@ -132,8 +132,14 @@ function snapshotToItems(snapshot) {
 
 export async function fetchCollection(name) {
   if (!db) return [];
-  const snapshot = await getDocs(collection(db, name));
-  return snapshotToItems(snapshot);
+  try {
+    const snapshot = await getDocsFromServer(collection(db, name));
+    return snapshotToItems(snapshot);
+  } catch (error) {
+    console.warn('getDocsFromServer failed, falling back to getDocs', error);
+    const snapshot = await getDocs(collection(db, name));
+    return snapshotToItems(snapshot);
+  }
 }
 
 export function listenCollection(name, onData, onError) {

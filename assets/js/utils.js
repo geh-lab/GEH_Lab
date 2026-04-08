@@ -143,13 +143,6 @@ function mapTrack(value = '') {
   return 'none';
 }
 
-function mapLeadRole(value = '') {
-  const text = normalizeString(value);
-  if (text.includes('주관')) return 'host';
-  if (text.includes('공동')) return 'co';
-  return 'principal';
-}
-
 function mapCourse(value = '', group = '') {
   const text = normalizeString(value);
   if (text.includes('교수') || text === 'professor' || text === 'faculty') return 'professor';
@@ -170,8 +163,8 @@ function mapGroup(value = '', status = '', course = '') {
   const courseText = normalizeString(course);
   if (status === 'alumni') return 'alumni';
   if (['pi', 'principalinvestigator', 'principal-investigator'].includes(text) || text.includes('연구책임') || text.includes('지도교수')) return 'pi';
-  if (text.includes('researchprofessor') || text.includes('research professor') || text.includes('연구교수') || text.includes('postdoc') || text.includes('박사후')) return 'researchProfessor';
-  if (text.includes('studentresearcher') || text.includes('research intern') || text.includes('intern') || text.includes('학부연구생') || text.includes('학생연구원')) return 'studentResearcher';
+  if (['researchprofessor','research-professor','postdoc','postdoctoral'].includes(text) || text.includes('research professor') || text.includes('연구교수') || text.includes('박사후')) return 'researchProfessor';
+  if (['studentresearcher','student-researcher','researchintern','undergraduateresearcher'].includes(text) || text.includes('research intern') || text.includes('intern') || text.includes('학부연구생') || text.includes('학생연구원')) return 'studentResearcher';
   if (text.includes('alumni') || text.includes('졸업')) return 'alumni';
   if (courseText.includes('professor') || courseText.includes('교수')) return 'pi';
   if (courseText.includes('postdoc') || courseText.includes('박사후')) return 'researchProfessor';
@@ -231,9 +224,15 @@ export function normalizeMember(item = {}, options = {}) {
     status,
     graduationYear: item.graduationYear || '',
     startYear: item.startYear || item.admissionYear || '',
+    enrolledGroup: item.enrolledGroup || group || '',
+    enrolledCourse: item.enrolledCourse || course || '',
+    enrolledTrack: item.enrolledTrack || track || '',
     sortOrder,
     photoUrl: item.photoUrl || item.image || '',
     photoPath: item.photoPath || '',
+    restoreGroup: item.restoreGroup || '',
+    restoreCourse: item.restoreCourse || '',
+    restoreTrack: item.restoreTrack || '',
     createdAt: item.createdAt || undefined,
     updatedAt: item.updatedAt || undefined
   };
@@ -259,7 +258,7 @@ export function normalizeProject(item = {}, options = {}) {
     status: preserveMissing ? explicitStatus : (explicitStatus || 'ongoing'),
     period,
     year,
-    leadRole: mapLeadRole(item.leadRole || item.principalRole || ''),
+    leadRole: item.leadRole || 'principalInvestigator',
     principalInvestigator: item.principalInvestigator || item.pi || '',
     coResearchers: item.coResearchers || item.coInvestigator || '',
     figureUrl: item.figureUrl || item.imageUrl || '',
@@ -483,43 +482,6 @@ export function publicationIndexingLabel(indexing = '', lang = 'kr') {
   const normalized = normalizeString(indexing).toUpperCase();
   if (!normalized) return '';
   return normalized;
-}
-
-
-export function leadRoleLabel(role = 'principal', lang = 'kr') {
-  const map = {
-    principal: { kr: '연구책임자', en: 'Principal investigator' },
-    co: { kr: '공동연구책임자', en: 'Co-principal investigator' },
-    host: { kr: '주관책임자', en: 'Lead investigator' }
-  };
-  return map[role]?.[lang] || map.principal[lang];
-}
-
-export function journalToneClass(journal = '') {
-  const key = semanticKey(journal);
-  const map = {
-    'thekoreansocietyforbioenvironmentcontrol': 'journal-tone-red',
-    'journalofbioenvironmentcontrol': 'journal-tone-red',
-    'horticulturalscienceandtechnology': 'journal-tone-purple',
-    'frontiersinplantscience': 'journal-tone-blue',
-    'plants': 'journal-tone-green',
-    'agronomy': 'journal-tone-orange',
-    'agriculture': 'journal-tone-orange',
-    'horticulturae': 'journal-tone-teal',
-    'horticultureenvironmentandbiotechnology': 'journal-tone-indigo',
-    'ozonescienceengineering': 'journal-tone-sky',
-    'plosone': 'journal-tone-rose',
-    'canadianjournalofplantscience': 'journal-tone-amber',
-    'plantgrowthregulation': 'journal-tone-emerald',
-    'foods': 'journal-tone-lime',
-    'heliyon': 'journal-tone-pink',
-    'chemicalandbiologicaltechnologiesinagriculture': 'journal-tone-cyan',
-    'phyton': 'journal-tone-violet',
-    'australianjournalofcropscience': 'journal-tone-fuchsia',
-    'journalofphytology': 'journal-tone-brown',
-    'horticulturejournal': 'journal-tone-slate'
-  };
-  return map[key] || 'journal-tone-default';
 }
 
 export function memberYearLabel(member = {}, lang = 'kr') {

@@ -145,11 +145,11 @@ export const SITE_COPY = {
     "homeProjectsDesc": "A quick view of the projects currently underway.",
     "viewAllProjects": "View all projects",
     "membersHeroTitle": "Members",
-    "membersHeroDesc": "Principal Investigator, research professors, Ph.D. students, M.S. students, undergraduate researchers, and alumni organized by program and year.",
+    "membersHeroDesc": "",
     "projectsHeroTitle": "Projects",
-    "projectsHeroDesc": "Ongoing projects are separated from archived projects, and completed projects are grouped by year in accordions. Each project card can show its project period.",
+    "projectsHeroDesc": "",
     "publicationsHeroTitle": "Publications",
-    "publicationsHeroDesc": "Publications are organized by year. DOI links are displayed inline, and year/month metadata can be recorded together.",
+    "publicationsHeroDesc": "",
     "updated": "Updated",
     "pi": "Principal Investigator",
     "researchProfessor": "Research Professors / Postdocs",
@@ -181,7 +181,7 @@ export const SITE_COPY = {
     "countItems": "items",
     "footerNote": "Greenhouse & Environmental Horticulture Lab",
     "boardHeroTitle": "Board",
-    "boardHeroDesc": "Notices, poster presentations, oral presentations, and lab updates in one place.",
+    "boardHeroDesc": "",
     "boardNav": "Board",
     "boardCount": "Posts"
   }

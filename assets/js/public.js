@@ -19,11 +19,9 @@ import {
   mergePublications,
   mergeBoardPosts,
   memberYearLabel,
-  publicationIndexingLabel,
-  journalToneClass,
-  leadRoleLabel
+  publicationIndexingLabel
 } from './utils.js';
-import { hasFirebaseConfig, fetchCollection, COLLECTIONS } from './firebase.js';
+import { hasFirebaseConfig, fetchCollection, listenCollection, COLLECTIONS } from './firebase.js';
 
 const body = document.body;
 const page = body.dataset.page;
@@ -46,7 +44,8 @@ const state = {
   publications: sortPublications(FALLBACK_PUBLICATIONS),
   board: sortBoardPosts(FALLBACK_BOARD_POSTS),
   publicationQuery: '',
-  boardTab: 'news'
+  boardTab: 'news',
+  unsubs: []
 };
 
 const modalState = {
@@ -64,6 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (page === 'home') setupHeroSlider();
   await hydrate();
   renderPage();
+  attachLiveListeners();
 });
 
 async function hydrate() {
@@ -79,12 +79,37 @@ async function hydrate() {
     state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, projects));
     state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, publications));
     state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, board));
+
+    state.unsubs.forEach((unsub) => { try { unsub(); } catch {} });
+    state.unsubs = [
+      listenCollection(COLLECTIONS.members, (items) => {
+        state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, items));
+        if (page === 'home' || page === 'members') renderPage();
+      }),
+      listenCollection(COLLECTIONS.projects, (items) => {
+        state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, items));
+        if (page === 'home' || page === 'projects') renderPage();
+      }),
+      listenCollection(COLLECTIONS.publications, (items) => {
+        state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items));
+        if (page === 'home' || page === 'publications') renderPage();
+      }),
+      listenCollection(COLLECTIONS.board, (items) => {
+        state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items));
+        if (page === 'board') renderPage();
+      })
+    ];
   } catch (error) {
     console.warn('Firebase 데이터를 불러오지 못해 기본 데이터를 사용합니다.', error);
   }
 }
 
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) renderPage();
+});
+
 function renderPage() {
+
   if (page === 'home') renderHome();
   if (page === 'members') renderMembers();
   if (page === 'projects') renderProjects();
@@ -260,6 +285,7 @@ function openMemberModal(member) {
 function openProjectModal(project) {
   const title = project.title;
   const media = project.figureUrl ? `<div class="detail-figure detail-figure--${escapeHTML((project.figureAspect || '16:9').replace(':','-'))}"><img src="${escapeHTML(rootAsset(project.figureUrl, root))}" alt="${escapeHTML(project.title)}"></div>` : '';
+  const leadLabel = projectLeadRoleLabel(project, lang);
   openModal(title, `
     <div class="detail-modal detail-modal--project">
       <div class="member-chip-row">
@@ -269,7 +295,7 @@ function openProjectModal(project) {
       ${media}
       <div class="detail-grid detail-grid--project">
         ${detailSection(lang === 'en' ? 'Project description' : '과제 설명', project.description || (lang === 'en' ? 'No description provided.' : '설명이 아직 입력되지 않았습니다.'))}
-        ${detailSection(leadRoleLabel(project.leadRole || 'principal', lang), project.principalInvestigator || (lang === 'en' ? 'Not set' : '미설정'))}
+        ${detailSection(leadLabel, project.principalInvestigator || (lang === 'en' ? 'Not set' : '미설정'))}
         ${detailSection(lang === 'en' ? 'Keywords' : '키워드', Array.isArray(project.tags) ? project.tags.join(', ') : '')}
       </div>
     </div>
@@ -633,6 +659,39 @@ function extractYearFromText(value = '') {
   return years?.length ? years[years.length - 1] : '';
 }
 
+function padMonth(value = '') {
+  const n = Number(String(value || '').trim());
+  return Number.isFinite(n) && n >= 1 && n <= 12 ? String(n).padStart(2, '0') : '';
+}
+
+function journalToneClass(journal = '') {
+  const name = String(journal || '').trim().toLowerCase();
+  if (!name) return '';
+  const manual = {
+    'the korean society for bio-environment control': 'journal-pill--tone-red',
+    'journal of bio-environment control': 'journal-pill--tone-red',
+    'horticultural science and technology': 'journal-pill--tone-purple',
+    'frontiers in plant science': 'journal-pill--tone-blue',
+    'plants': 'journal-pill--tone-green',
+    'agronomy': 'journal-pill--tone-amber',
+    'horticulturae': 'journal-pill--tone-teal',
+    'horticulture, environment, and biotechnology': 'journal-pill--tone-violet',
+    'ozone: science & engineering': 'journal-pill--tone-sky',
+    'australian journal of crop science': 'journal-pill--tone-orange'
+  };
+  return manual[name] || 'journal-pill--tone-neutral';
+}
+
+function projectLeadRoleLabel(project = {}, locale = lang) {
+  const key = project.leadRole || 'principalInvestigator';
+  const map = {
+    principalInvestigator: locale === 'en' ? 'Principal investigator' : '연구책임자',
+    coPrincipalInvestigator: locale === 'en' ? 'Co-principal investigator' : '공동연구책임자',
+    leadInstitutionInvestigator: locale === 'en' ? 'Lead institution investigator' : '주관책임자'
+  };
+  return map[key] || (locale === 'en' ? 'Principal investigator' : '연구책임자');
+}
+
 function isGenericOngoingPeriod(value = '') {
   const normalized = String(value || '').trim().toLowerCase().replace(/\s+/g, '');
   return !normalized || /^(진행중|진행中|inprogress|ongoing|in-progress)$/.test(normalized);
@@ -644,17 +703,6 @@ function getProjectPeriodDisplay(project = {}) {
   if (isGenericOngoingPeriod(raw)) return '';
   if (project.status === 'completed' && raw === String(project.year || '').trim()) return raw;
   return raw;
-}
-
-function projectLeadMeta(project = {}) {
-  if (!project.principalInvestigator) return '';
-  const label = leadRoleLabel(project.leadRole || 'principal', lang);
-  return `<strong>${escapeHTML(label)}</strong> ${escapeHTML(project.principalInvestigator)}`;
-}
-
-function publicationYearMonth(item = {}) {
-  if (!item.year) return '';
-  return item.month ? `${item.year}.${String(item.month).padStart(2, '0')}` : String(item.year);
 }
 
 function memberMetaChips(member) {
@@ -704,7 +752,9 @@ function alumniCard(member) {
 
 function projectCard(project, { compact = false } = {}) {
   const period = getProjectPeriodDisplay(project);
-  const leadMeta = projectLeadMeta(project);
+  const leadMeta = project.principalInvestigator
+    ? `<strong>${escapeHTML(projectLeadRoleLabel(project, lang))}</strong> ${escapeHTML(project.principalInvestigator)}`
+    : '';
   return `
     <article class="project-card${compact ? ' compact-card' : ''} reveal interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(project.title)}">
       <div class="card-head">
@@ -721,7 +771,9 @@ function projectCard(project, { compact = false } = {}) {
 
 function archiveProjectItem(project) {
   const period = getProjectPeriodDisplay(project) || project.year || '';
-  const leadMeta = projectLeadMeta(project);
+  const leadMeta = project.principalInvestigator
+    ? `<strong>${escapeHTML(projectLeadRoleLabel(project, lang))}</strong> ${escapeHTML(project.principalInvestigator)}`
+    : '';
   return `
     <article class="archive-item reveal interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(project.title)}">
       <div>
@@ -738,18 +790,19 @@ function archiveProjectItem(project) {
 
 function publicationCard(item) {
   const link = resolvePublicationLink(item);
-  const monthLabel = item.month ? (lang === 'en' ? `${item.month}` : `${Number(item.month)}월`) : '';
-  const indexing = publicationIndexingLabel(item.indexing, lang);
-  const indexClass = indexing ? indexing.toLowerCase() : '';
-  const journalTone = journalToneClass(item.journal || '');
-  const acceptedLabel = item.year ? `${lang === 'en' ? 'Accepted' : 'Accepted'} ${escapeHTML(publicationYearMonth(item))}` : '';
+  const indexLabel = publicationIndexingLabel(item.indexing, lang);
+  const indexClass = indexLabel ? indexLabel.toLowerCase() : '';
+  const journalTone = journalToneClass(item.journal);
+  const acceptedYear = item.year ? `${escapeHTML(item.year)}${padMonth(item.month) ? `.${escapeHTML(padMonth(item.month))}` : ''}` : '';
+  const acceptedLabel = acceptedYear ? (lang === 'en' ? `Accepted ${acceptedYear}` : `Accepted ${acceptedYear}`) : '';
+  const yearPill = item.year ? `${escapeHTML(item.year)}${padMonth(item.month) ? `.${escapeHTML(padMonth(item.month))}` : ''}` : '';
   return `
     <article class="publication-card reveal">
       <div class="publication-head-row">
         <div class="publication-topline">
-          ${item.year ? `<span class="year-pill">${escapeHTML(publicationYearMonth(item))}</span>` : ''}
-          ${item.journal ? `<span class="journal-pill ${journalTone} ${indexClass ? `journal-pill--${escapeHTML(indexClass)}` : ''}">${escapeHTML(item.journal)}</span>` : ''}
-          ${indexing ? `<span class="index-pill ${indexClass ? `index-pill--${escapeHTML(indexClass)}` : ''}">${escapeHTML(indexing)}</span>` : ''}
+          ${yearPill ? `<span class="year-pill">${yearPill}</span>` : ''}
+          ${item.journal ? `<span class="journal-pill ${journalTone}">${escapeHTML(item.journal)}</span>` : ''}
+          ${indexLabel ? `<span class="index-pill ${indexClass ? `index-pill--${escapeHTML(indexClass)}` : ''}">${escapeHTML(indexLabel)}</span>` : ''}
         </div>
         ${acceptedLabel ? `<span class="publication-accepted">${acceptedLabel}</span>` : ''}
       </div>
