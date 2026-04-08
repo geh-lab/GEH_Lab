@@ -294,7 +294,8 @@ function openMemberModal(member) {
         ${detailSection(copy.interest, member.researchInterest)}
         ${detailSection(currentLabel, member.currentPosition || member.bio)}
         ${courseSectionTitle ? detailSection(courseSectionTitle, courseSectionValue) : ''}
-        ${detailSection(lang === 'en' ? 'Authorship / publications' : '저자 / 논문 메모', member.authorshipNote || (lang === 'en' ? 'Administrator can add first-author / co-author notes here.' : '관리자에서 제1저자 / 공동저자 메모를 추가할 수 있습니다.'))}
+        ${detailSection(lang === 'en' ? 'Related publications' : '관련 논문', (Array.isArray(member.publicationLinks) && member.publicationLinks.length) ? member.publicationLinks.map((item) => `${item.title}${Array.isArray(item.roles) && item.roles.length ? ` (${item.roles.map((role) => ({first: lang === 'en' ? 'First author' : '제1저자', co: lang === 'en' ? 'Co-author' : '공동저자', corresponding: lang === 'en' ? 'Corresponding author' : '교신저자'})[role] || role).join(', ')})` : ''}`).join('
+') : (member.authorshipNote || (lang === 'en' ? 'No linked publications yet.' : '연결된 논문이 아직 없습니다.')))}
       </div>
     </div>
   `);
@@ -538,12 +539,12 @@ function renderMembers() {
 
   const researcherAccordion = qs('#student-researcher-accordion');
   if (researcherAccordion) {
-    researcherAccordion.innerHTML = accordionMarkup(
+    researcherAccordion.innerHTML = undergrads.length ? accordionMarkup(
       copy.studentResearcherSection,
       undergrads.length,
-      undergrads.length ? `<div class="member-grid member-grid--wide">${undergrads.map((item) => memberCard(item)).join('')}</div>` : emptyState(copy.noMembers),
+      `<div class="member-grid member-grid--wide">${undergrads.map((item) => memberCard(item)).join('')}</div>`,
       true
-    );
+    ) : '';
   }
 
   const alumniAccordion = qs('#alumni-accordion');

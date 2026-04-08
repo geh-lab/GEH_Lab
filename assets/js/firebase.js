@@ -37,12 +37,16 @@ export const COLLECTIONS = {
 };
 
 const firebaseConfig = window.GEH_FIREBASE_CONFIG?.apiKey ? window.GEH_FIREBASE_CONFIG : null;
-export const hasFirebaseConfig = Boolean(firebaseConfig);
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+export const isLocalDevMode = window.GEH_LOCAL_DEV_MODE === false
+  ? false
+  : (window.GEH_LOCAL_DEV_MODE === true || LOCAL_HOSTS.has(window.location.hostname) || window.location.protocol === 'file:');
+export const hasFirebaseConfig = Boolean(firebaseConfig) || isLocalDevMode;
 export const ADMIN_EMAILS = Array.isArray(window.GEH_ADMIN_EMAILS)
   ? window.GEH_ADMIN_EMAILS.map((email) => String(email).trim().toLowerCase()).filter(Boolean)
   : [];
 
-const app = hasFirebaseConfig ? (getApps().length ? getApp() : initializeApp(firebaseConfig)) : null;
+const app = firebaseConfig ? (getApps().length ? getApp() : initializeApp(firebaseConfig)) : null;
 export const auth = app ? getAuth(app) : null;
 export const db = app ? getFirestore(app) : null;
 export const storage = app ? getStorage(app) : null;
@@ -74,7 +78,103 @@ async function validateCredential(credential) {
   return credential;
 }
 
+const LOCAL_AUTH_KEY = 'geh-local-admin-auth';
+const LOCAL_PREFIX = 'geh-local-collection:';
+const LOCAL_AUTH_EVENT = 'geh-local-auth-change';
+const LOCAL_COLLECTION_EVENT = 'geh-local-collection-change';
+const localSubscribers = new Map();
+
+function localStorageSafe() {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function getLocalAdminUser() {
+  const store = localStorageSafe();
+  const raw = store?.getItem(LOCAL_AUTH_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      uid: parsed.uid || 'local-admin',
+      email: parsed.email || ADMIN_EMAILS[0] || 'local-admin@localhost',
+      displayName: parsed.displayName || 'Local Admin'
+    };
+  } catch {
+    return null;
+  }
+}
+
+function setLocalAdminUser(user) {
+  const store = localStorageSafe();
+  if (!store) return;
+  if (!user) store.removeItem(LOCAL_AUTH_KEY);
+  else store.setItem(LOCAL_AUTH_KEY, JSON.stringify(user));
+  window.dispatchEvent(new CustomEvent(LOCAL_AUTH_EVENT, { detail: user || null }));
+}
+
+function localCollectionKey(name) {
+  return `${LOCAL_PREFIX}${name}`;
+}
+
+function readLocalCollection(name) {
+  const store = localStorageSafe();
+  const raw = store?.getItem(localCollectionKey(name));
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function notifyLocalCollection(name) {
+  const items = readLocalCollection(name);
+  const subs = localSubscribers.get(name) || new Set();
+  subs.forEach((callback) => {
+    try { callback(items); } catch (error) { console.error(error); }
+  });
+  window.dispatchEvent(new CustomEvent(LOCAL_COLLECTION_EVENT, { detail: { name, items } }));
+}
+
+function writeLocalCollection(name, items) {
+  const store = localStorageSafe();
+  store?.setItem(localCollectionKey(name), JSON.stringify(items));
+  notifyLocalCollection(name);
+}
+
+function localNow() {
+  return new Date().toISOString();
+}
+
+function makeLocalId(collectionName = 'doc') {
+  const suffix = (crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
+  return `${collectionName}-${suffix}`;
+}
+
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error || new Error('파일을 읽지 못했습니다.'));
+    reader.readAsDataURL(file);
+  });
+}
+
 export async function signInAdminWithGoogle() {
+  if (isLocalDevMode) {
+    const localUser = {
+      uid: 'local-admin',
+      email: ADMIN_EMAILS[0] || 'local-admin@localhost',
+      displayName: 'Local Admin'
+    };
+    setLocalAdminUser(localUser);
+    return { user: localUser };
+  }
   if (!auth || !googleProvider) throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
   await authPersistenceReady;
   try {
@@ -96,6 +196,10 @@ export async function signInAdminWithGoogle() {
 }
 
 export async function resolveRedirectResult() {
+  if (isLocalDevMode) {
+    const localUser = getLocalAdminUser();
+    return localUser ? { user: localUser } : null;
+  }
   if (!auth) return null;
   await authPersistenceReady;
   let credential = null;
@@ -117,6 +221,12 @@ export async function resolveRedirectResult() {
 }
 
 export function watchAdminState(callback) {
+  if (isLocalDevMode) {
+    callback(getLocalAdminUser());
+    const handler = (event) => callback(event?.detail || getLocalAdminUser());
+    window.addEventListener(LOCAL_AUTH_EVENT, handler);
+    return () => window.removeEventListener(LOCAL_AUTH_EVENT, handler);
+  }
   if (!auth) {
     callback(null);
     return () => {};
@@ -136,6 +246,10 @@ export function watchAdminState(callback) {
 }
 
 export async function signOutAdmin() {
+  if (isLocalDevMode) {
+    setLocalAdminUser(null);
+    return;
+  }
   if (!auth) return;
   await signOut(auth);
 }
@@ -145,6 +259,7 @@ function snapshotToItems(snapshot) {
 }
 
 export async function fetchCollection(name) {
+  if (isLocalDevMode) return readLocalCollection(name);
   if (!db) return [];
   try {
     const snapshot = await getDocsFromServer(collection(db, name));
@@ -157,6 +272,20 @@ export async function fetchCollection(name) {
 }
 
 export function listenCollection(name, onData, onError) {
+  if (isLocalDevMode) {
+    onData(readLocalCollection(name));
+    const subs = localSubscribers.get(name) || new Set();
+    subs.add(onData);
+    localSubscribers.set(name, subs);
+    const storageHandler = (event) => {
+      if (event.key === localCollectionKey(name)) onData(readLocalCollection(name));
+    };
+    window.addEventListener('storage', storageHandler);
+    return () => {
+      subs.delete(onData);
+      window.removeEventListener('storage', storageHandler);
+    };
+  }
   if (!db) {
     onData([]);
     return () => {};
@@ -172,6 +301,24 @@ export function listenCollection(name, onData, onError) {
 }
 
 export async function saveDocument(collectionName, documentId, payload) {
+  if (isLocalDevMode) {
+    const clean = { ...payload };
+    delete clean.id;
+    const items = readLocalCollection(collectionName);
+    const targetId = documentId || makeLocalId(collectionName);
+    const index = items.findIndex((item) => item.id === targetId);
+    const next = {
+      ...(index >= 0 ? items[index] : {}),
+      ...clean,
+      id: targetId,
+      createdAt: (index >= 0 ? items[index]?.createdAt : localNow()),
+      updatedAt: localNow()
+    };
+    if (index >= 0) items[index] = next;
+    else items.push(next);
+    writeLocalCollection(collectionName, items);
+    return targetId;
+  }
   if (!db) throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
   const clean = { ...payload };
   delete clean.id;
@@ -189,11 +336,20 @@ export async function saveDocument(collectionName, documentId, payload) {
 }
 
 export async function deleteDocumentById(collectionName, documentId) {
+  if (isLocalDevMode) {
+    const items = readLocalCollection(collectionName).filter((item) => item.id !== documentId);
+    writeLocalCollection(collectionName, items);
+    return;
+  }
   if (!db) throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
   await deleteDoc(doc(db, collectionName, documentId));
 }
 
 export async function uploadAsset(file, folder = 'uploads') {
+  if (isLocalDevMode) {
+    const url = await readFileAsDataURL(file);
+    return { url, path: `local://${folder}/${file.name || makeLocalId(folder)}` };
+  }
   if (!storage) throw new Error('Firebase Storage가 연결되지 않았습니다.');
   const ext = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
   const path = `${folder}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
@@ -219,6 +375,7 @@ export async function uploadBoardImage(file) {
 }
 
 export async function deleteStoragePath(path) {
+  if (isLocalDevMode) return;
   if (!storage || !path) return;
   await deleteObject(ref(storage, path));
 }

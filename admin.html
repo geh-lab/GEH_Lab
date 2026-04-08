@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GEH Lab 관리자</title>
   <meta name="description" content="GEH Lab Firebase 관리자 페이지">
-  <link rel="stylesheet" href="assets/css/styles.css?v=14">
+  <link rel="stylesheet" href="assets/css/styles.css?v=16">
 </head>
 <body class="admin-body" data-root=".">
   <div class="admin-shell">
@@ -78,13 +78,12 @@
           <h2 id="member-form-title">멤버 추가</h2>
           <form id="member-form" class="editor-form">
             <div class="form-grid form-grid--double">
-              <label class="field"><span>한국 이름 *</span><input name="nameKr" type="text" required></label>
-              <label class="field"><span>영문 이름</span><input name="nameEn" type="text"></label>
-              <label class="field"><span>표시 이름</span><input name="name" type="text" readonly></label>
+              <label class="field"><span>한국 이름 (성, 이름) *</span><input name="nameKr" type="text" required></label>
+              <label class="field"><span>영문 이름 (성, 이름)</span><input name="nameEn" type="text"></label>
               <label class="field"><span>이메일</span><input name="email" type="email"></label>
-              <label class="field"><span>그룹</span><select name="group"><option value="pi">지도교수</option><option value="researchProfessor">연구교수 / 박사후연구원</option><option value="graduateStudent" selected>대학원생</option><option value="studentResearcher">학부연구생</option><option value="alumni">졸업생</option></select></label>
+              <label class="field"><span>그룹</span><select name="group"><option value="pi">지도교수</option><option value="researchProfessor">연구교수 / 박사후연구원</option><option value="graduateStudent" selected>대학원생</option><option value="alumni">졸업생</option></select></label>
               <label class="field"><span>트랙</span><select name="track"><option value="none">해당 없음</option><option value="fullTime" selected>풀타임</option><option value="partTime">파트타임</option></select></label>
-              <label class="field"><span>과정 / 직위</span><select name="course"><option value="professor">교수</option><option value="postdoc">박사후연구원</option><option value="phd">박사과정</option><option value="ms" selected>석사과정</option><option value="undergrad">학부연구생</option><option value="alumni">졸업생</option></select></label>
+              <label class="field"><span>과정 / 직위</span><select name="course"><option value="professor">교수</option><option value="postdoc">박사후연구원</option><option value="phd">박사과정</option><option value="ms" selected>석사과정</option><option value="alumni">졸업생</option></select></label>
               <label class="field"><span>입학/입사 연도</span><input name="startYear" type="text" placeholder="2024"></label>
               <label class="field"><span>상태</span><select name="status"><option value="enrolled" selected>재학중</option><option value="alumni">졸업</option></select></label>
               <label class="field"><span>졸업 연도</span><input name="graduationYear" type="text" placeholder="2026"></label>
@@ -93,9 +92,20 @@
             <label class="field"><span>학력 / 이력</span><textarea name="education"></textarea></label>
             <label class="field"><span>경력</span><textarea name="experience"></textarea></label>
             <label class="field"><span>연구 관심 분야</span><textarea name="researchInterest"></textarea></label>
-            <label class="field"><span>수업 정보 (교수용)</span><textarea name="coursesInfo"></textarea></label>
+            <div class="form-grid form-grid--double degree-grid" id="member-degree-grid">
+              <label class="field degree-field" data-degree-level="bs"><span>학사 학교</span><input name="bachelorsSchool" type="text"></label>
+              <label class="field degree-field" data-degree-level="bs"><span>학사 전공</span><input name="bachelorsMajor" type="text"></label>
+              <label class="field degree-field" data-degree-level="ms"><span>석사 학교</span><input name="mastersSchool" type="text"></label>
+              <label class="field degree-field" data-degree-level="ms"><span>석사 전공</span><input name="mastersMajor" type="text"></label>
+              <label class="field degree-field" data-degree-level="phd"><span>박사 학교</span><input name="doctoralSchool" type="text"></label>
+              <label class="field degree-field" data-degree-level="phd"><span>박사 전공</span><input name="doctoralMajor" type="text"></label>
+            </div>
+            <label class="field"><span>수업 정보 (지도교수용)</span><textarea name="coursesInfo"></textarea></label>
             <label class="field"><span>관련 과제 (연구교수용)</span><textarea name="relatedProjects"></textarea></label>
-            <label class="field"><span>제1저자 / 공동저자 메모</span><textarea name="authorshipNote"></textarea></label>
+            <section class="field publication-selector-field">
+              <span>논문 연결</span>
+              <div class="publication-picker" id="member-publication-picker"></div>
+            </section>
             <label class="field"><span>현재 소속</span><input name="currentPosition" type="text"></label>
             <div class="member-photo-box"><span class="field-label">사진</span><div class="photo-preview" id="member-photo-preview"></div><div class="form-actions"><input id="member-photo-input" type="file" accept="image/*"><button type="button" class="small-button" id="member-photo-remove">사진 제거</button></div></div>
             <div class="form-actions"><button class="button primary" type="submit">저장</button><button class="button secondary" type="button" id="member-reset">초기화</button></div>
@@ -189,6 +199,6 @@
   </div>
 
 <script src="firebase-config.js"></script>
-  <script type="module" src="assets/js/admin.js?v=14"></script>
+  <script type="module" src="assets/js/admin.js?v=16"></script>
 </body>
 </html>

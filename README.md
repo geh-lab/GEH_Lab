@@ -1,3 +1,6 @@
+## 버전
+배포용(실제 Firebase Auth/Firestore 사용)
+
 # GEH Lab bilingual site
 
 구성
@@ -18,3 +21,11 @@
 2. `firebase-config.js` 값 확인
 3. Firebase Console에 `firebase/firestore.rules`, `firebase/storage.rules` 반영
 4. Vercel 재배포
+
+
+## 로컬 개발 모드
+
+- `localhost`, `127.0.0.1`, `::1`, 또는 `file://` 에서 열면 **로컬 개발 모드**가 자동으로 켜집니다.
+- 이때 관리자 페이지는 **Google 로그인 없이** 열 수 있고, 저장 데이터는 Firebase가 아니라 **브라우저 localStorage**에 저장됩니다.
+- 배포 도메인(`geh-lab.vercel.app`)에서는 기존 Firebase 인증/Firestore를 그대로 사용합니다.
+- 로컬 데이터 초기화가 필요하면 브라우저 개발자도구에서 `localStorage.clear()` 또는 `geh-local-collection:*`, `geh-local-admin-auth` 키만 지우면 됩니다.
