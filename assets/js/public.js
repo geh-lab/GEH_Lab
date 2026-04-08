@@ -68,39 +68,52 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function hydrate() {
   if (!hasFirebaseConfig) return;
-  try {
-    const [members, projects, publications, board] = await Promise.all([
-      fetchCollection(COLLECTIONS.members),
-      fetchCollection(COLLECTIONS.projects),
-      fetchCollection(COLLECTIONS.publications),
-      COLLECTIONS.board ? fetchCollection(COLLECTIONS.board) : Promise.resolve([])
-    ]);
-    state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, members));
-    state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, projects));
-    state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, publications));
-    state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, board));
+  const readSafely = async (collectionName) => {
+    try {
+      return await fetchCollection(collectionName);
+    } catch (error) {
+      console.warn(`${collectionName} 컬렉션을 불러오지 못했습니다.`, error);
+      return [];
+    }
+  };
 
-    state.unsubs.forEach((unsub) => { try { unsub(); } catch {} });
-    state.unsubs = [
-      listenCollection(COLLECTIONS.members, (items) => {
-        state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, items));
-        if (page === 'home' || page === 'members') renderPage();
-      }),
-      listenCollection(COLLECTIONS.projects, (items) => {
-        state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, items));
-        if (page === 'home' || page === 'projects') renderPage();
-      }),
-      listenCollection(COLLECTIONS.publications, (items) => {
-        state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items));
-        if (page === 'home' || page === 'publications') renderPage();
-      }),
-      listenCollection(COLLECTIONS.board, (items) => {
-        state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items));
-        if (page === 'board') renderPage();
-      })
-    ];
-  } catch (error) {
-    console.warn('Firebase 데이터를 불러오지 못해 기본 데이터를 사용합니다.', error);
+  const members = await readSafely(COLLECTIONS.members);
+  const projects = await readSafely(COLLECTIONS.projects);
+  const publications = await readSafely(COLLECTIONS.publications);
+  const board = COLLECTIONS.board ? await readSafely(COLLECTIONS.board) : [];
+
+  state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, members));
+  state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, projects));
+  state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, publications));
+  state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, board));
+
+  state.unsubs.forEach((unsub) => { try { unsub(); } catch {} });
+  state.unsubs = [];
+  const addListener = (collectionName, onItems) => {
+    try {
+      state.unsubs.push(listenCollection(collectionName, onItems, (error) => console.warn(`${collectionName} 실시간 동기화 실패`, error)));
+    } catch (error) {
+      console.warn(`${collectionName} 리스너 연결 실패`, error);
+    }
+  };
+
+  addListener(COLLECTIONS.members, (items) => {
+    state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, items));
+    if (page === 'home' || page === 'members') renderPage();
+  });
+  addListener(COLLECTIONS.projects, (items) => {
+    state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, items));
+    if (page === 'home' || page === 'projects') renderPage();
+  });
+  addListener(COLLECTIONS.publications, (items) => {
+    state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items));
+    if (page === 'home' || page === 'publications') renderPage();
+  });
+  if (COLLECTIONS.board) {
+    addListener(COLLECTIONS.board, (items) => {
+      state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items));
+      if (page === 'board') renderPage();
+    });
   }
 }
 
@@ -727,7 +740,6 @@ function memberCard(member) {
         ${memberMetaChips(member) ? `<div class="member-chip-row">${memberMetaChips(member)}</div>` : ''}
         <h3>${escapeHTML(member.name)}</h3>
         ${member.education ? `<p>${escapeHTML(member.education)}</p>` : ''}
-        ${member.researchInterest ? `<p class="muted">${escapeHTML(member.researchInterest)}</p>` : ''}
         ${member.email ? `<a class="member-link" href="mailto:${escapeHTML(member.email)}">${escapeHTML(member.email)}</a>` : ''}
       </div>
     </article>

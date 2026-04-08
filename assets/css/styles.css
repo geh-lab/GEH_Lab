@@ -1701,3 +1701,33 @@ body.modal-open {
     justify-self: stretch;
   }
 }
+
+
+/* ----- v12 layout/data fixes ----- */
+.member-grid {
+  align-items: stretch;
+  grid-auto-rows: 1fr;
+}
+.member-card {
+  height: 100%;
+  min-height: 260px;
+}
+.member-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.member-copy p {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.member-link {
+  margin-top: auto;
+}
+.member-link,
+.admin-item-main a {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}

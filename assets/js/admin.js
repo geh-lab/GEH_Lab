@@ -58,6 +58,7 @@ const state = {
   editingBoard: null,
   pendingMemberFile: null,
   pendingMemberPreview: '',
+  memberPhotoRemoved: false,
   pendingProjectFile: null,
   pendingProjectPreview: '',
   pendingBoardFile: null,
@@ -468,16 +469,22 @@ function onBoardFilterClick(event) {
 function onMemberPhotoChange(event) {
   const [file] = event.currentTarget.files || [];
   state.pendingMemberFile = file || null;
+  state.memberPhotoRemoved = false;
   if (state.pendingMemberPreview) URL.revokeObjectURL(state.pendingMemberPreview);
   state.pendingMemberPreview = file ? URL.createObjectURL(file) : '';
   renderMemberPhotoPreview();
 }
 function clearMemberPhoto() {
   state.pendingMemberFile = null;
+  state.memberPhotoRemoved = true;
   if (state.pendingMemberPreview) URL.revokeObjectURL(state.pendingMemberPreview);
   state.pendingMemberPreview = '';
+  state.memberPhotoRemoved = false;
   if (elements.memberPhotoInput) elements.memberPhotoInput.value = '';
-  if (state.editingMember) state.editingMember.photoUrl = '';
+  if (state.editingMember) {
+    state.editingMember.photoUrl = '';
+    state.editingMember.photoPath = '';
+  }
   renderMemberPhotoPreview();
 }
 function renderMemberPhotoPreview() {
@@ -589,7 +596,8 @@ async function handleMemberSubmit(event) {
     enrolledTrack: state.editingMember?.enrolledTrack || '',
     sortOrder: state.editingMember?.sortOrder ?? 999,
     photoUrl: state.editingMember?.photoUrl || '',
-    photoPath: state.editingMember?.photoPath || ''
+    photoPath: state.editingMember?.photoPath || '',
+    photoRemoved: state.memberPhotoRemoved
   };
   if (!payload.name) return showNotice('이름을 입력해주세요.', 'warning');
   try {
@@ -600,6 +608,13 @@ async function handleMemberSubmit(event) {
       }
       payload.photoUrl = upload.photoUrl;
       payload.photoPath = upload.photoPath;
+      payload.photoRemoved = false;
+    } else if (state.memberPhotoRemoved) {
+      if (state.editingMember?.photoPath) {
+        try { await deleteStoragePath(state.editingMember.photoPath); } catch {}
+      }
+      payload.photoUrl = '';
+      payload.photoPath = '';
     }
     if (payload.status !== 'alumni') {
       payload.graduationYear = '';
@@ -619,6 +634,7 @@ async function handleMemberSubmit(event) {
     renderSummary();
     showNotice('멤버 정보가 저장되었습니다.', 'success');
     resetMemberForm();
+    state.memberPhotoRemoved = false;
   } catch (error) {
     console.error(error);
     showNotice(adminErrorMessage(error, '멤버 저장에 실패했습니다.'), 'danger');

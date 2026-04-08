@@ -40,6 +40,16 @@ function mergeObjects(base = {}, override = {}) {
       if (value.length) result[key] = value;
       return;
     }
+    if (key === 'photoRemoved' && value === true) {
+      result.photoRemoved = true;
+      result.photoUrl = '';
+      result.photoPath = '';
+      return;
+    }
+    if ((key === 'photoUrl' || key === 'photoPath') && value === '') {
+      result[key] = '';
+      return;
+    }
     if (hasMeaningfulValue(value)) result[key] = value;
   });
   return result;
@@ -230,6 +240,7 @@ export function normalizeMember(item = {}, options = {}) {
     sortOrder,
     photoUrl: item.photoUrl || item.image || '',
     photoPath: item.photoPath || '',
+    photoRemoved: Boolean(item.photoRemoved),
     restoreGroup: item.restoreGroup || '',
     restoreCourse: item.restoreCourse || '',
     restoreTrack: item.restoreTrack || '',
@@ -319,7 +330,13 @@ function preserveLegacyMemberGroup(previous, remoteRaw = {}, merged) {
     if (weakCourse) merged.course = previous.course;
     if (!hasExplicitKey(remoteRaw, 'track')) merged.track = previous.track;
   }
-  if (!hasMeaningfulValue(remoteRaw.photoUrl) && !hasMeaningfulValue(remoteRaw.image)) merged.photoUrl = previous.photoUrl;
+  const explicitPhotoRemoval = remoteRaw.photoRemoved === true || (Object.prototype.hasOwnProperty.call(remoteRaw, 'photoUrl') && remoteRaw.photoUrl === '');
+  if (explicitPhotoRemoval) {
+    merged.photoUrl = '';
+    merged.photoPath = '';
+  } else if (!hasMeaningfulValue(remoteRaw.photoUrl) && !hasMeaningfulValue(remoteRaw.image)) {
+    merged.photoUrl = previous.photoUrl;
+  }
   return merged;
 }
 
