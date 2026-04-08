@@ -1731,3 +1731,28 @@ body.modal-open {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+
+
+/* ----- v13 targeted fixes ----- */
+.public-body[data-lang="kr"] .section-header .eyebrow,
+.public-body[data-lang="kr"] .page-hero-card > .eyebrow { display:none !important; }
+.public-body[data-page="members"] .page-hero-card--overview,
+.public-body[data-page="publications"] .page-hero-card--overview,
+.public-body[data-page="projects"] .page-hero-card--overview { grid-template-columns:minmax(0,1fr) minmax(360px,520px); }
+.pi-card-head .eyebrow { display:inline-block; margin-bottom:.25rem; }
+.pi-card-head h2 { margin:0; }
+.pi-name-row { margin-top:.25rem; display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }
+.pi-name-row .button { margin:0; white-space:nowrap; }
+.member-card { min-height: 220px; }
+.member-card h3 { font-size:1.15rem; line-height:1.15; }
+.member-copy p { -webkit-line-clamp: 3; }
+.publication-card .publication-topline { max-width: calc(100% - 120px); }
+.publication-accepted { font-size:.95rem; }
+.public-body[data-page="members"] .page-hero-card--overview > h1,
+.public-body[data-page="publications"] .page-hero-card--overview > h1,
+.public-body[data-page="projects"] .page-hero-card--overview > h1 { max-width: none; }
+@media (max-width: 1100px) {
+  .public-body[data-page="members"] .page-hero-card--overview,
+  .public-body[data-page="publications"] .page-hero-card--overview,
+  .public-body[data-page="projects"] .page-hero-card--overview { grid-template-columns:1fr; }
+}

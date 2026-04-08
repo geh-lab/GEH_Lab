@@ -145,6 +145,15 @@ function setTopbarAuthState(isAuthenticated, email = '') {
   }
 }
 
+function syncMemberNameField() {
+  const form = elements.memberForm;
+  if (!form) return;
+  const kr = String(form.elements.namedItem('nameKr')?.value || '').trim();
+  const en = String(form.elements.namedItem('nameEn')?.value || '').trim();
+  const display = form.elements.namedItem('name');
+  if (display) display.value = en || kr;
+}
+
 function setFormValue(form, fieldName, value) {
   const field = form?.elements?.namedItem(fieldName);
   if (field) field.value = value ?? '';
@@ -174,31 +183,32 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindEvents();
   renderSetupMessage();
   renderAllLists();
-  togglePending(false);
   setTopbarAuthState(false);
 
   if (!hasFirebaseConfig) {
+    togglePending(false);
     toggleViews(false);
     return;
   }
 
+  togglePending(true);
+  let initialUser = auth?.currentUser || null;
   try {
     const redirectCredential = await resolveRedirectResult();
-    if (redirectCredential?.user) {
-      await handleAuthState(redirectCredential.user);
-    }
+    if (redirectCredential?.user) initialUser = redirectCredential.user;
   } catch (error) {
     console.error(error);
     showNotice(error.message || 'Google 로그인 처리 중 오류가 발생했습니다.', 'danger');
   }
 
-  watchAdminState(async (user) => {
-    await handleAuthState(user || auth?.currentUser || null);
-  });
+  await handleAuthState(initialUser);
 
-  if (!state.user) {
-    await handleAuthState(auth?.currentUser || null);
-  }
+  watchAdminState(async (user) => {
+    const currentUid = state.user?.uid || '';
+    const nextUid = user?.uid || '';
+    if (currentUid === nextUid) return;
+    await handleAuthState(user || null);
+  });
 });
 
 function bindEvents() {
@@ -218,6 +228,8 @@ function bindEvents() {
   elements.publicationFilterTabs?.addEventListener('click', onPublicationFilterClick);
   elements.boardFilterTabs?.addEventListener('click', onBoardFilterClick);
   elements.memberForm?.addEventListener('submit', handleMemberSubmit);
+  elements.memberForm?.elements?.namedItem('nameKr')?.addEventListener('input', syncMemberNameField);
+  elements.memberForm?.elements?.namedItem('nameEn')?.addEventListener('input', syncMemberNameField);
   elements.projectForm?.addEventListener('submit', handleProjectSubmit);
   elements.publicationForm?.addEventListener('submit', handlePublicationSubmit);
   elements.boardForm?.addEventListener('submit', handleBoardSubmit);
@@ -544,6 +556,7 @@ function resetMemberForm() {
   if (elements.memberTitle) elements.memberTitle.textContent = '멤버 추가';
   if (elements.memberPhotoInput) elements.memberPhotoInput.value = '';
   renderMemberPhotoPreview();
+  syncMemberNameField();
   renderProjectLeadOptions();
 }
 function resetProjectForm() {
@@ -575,7 +588,9 @@ async function handleMemberSubmit(event) {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
   const payload = {
-    name: String(formData.get('name') || '').trim(),
+    nameKr: String(formData.get('nameKr') || '').trim(),
+    nameEn: String(formData.get('nameEn') || '').trim(),
+    name: String(formData.get('nameEn') || formData.get('nameKr') || formData.get('name') || '').trim(),
     group: String(formData.get('group') || 'graduateStudent'),
     track: String(formData.get('track') || 'none'),
     course: String(formData.get('course') || 'ms'),
@@ -599,7 +614,7 @@ async function handleMemberSubmit(event) {
     photoPath: state.editingMember?.photoPath || '',
     photoRemoved: state.memberPhotoRemoved
   };
-  if (!payload.name) return showNotice('이름을 입력해주세요.', 'warning');
+  if (!payload.nameKr && !payload.nameEn && !payload.name) return showNotice('이름을 입력해주세요.', 'warning');
   try {
     if (state.pendingMemberFile) {
       const upload = await uploadMemberPhoto(state.pendingMemberFile);
@@ -788,7 +803,7 @@ function memberItemMarkup(member) {
         <div class="admin-item-thumb">${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(member.name)}">` : `<span>${escapeHTML(getInitials(member.name))}</span>`}</div>
         <div>
           <div class="card-topline">
-            <strong>${escapeHTML(member.name)}</strong>
+            <strong>${escapeHTML(member.nameKr || member.name)}</strong>${member.nameEn ? `<small class=\"muted\">${escapeHTML(member.nameEn)}</small>` : ''}
             <span class="status-badge ${member.status === 'alumni' ? 'is-alumni' : ''}">${escapeHTML(memberStatusLabel(member, 'kr'))}</span>
           </div>
           ${detailBits ? `<p class="muted">${escapeHTML(detailBits)}</p>` : ''}
@@ -1001,7 +1016,7 @@ function loadMemberForm(member) {
   state.editingMember = member;
   elements.memberTitle.textContent = '멤버 수정';
   const form = elements.memberForm;
-  ['name','group','track','course','email','bio','education','experience','researchInterest','coursesInfo','relatedProjects','authorshipNote','currentPosition','status','graduationYear','startYear'].forEach((field) => setFormValue(form, field, member[field] || ''));
+  ['nameKr','nameEn','name','group','track','course','email','bio','education','experience','researchInterest','coursesInfo','relatedProjects','authorshipNote','currentPosition','status','graduationYear','startYear'].forEach((field) => setFormValue(form, field, member[field] || ''));
   renderMemberPhotoPreview();
 }
 function loadProjectForm(project) {

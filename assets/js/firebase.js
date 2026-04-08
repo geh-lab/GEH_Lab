@@ -77,8 +77,22 @@ async function validateCredential(credential) {
 export async function signInAdminWithGoogle() {
   if (!auth || !googleProvider) throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
   await authPersistenceReady;
-  await signInWithRedirect(auth, googleProvider);
-  return null;
+  try {
+    const credential = await signInWithPopup(auth, googleProvider);
+    return await validateCredential(credential);
+  } catch (error) {
+    const popupFallbackCodes = [
+      'auth/popup-blocked',
+      'auth/popup-closed-by-user',
+      'auth/cancelled-popup-request',
+      'auth/operation-not-supported-in-this-environment'
+    ];
+    if (popupFallbackCodes.includes(error?.code)) {
+      await signInWithRedirect(auth, googleProvider);
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function resolveRedirectResult() {

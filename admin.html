@@ -78,7 +78,9 @@
           <h2 id="member-form-title">멤버 추가</h2>
           <form id="member-form" class="editor-form">
             <div class="form-grid form-grid--double">
-              <label class="field"><span>이름 *</span><input name="name" type="text" required></label>
+              <label class="field"><span>한국 이름 *</span><input name="nameKr" type="text" required></label>
+              <label class="field"><span>영문 이름</span><input name="nameEn" type="text"></label>
+              <label class="field"><span>표시 이름</span><input name="name" type="text" readonly></label>
               <label class="field"><span>이메일</span><input name="email" type="email"></label>
               <label class="field"><span>그룹</span><select name="group"><option value="pi">연구책임자</option><option value="researchProfessor">연구교수 / 박사후연구원</option><option value="graduateStudent" selected>대학원생</option><option value="studentResearcher">학부연구생</option><option value="alumni">졸업생</option></select></label>
               <label class="field"><span>트랙</span><select name="track"><option value="none">해당 없음</option><option value="fullTime" selected>풀타임</option><option value="partTime">파트타임</option></select></label>
@@ -188,6 +190,6 @@
   </div>
 
 <script src="firebase-config.js"></script>
-  <script type="module" src="assets/js/admin.js?v=12"></script>
+  <script type="module" src="assets/js/admin.js?v=13"></script>
 </body>
 </html>

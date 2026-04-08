@@ -55,6 +55,11 @@ const modalState = {
   closeButtons: []
 };
 
+function memberDisplayName(member, locale = lang) {
+  if (!member) return '';
+  return locale === 'en' ? (member.nameEn || member.name || member.nameKr || '') : (member.nameKr || member.name || member.nameEn || '');
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   setupHeader();
   ensureModal();
@@ -63,7 +68,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (page === 'home') setupHeroSlider();
   await hydrate();
   renderPage();
-  attachLiveListeners();
 });
 
 async function hydrate() {
@@ -267,8 +271,9 @@ function openMemberModal(member) {
   if (member.status === 'alumni') chips.push(`${copy.alumniSection}${member.graduationYear ? ` · ${member.graduationYear}` : ''}`);
   const yearLabel = memberYearLabel(member, lang);
   if (yearLabel) chips.push(yearLabel);
-  const title = member.name;
-  const photo = member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(member.name)}">` : `<div class="modal-avatar__placeholder">${escapeHTML(getInitials(member.name))}</div>`;
+  const displayName = memberDisplayName(member);
+  const title = displayName;
+  const photo = member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}">` : `<div class="modal-avatar__placeholder">${escapeHTML(getInitials(member.name))}</div>`;
   const currentLabel = member.status === 'alumni' ? copy.currentPosition : (lang === 'en' ? 'Current role' : '현재 역할');
   const courseSectionTitle = member.group === 'pi' ? (lang === 'en' ? 'Courses' : '수업 정보') : (member.group === 'researchProfessor' ? (lang === 'en' ? 'Related projects' : '관련 과제') : '');
   const courseSectionValue = member.group === 'pi' ? (member.coursesInfo || (lang === 'en' ? 'To be updated by the administrator.' : '관리자에서 수업 정보를 추가할 수 있습니다.')) : (member.group === 'researchProfessor' ? (member.relatedProjects || (lang === 'en' ? 'To be updated by the administrator.' : '관리자에서 관련 과제 정보를 추가할 수 있습니다.')) : '');
@@ -278,7 +283,7 @@ function openMemberModal(member) {
         <div class="detail-modal__media">${photo}</div>
         <div class="detail-modal__summary">
           <div class="member-chip-row">${chips.map((chip) => `<span class="member-chip member-chip--soft">${escapeHTML(chip)}</span>`).join('')}</div>
-          <h3>${escapeHTML(member.name)}</h3>
+          <h3>${escapeHTML(displayName)}</h3>
           ${member.bio ? `<p class="detail-lead">${escapeHTML(member.bio)}</p>` : ''}
           ${member.email ? `<a class="member-link" href="mailto:${escapeHTML(member.email)}">${escapeHTML(member.email)}</a>` : ''}
         </div>
@@ -732,13 +737,13 @@ function memberMetaChips(member) {
 
 function memberCard(member) {
   return `
-    <article class="member-card reveal interactive-card" data-member-id="${escapeHTML(member.id)}" tabindex="0" role="button" aria-label="${escapeHTML(member.name)}">
+    <article class="member-card reveal interactive-card" data-member-id="${escapeHTML(member.id)}" tabindex="0" role="button" aria-label="${escapeHTML(memberDisplayName(member))}">
       <div class="member-thumb">
-        ${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(member.name)}">` : `<span>${escapeHTML(getInitials(member.name))}</span>`}
+        ${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}">` : `<span>${escapeHTML(getInitials(member.name))}</span>`}
       </div>
       <div class="member-copy">
         ${memberMetaChips(member) ? `<div class="member-chip-row">${memberMetaChips(member)}</div>` : ''}
-        <h3>${escapeHTML(member.name)}</h3>
+        <h3>${escapeHTML(memberDisplayName(member))}</h3>
         ${member.education ? `<p>${escapeHTML(member.education)}</p>` : ''}
         ${member.email ? `<a class="member-link" href="mailto:${escapeHTML(member.email)}">${escapeHTML(member.email)}</a>` : ''}
       </div>
@@ -748,13 +753,13 @@ function memberCard(member) {
 
 function alumniCard(member) {
   return `
-    <article class="member-card member-card--alumni reveal interactive-card" data-member-id="${escapeHTML(member.id)}" tabindex="0" role="button" aria-label="${escapeHTML(member.name)}">
+    <article class="member-card member-card--alumni reveal interactive-card" data-member-id="${escapeHTML(member.id)}" tabindex="0" role="button" aria-label="${escapeHTML(memberDisplayName(member))}">
       <div class="member-thumb">
-        ${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(member.name)}">` : `<span>${escapeHTML(getInitials(member.name))}</span>`}
+        ${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}">` : `<span>${escapeHTML(getInitials(member.name))}</span>`}
       </div>
       <div class="member-copy">
         <div class="member-chip-row"><span class="member-chip">${escapeHTML(member.graduationYear || '')}</span></div>
-        <h3>${escapeHTML(member.name)}</h3>
+        <h3>${escapeHTML(memberDisplayName(member))}</h3>
         ${member.bio ? `<p>${escapeHTML(member.bio)}</p>` : ''}
         ${member.currentPosition ? `<p class="muted"><strong>${escapeHTML(copy.currentPosition)}:</strong> ${escapeHTML(member.currentPosition)}</p>` : ''}
       </div>
@@ -806,7 +811,7 @@ function publicationCard(item) {
   const indexClass = indexLabel ? indexLabel.toLowerCase() : '';
   const journalTone = journalToneClass(item.journal);
   const acceptedYear = item.year ? `${escapeHTML(item.year)}${padMonth(item.month) ? `.${escapeHTML(padMonth(item.month))}` : ''}` : '';
-  const acceptedLabel = acceptedYear ? (lang === 'en' ? `Accepted ${acceptedYear}` : `Accepted ${acceptedYear}`) : '';
+  const acceptedLabel = acceptedYear;
   const yearPill = item.year ? `${escapeHTML(item.year)}${padMonth(item.month) ? `.${escapeHTML(padMonth(item.month))}` : ''}` : '';
   return `
     <article class="publication-card reveal">

@@ -46,7 +46,7 @@ function mergeObjects(base = {}, override = {}) {
       result.photoPath = '';
       return;
     }
-    if ((key === 'photoUrl' || key === 'photoPath') && value === '') {
+    if ((key === 'photoUrl' || key === 'photoPath' || key === 'figureUrl' || key === 'figurePath' || key === 'imageUrl' || key === 'imagePath') && value === '') {
       result[key] = '';
       return;
     }
@@ -218,7 +218,9 @@ export function normalizeMember(item = {}, options = {}) {
 
   return {
     id: item.id || (!preserveMissing ? slugify(item.name || crypto.randomUUID()) : undefined),
-    name: item.name || '',
+    name: item.name || item.nameEn || item.nameKr || '',
+    nameKr: item.nameKr || '',
+    nameEn: item.nameEn || '',
     group,
     track,
     course,
