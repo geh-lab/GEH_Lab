@@ -1,4 +1,4 @@
-export const BUILD_DATE = "2026-04-07";
+export const BUILD_DATE = "2026-04-08";
 
 export const SITE_COPY = {
   "kr": {

@@ -2570,3 +2570,69 @@ article#member-editor-card::before,
     min-width: 620px;
   }
 }
+
+
+/* ----- v26 project/member/admin refinements ----- */
+.preview-grid,
+.project-grid,
+#ongoing-preview-grid,
+#ongoing-project-grid {
+  align-items: stretch !important;
+}
+
+.project-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.preview-grid > .project-card,
+.project-grid > .project-card {
+  height: 100%;
+}
+
+.project-card .project-meta-inline:last-child,
+.project-card .tag-row:last-child {
+  margin-top: auto;
+}
+
+.meta-pill,
+.status-pill,
+.member-chip,
+.journal-pill,
+.year-pill,
+.index-pill {
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.archive-meta {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.editor-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  margin-bottom: 1.5rem;
+}
+
+.editor-title-row h2 {
+  margin: 0;
+}
+
+.editor-close-button {
+  font-size: 1rem;
+  padding: .5rem .85rem;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 720px) {
+  .editor-title-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+}

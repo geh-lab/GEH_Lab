@@ -129,13 +129,106 @@ function hasExplicitKey(item = {}, key) {
 }
 
 function extractYear(value = '') {
-  const years = String(value || '').match(/(?:19|20)\d{2}/g);
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const years = text.match(/(?:19|20)\d{2}/g);
   return years?.length ? years[years.length - 1] : '';
 }
 
 function extractMonth(value = '') {
-  const num = Number(String(value || '').trim());
-  return Number.isFinite(num) && num >= 1 && num <= 12 ? String(num).padStart(2, '0') : '';
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const numeric = Number(text);
+  if (Number.isFinite(numeric) && numeric >= 1 && numeric <= 12) {
+    return String(numeric).padStart(2, '0');
+  }
+  const yearMonthMatch = text.match(/(?:19|20)\d{2}\s*(?:[.\-/]|년|\s)\s*(0?[1-9]|1[0-2])(?:(?:\s*(?:[.\-/]|월))|\b)/);
+  if (yearMonthMatch?.[1]) return String(Number(yearMonthMatch[1])).padStart(2, '0');
+  const monthMatch = text.match(/(?:^|[^\d])(0?[1-9]|1[0-2])\s*월/);
+  if (monthMatch?.[1]) return String(Number(monthMatch[1])).padStart(2, '0');
+  return '';
+}
+
+function extractMonthFromDateLike(value = '') {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const match = text.match(/(?:19|20)\d{2}\s*[-/.]\s*(0?[1-9]|1[0-2])\s*[-/.]\s*(0?[1-9]|[12]\d|3[01])/);
+  return match?.[1] ? String(Number(match[1])).padStart(2, '0') : '';
+}
+
+function publicationYearSource(item = {}) {
+  return [
+    item.year,
+    item.yearMonth,
+    item.yearmonth,
+    item.date,
+    item.publicationDate,
+    item.publishDate,
+    item.publishedDate,
+    item.publishedAt,
+    item.acceptedDate,
+    item.acceptedAt,
+    item.issuedAt,
+    item.issueDate,
+    item.releaseDate,
+    item.ym
+  ];
+}
+
+function publicationMonthSource(item = {}) {
+  return [
+    item.month,
+    item.publicationMonth,
+    item.publishMonth,
+    item.publishedMonth,
+    item.acceptedMonth,
+    item.yearMonth,
+    item.yearmonth,
+    item.date,
+    item.publicationDate,
+    item.publishDate,
+    item.publishedDate,
+    item.publishedAt,
+    item.acceptedDate,
+    item.acceptedAt,
+    item.issuedAt,
+    item.issueDate,
+    item.releaseDate,
+    item.ym
+  ];
+}
+
+function derivePublicationYear(item = {}) {
+  for (const value of publicationYearSource(item)) {
+    const year = extractYear(value);
+    if (year) return year;
+  }
+  return '';
+}
+
+function derivePublicationMonth(item = {}) {
+  for (const value of publicationMonthSource(item)) {
+    const month = extractMonth(value) || extractMonthFromDateLike(value);
+    if (month) return month;
+  }
+  return '';
+}
+
+export function publicationYearMonthLabel(item = {}, options = {}) {
+  const separator = options.separator ?? '.';
+  const year = derivePublicationYear(item);
+  const month = derivePublicationMonth(item);
+  if (!year) return '';
+  return month ? `${year}${separator}${month}` : String(year);
+}
+
+export function normalizeProjectPeriod(value = '') {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  return text
+    .replace(/\s*[~∼〜]\s*/g, '–')
+    .replace(/\s*[-—–]\s*/g, '–')
+    .replace(/\s*\/\s*/g, ' / ');
 }
 
 function mapStatus(value = '') {
@@ -269,7 +362,7 @@ export function normalizeProject(item = {}, options = {}) {
     : hasExplicitKey(item, 'tags')
       ? String(item.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean)
       : preserveMissing ? undefined : [];
-  const period = item.period || '';
+  const period = normalizeProjectPeriod(item.period || '');
   const year = item.year || extractYear(period);
   const titleKr = item.titleKr || item.title || '';
   const titleEn = item.titleEn || item.title || '';
@@ -306,13 +399,15 @@ export function normalizePublication(item = {}, options = {}) {
   const preserveMissing = Boolean(options.preserveMissing);
   const sortOrder = hasExplicitKey(item, 'sortOrder') ? Number(item.sortOrder) : (preserveMissing ? undefined : 999);
   const inferredIndexing = inferPublicationIndexing(item.journal || '');
+  const year = derivePublicationYear(item);
+  const month = derivePublicationMonth(item);
   return {
-    id: item.id || (!preserveMissing ? slugify(`${item.year || ''}-${item.title || crypto.randomUUID()}`) : undefined),
+    id: item.id || (!preserveMissing ? slugify(`${year || ''}-${item.title || crypto.randomUUID()}`) : undefined),
     title: item.title || '',
     authors: item.authors || '',
     journal: item.journal || '',
-    year: item.year || '',
-    month: extractMonth(item.month),
+    year,
+    month,
     doi: item.doi || '',
     url: item.url || '',
     abstract: item.abstract || '',
@@ -403,6 +498,15 @@ function yearValue(value = '') {
 }
 
 export function sortMembers(items = []) {
+  const memberName = (item = {}) => String(item.nameKr || item.nameEn || item.name || '').trim();
+  const memberYearValue = (item = {}) => {
+    const year = yearValue(item.startYear);
+    if (!year) return 0;
+    const current = new Date().getFullYear();
+    const diff = current - year + 1;
+    return diff > 0 ? diff : 0;
+  };
+
   return [...items]
     .map((item) => normalizeMember(item))
     .sort((a, b) => {
@@ -410,6 +514,7 @@ export function sortMembers(items = []) {
       if (a.status === 'alumni') {
         const byYear = yearValue(b.graduationYear) - yearValue(a.graduationYear);
         if (byYear) return byYear;
+        return memberName(a).localeCompare(memberName(b), 'ko');
       }
       const byGroup = (GROUP_ORDER[a.group] ?? 99) - (GROUP_ORDER[b.group] ?? 99);
       if (byGroup) return byGroup;
@@ -417,11 +522,15 @@ export function sortMembers(items = []) {
       if (byCourse) return byCourse;
       const byTrack = (TRACK_ORDER[a.track] ?? 99) - (TRACK_ORDER[b.track] ?? 99);
       if (byTrack) return byTrack;
+      const byMemberYear = memberYearValue(b) - memberYearValue(a);
+      if (byMemberYear) return byMemberYear;
+      const byName = memberName(a).localeCompare(memberName(b), 'ko');
+      if (byName) return byName;
       const bySort = (a.sortOrder ?? 999) - (b.sortOrder ?? 999);
       if (bySort) return bySort;
       const byStart = yearValue(a.startYear) - yearValue(b.startYear);
       if (byStart) return byStart;
-      return a.name.localeCompare(b.name, 'en');
+      return String(a.id || '').localeCompare(String(b.id || ''), 'en');
     });
 }
 

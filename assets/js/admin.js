@@ -26,6 +26,8 @@ import {
   boardSemanticKey,
   memberYearLabel,
   publicationIndexingLabel,
+  publicationYearMonthLabel,
+  normalizeProjectPeriod,
   groupBy
 } from './utils.js';
 import {
@@ -68,7 +70,7 @@ const state = {
   unsubs: [],
   authResolved: false,
   activeTab: 'members',
-  memberFilter: 'pi',
+  memberFilter: 'all',
   openEditorKind: '',
   projectFilter: 'all',
   publicationFilter: 'all',
@@ -164,7 +166,19 @@ function setTopbarAuthState(isAuthenticated, email = '') {
   }
 }
 
-function syncMemberNameField() {}
+function syncMemberNameField() {
+  const form = elements.memberForm;
+  if (!form) return;
+  const nameKr = String(form.elements.namedItem('nameKr')?.value || '').trim();
+  const nameEn = String(form.elements.namedItem('nameEn')?.value || '').trim();
+  if (!state.editingMember) return;
+  state.editingMember = {
+    ...state.editingMember,
+    nameKr: nameKr || state.editingMember.nameKr || '',
+    nameEn: nameEn || state.editingMember.nameEn || '',
+    name: nameEn || nameKr || state.editingMember.name || ''
+  };
+}
 
 function setFormValue(form, fieldName, value) {
   const field = form?.elements?.namedItem(fieldName);
@@ -193,6 +207,7 @@ function editorElement(kind) {
 }
 
 function openEditor(kind) {
+  ensureEditorPseudoHidden();
   const target = editorElement(kind);
   if (!target) return;
   state.openEditorKind = kind;
@@ -265,7 +280,29 @@ function resolveMemberFilter(member = {}) {
   return 'ms';
 }
 
+function publicationRoleLabel(role) {
+  const map = { first: '제1저자', co: '공동저자', corresponding: '교신저자' };
+  return map[role] || role;
+}
+
+function ensureEditorPseudoHidden() {
+  if (document.getElementById('debug-hide-pseudo')) return;
+  const el = document.querySelector('article#member-editor-card');
+  if (!el) return;
+  const styleTag = document.createElement('style');
+  styleTag.id = 'debug-hide-pseudo';
+  styleTag.innerHTML = `
+    article#member-editor-card::before,
+    .admin-editor-modal::before {
+      display: none !important;
+      content: none !important;
+    }
+  `;
+  document.head.appendChild(styleTag);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+  ensureEditorPseudoHidden();
   bindEvents();
   renderSetupMessage();
   renderAllLists();
@@ -388,38 +425,67 @@ function updateMemberEducationVisibility() {
 function renderMemberPublicationPicker(selected = []) {
   const container = qs('#member-publication-picker');
   if (!container) return;
-  const selectedMap = new Map((Array.isArray(selected) ? selected : []).map((item) => [item.publicationId, item]));
-  const items = state.publications.slice().sort((a,b) => numericYearSort(b.year) - numericYearSort(a.year));
+  const selectedItems = Array.isArray(selected) ? selected : [];
+  const selectedMap = new Map();
+  selectedItems.forEach((item) => {
+    const key = item.publicationId || item.id || item.title;
+    if (key) selectedMap.set(String(key), item);
+  });
+  const items = state.publications.slice();
   if (!items.length) {
     container.innerHTML = `<p class="muted">등록된 논문이 없습니다. 논문 관리에서 먼저 논문을 추가해주세요.</p>`;
     return;
   }
-  container.innerHTML = items.map((pub) => {
-    const picked = selectedMap.get(pub.id) || {};
-    const roles = Array.isArray(picked.roles) ? picked.roles : [];
-    return `
-      <article class="publication-picker__item">
-        <label class="publication-picker__head"><input type="checkbox" data-pub-check value="${escapeHTML(pub.id)}" ${picked.publicationId ? 'checked' : ''}><span><strong>${escapeHTML(pub.title)}</strong><br><small class="muted">${escapeHTML(pub.year || '')}${pub.journal ? ` · ${escapeHTML(pub.journal)}` : ''}</small></span></label>
-        <div class="publication-picker__roles">
-          <label><input type="checkbox" data-pub-role="first" data-pub-id="${escapeHTML(pub.id)}" ${roles.includes('first') ? 'checked' : ''}>제1저자</label>
-          <label><input type="checkbox" data-pub-role="co" data-pub-id="${escapeHTML(pub.id)}" ${roles.includes('co') ? 'checked' : ''}>공동저자</label>
-          <label><input type="checkbox" data-pub-role="corresponding" data-pub-id="${escapeHTML(pub.id)}" ${roles.includes('corresponding') ? 'checked' : ''}>교신저자</label>
+  const groups = Object.entries(groupBy(items, (pub) => pub.year || '미정'))
+    .sort((a, b) => numericYearSort(b[0]) - numericYearSort(a[0]));
+  container.innerHTML = groups.map(([year, yearItems]) => `
+    <section class="publication-picker__group">
+      <div class="publication-picker__group-title">${escapeHTML(year)}</div>
+      <div class="publication-picker__table">
+        <div class="publication-picker__row publication-picker__row--head">
+          <span class="publication-picker__cell publication-picker__cell--info">논문 정보</span>
+          <span class="publication-picker__cell publication-picker__cell--role">제1저자</span>
+          <span class="publication-picker__cell publication-picker__cell--role">공동저자</span>
+          <span class="publication-picker__cell publication-picker__cell--role">교신저자</span>
         </div>
-      </article>`;
-  }).join('');
+        ${yearItems.map((pub) => {
+          const picked = selectedMap.get(pub.id) || selectedMap.get(pub.title) || {};
+          const roles = Array.isArray(picked.roles) ? picked.roles : [];
+          const meta = [publicationYearMonthLabel(pub), pub.journal].filter(Boolean).join(' · ');
+          return `
+            <article class="publication-picker__row publication-picker__item">
+              <div class="publication-picker__cell publication-picker__cell--info">
+                <strong>${escapeHTML(pub.title)}</strong>
+                ${meta ? `<small class="muted">${escapeHTML(meta)}</small>` : ''}
+              </div>
+              <label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-pub-role="first" data-pub-id="${escapeHTML(pub.id)}" aria-label="${escapeHTML(pub.title)} 제1저자" ${roles.includes('first') ? 'checked' : ''}></label>
+              <label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-pub-role="co" data-pub-id="${escapeHTML(pub.id)}" aria-label="${escapeHTML(pub.title)} 공동저자" ${roles.includes('co') ? 'checked' : ''}></label>
+              <label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-pub-role="corresponding" data-pub-id="${escapeHTML(pub.id)}" aria-label="${escapeHTML(pub.title)} 교신저자" ${roles.includes('corresponding') ? 'checked' : ''}></label>
+            </article>
+          `;
+        }).join('')}
+      </div>
+    </section>
+  `).join('');
 }
 
 function collectMemberPublicationLinks() {
   const picker = qs('#member-publication-picker');
   if (!picker) return [];
-  const checkedIds = new Set(Array.from(picker.querySelectorAll('[data-pub-check]:checked')).map((el) => el.value));
-  return Array.from(checkedIds).map((id) => {
+  const roleMap = new Map();
+  Array.from(picker.querySelectorAll('[data-pub-role]:checked')).forEach((el) => {
+    const id = el.dataset.pubId;
+    if (!id) return;
+    if (!roleMap.has(id)) roleMap.set(id, []);
+    roleMap.get(id).push(el.dataset.pubRole);
+  });
+  return Array.from(roleMap.entries()).map(([id, roles]) => {
     const pub = state.publications.find((item) => item.id === id);
-    const roles = Array.from(picker.querySelectorAll(`[data-pub-role][data-pub-id="${CSS.escape(id)}"]:checked`)).map((el) => el.dataset.pubRole);
     return {
       publicationId: id,
       title: pub?.title || '',
       year: pub?.year || '',
+      month: pub?.month || '',
       journal: pub?.journal || '',
       roles
     };
@@ -429,8 +495,7 @@ function collectMemberPublicationLinks() {
 function publicationLinksSummary(links = []) {
   if (!Array.isArray(links) || !links.length) return '';
   return links.map((item) => {
-    const roleMap = { first: '제1저자', co: '공동저자', corresponding: '교신저자' };
-    const roleText = Array.isArray(item.roles) ? item.roles.map((key) => roleMap[key] || key).join(', ') : '';
+    const roleText = Array.isArray(item.roles) ? item.roles.map((key) => publicationRoleLabel(key)).join(', ') : '';
     return `${item.title}${roleText ? ` (${roleText})` : ''}`;
   }).join('\n');
 }
@@ -873,7 +938,7 @@ function extractYearFromPeriod(period = '') {
 async function handleProjectSubmit(event) {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
-  const period = String(formData.get('period') || '').trim();
+  const period = normalizeProjectPeriod(String(formData.get('period') || '').trim());
   const titleKr = String(formData.get('titleKr') || '').trim();
   const titleEn = String(formData.get('titleEn') || '').trim();
   const descriptionKr = String(formData.get('descriptionKr') || '').trim();
@@ -1000,10 +1065,12 @@ function renderAllLists() {
 
 function renderMemberFilterTabs() {
   const filters = [
+    ['all', '전체'],
     ['pi', '지도교수'],
     ['research', '연구교수 · 박사후연구원'],
     ['phd', '박사과정'],
     ['ms', '석사과정'],
+    ['undergrad', '학부연구생'],
     ['alumni', '졸업생']
   ];
   elements.memberFilterTabs.innerHTML = filters.map(([value, label]) => `
@@ -1022,7 +1089,7 @@ function memberItemMarkup(member) {
     <article class="admin-item-card">
       <div class="admin-item-main">
         <div class="admin-item-thumb">${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(member.name)}">` : `<span>${escapeHTML(getInitials(member.name))}</span>`}</div>
-        <div>
+        <div class="admin-item-content">
           <div class="card-topline">
             <strong>${escapeHTML(member.nameKr || member.name)}</strong>${member.nameEn ? `<small class=\"muted\">${escapeHTML(member.nameEn)}</small>` : ''}
             <span class="status-badge ${member.status === 'alumni' ? 'is-alumni' : ''}">${escapeHTML(memberStatusLabel(member, 'kr'))}</span>
@@ -1047,7 +1114,28 @@ function renderMembersList() {
   const enrolled = state.members.filter((item) => item.status !== 'alumni');
   const alumni = state.members.filter((item) => item.status === 'alumni');
   let sections = [];
-  if (state.memberFilter === 'pi') {
+  elements.memberPagination.innerHTML = '';
+
+  if (state.memberFilter === 'all') {
+    const piItems = enrolled.filter((item) => item.group === 'pi');
+    const researchItems = enrolled.filter((item) => item.group === 'researchProfessor');
+    const phdFull = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'phd' && item.track === 'fullTime');
+    const phdPart = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'phd' && item.track === 'partTime');
+    const msFull = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'ms' && item.track === 'fullTime');
+    const msPart = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'ms' && item.track === 'partTime');
+    const undergradItems = enrolled.filter((item) => item.group === 'studentResearcher');
+    const alumniGroups = Object.entries(groupBy(alumni, (item) => item.graduationYear || '이전')).sort((a, b) => numericYearSort(b[0]) - numericYearSort(a[0]));
+    sections = [
+      adminSection(`지도교수 (${piItems.length})`, piItems.map(memberItemMarkup).join('') || emptyAdmin('없음')),
+      adminSection(`연구교수 · 박사후연구원 (${researchItems.length})`, researchItems.map(memberItemMarkup).join('') || emptyAdmin('없음')),
+      adminSection(`박사과정 · 풀타임 (${phdFull.length})`, phdFull.map(memberItemMarkup).join('') || emptyAdmin('없음')),
+      adminSection(`박사과정 · 파트타임 (${phdPart.length})`, phdPart.map(memberItemMarkup).join('') || emptyAdmin('없음')),
+      adminSection(`석사과정 · 풀타임 (${msFull.length})`, msFull.map(memberItemMarkup).join('') || emptyAdmin('없음')),
+      adminSection(`석사과정 · 파트타임 (${msPart.length})`, msPart.map(memberItemMarkup).join('') || emptyAdmin('없음')),
+      adminSection(`학부연구생 (${undergradItems.length})`, undergradItems.map(memberItemMarkup).join('') || emptyAdmin('없음')),
+      ...alumniGroups.map(([year, items]) => adminSection(`${year} (${items.length})`, items.map(memberItemMarkup).join('') || emptyAdmin('없음')))
+    ];
+  } else if (state.memberFilter === 'pi') {
     const all = enrolled.filter((item) => item.group === 'pi');
     const pageData = paginateItems(all, state.memberPage);
     state.memberPage = pageData.page;
@@ -1106,12 +1194,12 @@ function projectItemMarkup(project) {
   return `
     <article class="admin-item-card">
       <div class="admin-item-main admin-item-main--single">
-        <div>
+        <div class="admin-item-content">
           <div class="card-topline">
             <strong>${escapeHTML(localizedProjectTitle(project, 'kr'))}</strong>
             <span class="status-badge ${project.status === 'completed' ? 'is-alumni' : ''}">${escapeHTML(projectStatusLabel(project.status, 'kr'))}</span>
           </div>
-          ${project.period ? `<p class="muted">기간 · ${escapeHTML(project.period)}</p>` : ''}
+          ${project.period ? `<p class="muted">기간 · ${escapeHTML(normalizeProjectPeriod(project.period))}</p>` : ''}
           ${project.principalInvestigator ? `<p class="muted">${escapeHTML(roleLabel)} · ${escapeHTML(project.principalInvestigator)}</p>` : ''}
           ${localizedProjectDescription(project, 'kr') ? `<p>${escapeHTML(localizedProjectDescription(project, 'kr'))}</p>` : ''}
         </div>
@@ -1163,12 +1251,12 @@ function renderPublicationFilterTabs() {
 }
 
 function publicationItemMarkup(item) {
-  const ym = [item.year, item.month ? `${Number(item.month)}월` : ''].filter(Boolean).join(' · ');
+  const ym = publicationYearMonthLabel(item);
   const indexing = publicationIndexingLabel(item.indexing, 'kr');
   return `
     <article class="admin-item-card">
       <div class="admin-item-main admin-item-main--single">
-        <div>
+        <div class="admin-item-content">
           <div class="card-topline"><strong>${escapeHTML(item.title)}</strong>${indexing ? `<span class="status-badge">${escapeHTML(indexing)}</span>` : ''}</div>
           ${ym ? `<p class="muted">${escapeHTML(ym)}</p>` : ''}
           <p class="muted">${escapeHTML(item.authors)}</p>
@@ -1212,7 +1300,7 @@ function boardItemMarkup(item) {
     <article class="admin-item-card">
       <div class="admin-item-main">
         <div class="admin-item-thumb">${item.imageUrl ? `<img src="${escapeHTML(rootAsset(item.imageUrl, root))}" alt="${escapeHTML(item.title)}">` : `<span>${escapeHTML(item.category?.slice(0,1).toUpperCase() || 'B')}</span>`}</div>
-        <div>
+        <div class="admin-item-content">
           <div class="card-topline"><strong>${escapeHTML(item.title)}</strong><span class="status-badge">${escapeHTML(boardCategoryLabel(item.category))}</span></div>
           ${item.date ? `<p class="muted">${escapeHTML(item.date)}</p>` : ''}
           ${item.description ? `<p>${escapeHTML(item.description)}</p>` : ''}
