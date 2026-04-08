@@ -301,8 +301,8 @@ function openMemberModal(member) {
 }
 
 function openProjectModal(project) {
-  const title = project.title;
-  const media = project.figureUrl ? `<div class="detail-figure detail-figure--${escapeHTML((project.figureAspect || '16:9').replace(':','-'))}"><img src="${escapeHTML(rootAsset(project.figureUrl, root))}" alt="${escapeHTML(project.title)}"></div>` : '';
+  const title = localizedProjectTitle(project);
+  const media = project.figureUrl ? `<div class="detail-figure detail-figure--${escapeHTML((project.figureAspect || '16:9').replace(':','-'))}"><img src="${escapeHTML(rootAsset(project.figureUrl, root))}" alt="${escapeHTML(localizedProjectTitle(project))}"></div>` : '';
   const leadLabel = projectLeadRoleLabel(project, lang);
   openModal(title, `
     <div class="detail-modal detail-modal--project">
@@ -312,9 +312,9 @@ function openProjectModal(project) {
       </div>
       ${media}
       <div class="detail-grid detail-grid--project">
-        ${detailSection(lang === 'en' ? 'Project description' : '과제 설명', project.description || (lang === 'en' ? 'No description provided.' : '설명이 아직 입력되지 않았습니다.'))}
+        ${detailSection(lang === 'en' ? 'Project description' : '과제 설명', localizedProjectDescription(project) || (lang === 'en' ? 'No description provided.' : '설명이 아직 입력되지 않았습니다.'))}
         ${detailSection(leadLabel, project.principalInvestigator || (lang === 'en' ? 'Not set' : '미설정'))}
-        ${detailSection(lang === 'en' ? 'Keywords' : '키워드', Array.isArray(project.tags) ? project.tags.join(', ') : '')}
+        ${detailSection(lang === 'en' ? 'Keywords' : '키워드', localizedProjectTags(project).join(', '))}
       </div>
     </div>
   `);
@@ -548,7 +548,7 @@ function renderMembers() {
 
   const alumniAccordion = qs('#alumni-accordion');
   if (alumniAccordion) {
-    const alumniByYear = Object.entries(groupBy(alumni, (item) => item.graduationYear || (lang === 'en' ? 'Earlier' : '이전')))
+    const alumniByYear = Object.entries(groupBy(alumni, (item) => dynamicYearBucket(item.graduationYear)))
       .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
     alumniAccordion.innerHTML = alumniByYear.map(([year, items], index) => accordionMarkup(
       year,
@@ -578,7 +578,7 @@ function renderProjects() {
 
   const completedAccordion = qs('#completed-project-accordion');
   if (completedAccordion) {
-    const completedByYear = Object.entries(groupBy(completed, (item) => item.year || extractYearFromText(item.period) || (lang === 'en' ? 'Earlier' : '이전')))
+    const completedByYear = Object.entries(groupBy(completed, (item) => dynamicYearBucket(item.year || extractYearFromText(item.period))))
       .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
     completedAccordion.innerHTML = completedByYear.map(([year, items], index) => accordionMarkup(year, items.length, `<div class="archive-list">${items.map((item) => archiveProjectItem(item)).join('')}</div>`, index === 0)).join('');
   }
@@ -608,7 +608,7 @@ function renderPublications() {
 
   const publicationAccordion = qs('#publication-accordion');
   if (publicationAccordion) {
-    const grouped = Object.entries(groupBy(filtered, (item) => item.year || (lang === 'en' ? 'Earlier' : '이전')))
+    const grouped = Object.entries(groupBy(filtered, (item) => dynamicYearBucket(item.year)))
       .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
     publicationAccordion.innerHTML = grouped.map(([year, items], index) => accordionMarkup(year, items.length, `<div class="publication-list">${items.map((item) => publicationCard(item)).join('')}</div>`, index === 0)).join('');
   }
@@ -676,6 +676,46 @@ function extractYearFromText(value = '') {
   const years = String(value || '').match(/(?:19|20)\d{2}/g);
   return years?.length ? years[years.length - 1] : '';
 }
+
+function currentArchiveBuckets() {
+  const year = new Date().getFullYear();
+  return {
+    current: String(year),
+    previous: String(year - 1),
+    second: String(year - 2),
+    earlier: lang === 'en' ? `${year - 3} and Earlier` : `${year - 3}년 이전`
+  };
+}
+
+function dynamicYearBucket(value = '') {
+  const buckets = currentArchiveBuckets();
+  const y = Number(String(value || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
+  if (!y) return buckets.earlier;
+  if (String(y) === buckets.current) return buckets.current;
+  if (String(y) === buckets.previous) return buckets.previous;
+  if (String(y) === buckets.second) return buckets.second;
+  return buckets.earlier;
+}
+
+function localizedProjectTitle(project = {}) {
+  return lang === 'en'
+    ? (project.titleEn || project.title || project.titleKr || '')
+    : (project.titleKr || project.title || project.titleEn || '');
+}
+
+function localizedProjectDescription(project = {}) {
+  return lang === 'en'
+    ? (project.descriptionEn || project.description || project.descriptionKr || '')
+    : (project.descriptionKr || project.description || project.descriptionEn || '');
+}
+
+function localizedProjectTags(project = {}) {
+  const arr = lang === 'en'
+    ? ((project.tagsEn && project.tagsEn.length) ? project.tagsEn : project.tags)
+    : ((project.tagsKr && project.tagsKr.length) ? project.tagsKr : project.tags);
+  return Array.isArray(arr) ? arr : [];
+}
+
 
 function padMonth(value = '') {
   const n = Number(String(value || '').trim());
@@ -773,15 +813,15 @@ function projectCard(project, { compact = false } = {}) {
     ? `<strong>${escapeHTML(projectLeadRoleLabel(project, lang))}</strong> ${escapeHTML(project.principalInvestigator)}`
     : '';
   return `
-    <article class="project-card${compact ? ' compact-card' : ''} reveal interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(project.title)}">
+    <article class="project-card${compact ? ' compact-card' : ''} reveal interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(localizedProjectTitle(project))}">
       <div class="card-head">
         <span class="status-pill">${escapeHTML(projectStatusLabel(project.status, lang))}</span>
         ${period ? `<span class="meta-pill">${escapeHTML(period)}</span>` : ''}
       </div>
-      <h3>${escapeHTML(project.title)}</h3>
-      <p>${escapeHTML(project.description || '')}</p>
+      <h3>${escapeHTML(localizedProjectTitle(project))}</h3>
+      <p>${escapeHTML(localizedProjectDescription(project) || '')}</p>
       ${leadMeta ? `<p class="project-meta-inline">${leadMeta}</p>` : ''}
-      ${!compact && project.tags?.length ? `<div class="tag-row">${project.tags.map((tag) => `<span>${escapeHTML(tag)}</span>`).join('')}</div>` : ''}
+      ${!compact && localizedProjectTags(project).length ? `<div class="tag-row">${localizedProjectTags(project).map((tag) => `<span>${escapeHTML(tag)}</span>`).join('')}</div>` : ''}
     </article>
   `;
 }
@@ -792,10 +832,10 @@ function archiveProjectItem(project) {
     ? `<strong>${escapeHTML(projectLeadRoleLabel(project, lang))}</strong> ${escapeHTML(project.principalInvestigator)}`
     : '';
   return `
-    <article class="archive-item reveal interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(project.title)}">
+    <article class="archive-item reveal interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(localizedProjectTitle(project))}">
       <div>
-        <h3>${escapeHTML(project.title)}</h3>
-        ${project.description ? `<p>${escapeHTML(project.description)}</p>` : ''}
+        <h3>${escapeHTML(localizedProjectTitle(project))}</h3>
+        ${localizedProjectDescription(project) ? `<p>${escapeHTML(localizedProjectDescription(project))}</p>` : ''}
         ${leadMeta ? `<p class="muted">${leadMeta}</p>` : ''}
       </div>
       <div class="archive-meta">

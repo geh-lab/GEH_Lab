@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GEH Lab 관리자</title>
   <meta name="description" content="GEH Lab Firebase 관리자 페이지">
-  <link rel="stylesheet" href="assets/css/styles.css?v=12">
+  <link rel="stylesheet" href="assets/css/styles.css?v=14">
 </head>
 <body class="admin-body" data-root=".">
   <div class="admin-shell">
@@ -73,8 +73,8 @@
       </div>
 
       <section class="admin-stage" data-panel="members">
-        <article class="admin-card">
-          <span class="eyebrow">멤버</span>
+        <article class="admin-card admin-editor-modal" id="member-editor-card" hidden>
+          <div class="admin-card-head"><span class="eyebrow">멤버</span><button type="button" class="small-button" data-editor-close="member">닫기</button></div>
           <h2 id="member-form-title">멤버 추가</h2>
           <form id="member-form" class="editor-form">
             <div class="form-grid form-grid--double">
@@ -82,7 +82,7 @@
               <label class="field"><span>영문 이름</span><input name="nameEn" type="text"></label>
               <label class="field"><span>표시 이름</span><input name="name" type="text" readonly></label>
               <label class="field"><span>이메일</span><input name="email" type="email"></label>
-              <label class="field"><span>그룹</span><select name="group"><option value="pi">연구책임자</option><option value="researchProfessor">연구교수 / 박사후연구원</option><option value="graduateStudent" selected>대학원생</option><option value="studentResearcher">학부연구생</option><option value="alumni">졸업생</option></select></label>
+              <label class="field"><span>그룹</span><select name="group"><option value="pi">지도교수</option><option value="researchProfessor">연구교수 / 박사후연구원</option><option value="graduateStudent" selected>대학원생</option><option value="studentResearcher">학부연구생</option><option value="alumni">졸업생</option></select></label>
               <label class="field"><span>트랙</span><select name="track"><option value="none">해당 없음</option><option value="fullTime" selected>풀타임</option><option value="partTime">파트타임</option></select></label>
               <label class="field"><span>과정 / 직위</span><select name="course"><option value="professor">교수</option><option value="postdoc">박사후연구원</option><option value="phd">박사과정</option><option value="ms" selected>석사과정</option><option value="undergrad">학부연구생</option><option value="alumni">졸업생</option></select></label>
               <label class="field"><span>입학/입사 연도</span><input name="startYear" type="text" placeholder="2024"></label>
@@ -101,38 +101,37 @@
             <div class="form-actions"><button class="button primary" type="submit">저장</button><button class="button secondary" type="button" id="member-reset">초기화</button></div>
           </form>
         </article>
-        <article class="admin-card">
-          <span class="eyebrow">저장된 멤버</span>
-          <div class="admin-subtabs" id="member-filter-tabs"></div>
-          <div class="admin-list-stack" id="member-list"></div>
-        </article>
+        <article class="admin-card"><div class="admin-card-head"><span class="eyebrow">저장된 멤버</span><button type="button" class="button primary button-sm" id="member-add-button">멤버 추가</button></div><div class="admin-subtabs" id="member-filter-tabs"></div><div class="admin-list-stack" id="member-list"></div><div class="admin-pagination" id="member-pagination"></div></article>
       </section>
 
       <section class="admin-stage" data-panel="projects" hidden>
-        <article class="admin-card">
-          <span class="eyebrow">과제</span>
+        <article class="admin-card admin-editor-modal" id="project-editor-card" hidden>
+          <div class="admin-card-head"><span class="eyebrow">과제</span><button type="button" class="small-button" data-editor-close="project">닫기</button></div>
           <h2 id="project-form-title">과제 추가</h2>
           <form id="project-form" class="editor-form">
-            <label class="field"><span>과제 제목 *</span><input name="title" type="text" required></label>
             <div class="form-grid form-grid--double">
+              <label class="field"><span>과제 제목 (한국어) *</span><input name="titleKr" type="text" required></label>
+              <label class="field"><span>과제 제목 (영문)</span><input name="titleEn" type="text"></label>
               <label class="field"><span>상태</span><select name="status"><option value="ongoing" selected>진행중</option><option value="completed">종료</option></select></label>
               <label class="field"><span>기간</span><input name="period" type="text" placeholder="예: 2024–2026 / 2020 / 2018–2020"></label>
               <label class="field"><span>책임 구분</span><select name="leadRole"><option value="principalInvestigator" selected>연구책임자</option><option value="coPrincipalInvestigator">공동연구책임자</option><option value="leadInstitutionInvestigator">주관책임자</option></select></label>
               <label class="field"><span>담당 연구자</span><select name="principalInvestigator" id="project-principal-investigator"><option value="">선택</option></select></label>
               <label class="field"><span>이미지 비율</span><select name="figureAspect"><option value="16:9" selected>16:9</option><option value="9:16">9:16</option></select></label>
-              <label class="field"><span>태그 (쉼표 구분)</span><input name="tags" type="text" placeholder="AI, Smart Farm"></label>
+              <label class="field"><span>키워드 (한국어)</span><input name="tagsKr" type="text" placeholder="AI, 스마트팜"></label>
+              <label class="field"><span>키워드 (영문)</span><input name="tagsEn" type="text" placeholder="AI, Smart Farm"></label>
             </div>
-            <label class="field"><span>과제 설명</span><textarea name="description"></textarea></label>
+            <label class="field"><span>과제 설명 (한국어)</span><textarea name="descriptionKr"></textarea></label>
+            <label class="field"><span>과제 설명 (영문)</span><textarea name="descriptionEn"></textarea></label>
             <div class="member-photo-box"><span class="field-label">과제 이미지 / 흐름도</span><div class="photo-preview photo-preview--wide" id="project-figure-preview"></div><div class="form-actions"><input id="project-figure-input" type="file" accept="image/*"><button type="button" class="small-button" id="project-figure-remove">이미지 제거</button></div></div>
             <div class="form-actions"><button class="button primary" type="submit">저장</button><button class="button secondary" type="button" id="project-reset">초기화</button></div>
           </form>
         </article>
-        <article class="admin-card"><span class="eyebrow">저장된 과제</span><div class="admin-subtabs" id="project-filter-tabs"></div><div class="admin-list-stack" id="project-list"></div></article>
+        <article class="admin-card"><div class="admin-card-head"><span class="eyebrow">저장된 과제</span><button type="button" class="button primary button-sm" id="project-add-button">과제 추가</button></div><div class="admin-subtabs" id="project-filter-tabs"></div><div class="admin-list-stack" id="project-list"></div><div class="admin-pagination" id="project-pagination"></div></article>
       </section>
 
       <section class="admin-stage" data-panel="publications" hidden>
-        <article class="admin-card">
-          <span class="eyebrow">논문</span>
+        <article class="admin-card admin-editor-modal" id="publication-editor-card" hidden>
+          <div class="admin-card-head"><span class="eyebrow">논문</span><button type="button" class="small-button" data-editor-close="publication">닫기</button></div>
           <h2 id="publication-form-title">논문 추가</h2>
           <form id="publication-form" class="editor-form">
             <label class="field"><span>논문 제목 *</span><input name="title" type="text" required></label>
@@ -149,12 +148,12 @@
             <div class="form-actions"><button class="button primary" type="submit">저장</button><button class="button secondary" type="button" id="publication-reset">초기화</button></div>
           </form>
         </article>
-        <article class="admin-card"><span class="eyebrow">저장된 논문</span><div class="admin-subtabs" id="publication-filter-tabs"></div><div class="admin-list-stack" id="publication-list"></div></article>
+        <article class="admin-card"><div class="admin-card-head"><span class="eyebrow">저장된 논문</span><button type="button" class="button primary button-sm" id="publication-add-button">논문 추가</button></div><div class="admin-subtabs" id="publication-filter-tabs"></div><div class="admin-list-stack" id="publication-list"></div><div class="admin-pagination" id="publication-pagination"></div></article>
       </section>
 
       <section class="admin-stage" data-panel="board" hidden>
-        <article class="admin-card">
-          <span class="eyebrow">게시판</span>
+        <article class="admin-card admin-editor-modal" id="board-editor-card" hidden>
+          <div class="admin-card-head"><span class="eyebrow">게시판</span><button type="button" class="small-button" data-editor-close="board">닫기</button></div>
           <h2 id="board-form-title">게시글 추가</h2>
           <form id="board-form" class="editor-form">
             <div class="form-grid form-grid--double">
@@ -168,7 +167,7 @@
             <div class="form-actions"><button class="button primary" type="submit">저장</button><button class="button secondary" type="button" id="board-reset">초기화</button></div>
           </form>
         </article>
-        <article class="admin-card"><span class="eyebrow">저장된 게시글</span><div class="admin-subtabs" id="board-filter-tabs"></div><div class="admin-list-stack" id="board-list"></div></article>
+        <article class="admin-card"><div class="admin-card-head"><span class="eyebrow">저장된 게시글</span><button type="button" class="button primary button-sm" id="board-add-button">게시글 추가</button></div><div class="admin-subtabs" id="board-filter-tabs"></div><div class="admin-list-stack" id="board-list"></div><div class="admin-pagination" id="board-pagination"></div></article>
       </section>
     </main>
   </div>
@@ -190,6 +189,6 @@
   </div>
 
 <script src="firebase-config.js"></script>
-  <script type="module" src="assets/js/admin.js?v=13"></script>
+  <script type="module" src="assets/js/admin.js?v=14"></script>
 </body>
 </html>

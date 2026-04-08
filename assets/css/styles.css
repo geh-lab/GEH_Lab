@@ -1756,3 +1756,57 @@ body.modal-open {
   .public-body[data-page="publications"] .page-hero-card--overview,
   .public-body[data-page="projects"] .page-hero-card--overview { grid-template-columns:1fr; }
 }
+
+
+.admin-card-head {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:.8rem;
+  margin-bottom:.75rem;
+}
+.button-sm {
+  padding:.72rem 1rem;
+  font-size:.92rem;
+}
+.admin-editor-modal {
+  position:fixed;
+  inset:50% auto auto 50%;
+  width:min(920px, calc(100vw - 2rem));
+  max-height:calc(100vh - 3rem);
+  overflow:auto;
+  transform:translate(-50%, -50%);
+  z-index:1200;
+  box-shadow:0 32px 80px rgba(15,23,42,.22);
+  background:#fff;
+}
+.admin-editor-modal[hidden] { display:none !important; }
+.admin-editor-modal::before {
+  content:"";
+  position:fixed;
+  inset:0;
+  background:rgba(15,23,42,.35);
+  z-index:-1;
+}
+.admin-pagination {
+  margin-top:1rem;
+  display:flex;
+  justify-content:center;
+}
+.pagination-shell {
+  display:flex;
+  gap:.4rem;
+  flex-wrap:wrap;
+}
+.small-button.is-active {
+  background:#111317;
+  color:#fff;
+  border-color:#111317;
+}
+.admin-item-actions {
+  min-width: 132px;
+  justify-content:flex-end;
+}
+.admin-item-actions .small-button {
+  white-space:nowrap;
+}

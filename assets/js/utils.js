@@ -67,7 +67,7 @@ export function memberSemanticKey(item = {}) {
 }
 
 export function projectSemanticKey(item = {}) {
-  return semanticKey(item.id || item.title || '');
+  return semanticKey(item.id || item.titleKr || item.titleEn || item.title || '');
 }
 
 export function publicationSemanticKey(item = {}) {
@@ -264,10 +264,20 @@ export function normalizeProject(item = {}, options = {}) {
       : preserveMissing ? undefined : [];
   const period = item.period || '';
   const year = item.year || extractYear(period);
+  const titleKr = item.titleKr || item.title || '';
+  const titleEn = item.titleEn || item.title || '';
+  const descriptionKr = item.descriptionKr || item.description || item.desc || '';
+  const descriptionEn = item.descriptionEn || item.description || item.desc || '';
+  const tagsKr = Array.isArray(item.tagsKr) ? item.tagsKr : hasExplicitKey(item, 'tagsKr') ? String(item.tagsKr || '').split(',').map((tag) => tag.trim()).filter(Boolean) : [];
+  const tagsEn = Array.isArray(item.tagsEn) ? item.tagsEn : hasExplicitKey(item, 'tagsEn') ? String(item.tagsEn || '').split(',').map((tag) => tag.trim()).filter(Boolean) : [];
   return {
-    id: item.id || (!preserveMissing ? slugify(item.title || crypto.randomUUID()) : undefined),
-    title: item.title || '',
-    description: item.description || item.desc || '',
+    id: item.id || (!preserveMissing ? slugify(titleKr || titleEn || item.title || crypto.randomUUID()) : undefined),
+    title: item.title || titleKr || titleEn || '',
+    titleKr,
+    titleEn,
+    description: item.description || item.desc || descriptionKr || descriptionEn || '',
+    descriptionKr,
+    descriptionEn,
     status: preserveMissing ? explicitStatus : (explicitStatus || 'ongoing'),
     period,
     year,
@@ -278,6 +288,8 @@ export function normalizeProject(item = {}, options = {}) {
     figurePath: item.figurePath || '',
     figureAspect: item.figureAspect || '16:9',
     tags,
+    tagsKr,
+    tagsEn,
     sortOrder,
     createdAt: item.createdAt || undefined,
     updatedAt: item.updatedAt || undefined

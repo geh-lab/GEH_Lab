@@ -70,7 +70,12 @@ const state = {
   memberFilter: 'pi',
   projectFilter: 'all',
   publicationFilter: 'all',
-  boardFilter: 'all'
+  boardFilter: 'all',
+  memberPage: 1,
+  projectPage: 1,
+  publicationPage: 1,
+  boardPage: 1,
+  pageSize: 10
 };
 
 const qs = (selector) => document.querySelector(selector);
@@ -91,6 +96,9 @@ const elements = {
   memberForm: qs('#member-form'),
   memberList: qs('#member-list'),
   memberTitle: qs('#member-form-title'),
+  memberEditorCard: qs('#member-editor-card'),
+  memberAddButton: qs('#member-add-button'),
+  memberPagination: qs('#member-pagination'),
   memberPhotoInput: qs('#member-photo-input'),
   memberPhotoPreview: qs('#member-photo-preview'),
   memberPhotoRemove: qs('#member-photo-remove'),
@@ -98,6 +106,9 @@ const elements = {
   projectForm: qs('#project-form'),
   projectList: qs('#project-list'),
   projectTitle: qs('#project-form-title'),
+  projectEditorCard: qs('#project-editor-card'),
+  projectAddButton: qs('#project-add-button'),
+  projectPagination: qs('#project-pagination'),
   projectFilterTabs: qs('#project-filter-tabs'),
   projectFigureInput: qs('#project-figure-input'),
   projectFigurePreview: qs('#project-figure-preview'),
@@ -106,10 +117,16 @@ const elements = {
   publicationForm: qs('#publication-form'),
   publicationList: qs('#publication-list'),
   publicationTitle: qs('#publication-form-title'),
+  publicationEditorCard: qs('#publication-editor-card'),
+  publicationAddButton: qs('#publication-add-button'),
+  publicationPagination: qs('#publication-pagination'),
   publicationFilterTabs: qs('#publication-filter-tabs'),
   boardForm: qs('#board-form'),
   boardList: qs('#board-list'),
   boardTitle: qs('#board-form-title'),
+  boardEditorCard: qs('#board-editor-card'),
+  boardAddButton: qs('#board-add-button'),
+  boardPagination: qs('#board-pagination'),
   boardFilterTabs: qs('#board-filter-tabs'),
   boardImageInput: qs('#board-image-input'),
   boardImagePreview: qs('#board-image-preview'),
@@ -170,6 +187,74 @@ function adminErrorMessage(error, fallback) {
   return error?.message || fallback;
 }
 
+
+function editorElement(kind) {
+  return {
+    member: elements.memberEditorCard,
+    project: elements.projectEditorCard,
+    publication: elements.publicationEditorCard,
+    board: elements.boardEditorCard
+  }[kind] || null;
+}
+
+function openEditor(kind) {
+  const target = editorElement(kind);
+  if (!target) return;
+  target.hidden = false;
+  target.classList.add('is-open');
+}
+
+function closeEditor(kind) {
+  const target = editorElement(kind);
+  if (!target) return;
+  target.classList.remove('is-open');
+  target.hidden = true;
+}
+
+function paginateItems(items = [], page = 1) {
+  const total = items.length;
+  const pages = Math.max(1, Math.ceil(total / state.pageSize));
+  const current = Math.min(Math.max(1, page), pages);
+  const start = (current - 1) * state.pageSize;
+  return { items: items.slice(start, start + state.pageSize), page: current, pages, total };
+}
+
+function paginationMarkup(kind, page, pages) {
+  if (pages <= 1) return '';
+  const nums = Array.from({ length: pages }, (_, index) => index + 1).map((num) =>
+    `<button type="button" class="small-button${num === page ? ' is-active' : ''}" data-page-kind="${escapeHTML(kind)}" data-page="${num}">${num}</button>`
+  ).join('');
+  return `<div class="pagination-shell"><button type="button" class="small-button" data-page-kind="${escapeHTML(kind)}" data-page="${Math.max(1, page - 1)}" ${page === 1 ? 'disabled' : ''}>이전</button>${nums}<button type="button" class="small-button" data-page-kind="${escapeHTML(kind)}" data-page="${Math.min(pages, page + 1)}" ${page === pages ? 'disabled' : ''}>다음</button></div>`;
+}
+
+function bindPagination(container, key) {
+  container?.querySelectorAll('[data-page-kind]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state[key] = Number(button.dataset.page || 1);
+      renderAllLists();
+    });
+  });
+}
+
+function localizedProjectTitle(project, locale = 'kr') {
+  return locale === 'en'
+    ? (project.titleEn || project.title || project.titleKr || '')
+    : (project.titleKr || project.title || project.titleEn || '');
+}
+
+function localizedProjectDescription(project, locale = 'kr') {
+  return locale === 'en'
+    ? (project.descriptionEn || project.description || project.descriptionKr || '')
+    : (project.descriptionKr || project.description || project.descriptionEn || '');
+}
+
+function localizedProjectTags(project, locale = 'kr') {
+  const arr = locale === 'en'
+    ? ((project.tagsEn && project.tagsEn.length) ? project.tagsEn : project.tags)
+    : ((project.tagsKr && project.tagsKr.length) ? project.tagsKr : project.tags);
+  return Array.isArray(arr) ? arr : [];
+}
+
 function resolveMemberFilter(member = {}) {
   if (member.status === 'alumni') return 'alumni';
   if (member.group === 'pi') return 'pi';
@@ -223,6 +308,11 @@ function bindEvents() {
     await handleAuthState(null);
   });
   elements.tabButtons.forEach((button) => button.addEventListener('click', () => setActiveTab(button.dataset.adminTab)));
+  elements.memberAddButton?.addEventListener('click', () => { resetMemberForm(); openEditor('member'); });
+  elements.projectAddButton?.addEventListener('click', () => { resetProjectForm(); openEditor('project'); });
+  elements.publicationAddButton?.addEventListener('click', () => { resetPublicationForm(); openEditor('publication'); });
+  elements.boardAddButton?.addEventListener('click', () => { resetBoardForm(); openEditor('board'); });
+  qsa('[data-editor-close]').forEach((button) => button.addEventListener('click', () => closeEditor(button.dataset.editorClose)));
   elements.memberFilterTabs?.addEventListener('click', onMemberFilterClick);
   elements.projectFilterTabs?.addEventListener('click', onProjectFilterClick);
   elements.publicationFilterTabs?.addEventListener('click', onPublicationFilterClick);
@@ -457,24 +547,28 @@ function onMemberFilterClick(event) {
   const button = event.target.closest('[data-member-filter]');
   if (!button) return;
   state.memberFilter = button.dataset.memberFilter;
+  state.memberPage = 1;
   renderMembersList();
 }
 function onProjectFilterClick(event) {
   const button = event.target.closest('[data-project-filter]');
   if (!button) return;
   state.projectFilter = button.dataset.projectFilter;
+  state.projectPage = 1;
   renderProjectsList();
 }
 function onPublicationFilterClick(event) {
   const button = event.target.closest('[data-publication-filter]');
   if (!button) return;
   state.publicationFilter = button.dataset.publicationFilter;
+  state.publicationPage = 1;
   renderPublicationsList();
 }
 function onBoardFilterClick(event) {
   const button = event.target.closest('[data-board-filter]');
   if (!button) return;
   state.boardFilter = button.dataset.boardFilter;
+  state.boardPage = 1;
   renderBoardList();
 }
 
@@ -649,6 +743,7 @@ async function handleMemberSubmit(event) {
     renderSummary();
     showNotice('멤버 정보가 저장되었습니다.', 'success');
     resetMemberForm();
+    closeEditor('member');
     state.memberPhotoRemoved = false;
   } catch (error) {
     console.error(error);
@@ -665,9 +760,17 @@ async function handleProjectSubmit(event) {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
   const period = String(formData.get('period') || '').trim();
+  const titleKr = String(formData.get('titleKr') || '').trim();
+  const titleEn = String(formData.get('titleEn') || '').trim();
+  const descriptionKr = String(formData.get('descriptionKr') || '').trim();
+  const descriptionEn = String(formData.get('descriptionEn') || '').trim();
   const payload = {
-    title: String(formData.get('title') || '').trim(),
-    description: String(formData.get('description') || '').trim(),
+    titleKr,
+    titleEn,
+    title: titleEn || titleKr,
+    descriptionKr,
+    descriptionEn,
+    description: descriptionEn || descriptionKr,
     status: String(formData.get('status') || 'ongoing'),
     period,
     year: extractYearFromPeriod(period),
@@ -677,10 +780,12 @@ async function handleProjectSubmit(event) {
     figureUrl: state.editingProject?.figureUrl || '',
     figurePath: state.editingProject?.figurePath || '',
     figureAspect: String(formData.get('figureAspect') || '16:9'),
-    tags: String(formData.get('tags') || '').split(',').map((tag) => tag.trim()).filter(Boolean),
+    tagsKr: String(formData.get('tagsKr') || '').split(',').map((tag) => tag.trim()).filter(Boolean),
+    tagsEn: String(formData.get('tagsEn') || '').split(',').map((tag) => tag.trim()).filter(Boolean),
+    tags: String(formData.get('tagsKr') || formData.get('tagsEn') || '').split(',').map((tag) => tag.trim()).filter(Boolean),
     sortOrder: state.editingProject?.sortOrder ?? 999
   };
-  if (!payload.title) return showNotice('과제 제목을 입력해주세요.', 'warning');
+  if (!payload.titleKr && !payload.titleEn) return showNotice('과제 제목을 입력해주세요.', 'warning');
   try {
     if (state.pendingProjectFile) {
       const upload = await uploadProjectFigure(state.pendingProjectFile);
@@ -696,6 +801,7 @@ async function handleProjectSubmit(event) {
     renderSummary();
     showNotice('과제 정보가 저장되었습니다.', 'success');
     resetProjectForm();
+    closeEditor('project');
   } catch (error) {
     console.error(error);
     showNotice(adminErrorMessage(error, '과제 저장에 실패했습니다.'), 'danger');
@@ -725,6 +831,7 @@ async function handlePublicationSubmit(event) {
     renderSummary();
     showNotice('논문 정보가 저장되었습니다.', 'success');
     resetPublicationForm();
+    closeEditor('publication');
   } catch (error) {
     console.error(error);
     showNotice(adminErrorMessage(error, '논문 저장에 실패했습니다.'), 'danger');
@@ -759,6 +866,7 @@ async function handleBoardSubmit(event) {
     renderSummary();
     showNotice('게시글이 저장되었습니다.', 'success');
     resetBoardForm();
+    closeEditor('board');
   } catch (error) {
     console.error(error);
     showNotice(adminErrorMessage(error, '게시글 저장에 실패했습니다.'), 'danger');
@@ -827,29 +935,50 @@ function renderMembersList() {
   const alumni = state.members.filter((item) => item.status === 'alumni');
   let sections = [];
   if (state.memberFilter === 'pi') {
-    const items = enrolled.filter((item) => item.group === 'pi');
-    sections.push(adminSection(`연구책임자 · 교수 (${items.length})`, items.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    const all = enrolled.filter((item) => item.group === 'pi');
+    const pageData = paginateItems(all, state.memberPage);
+    state.memberPage = pageData.page;
+    sections.push(adminSection(`지도교수 · 교수 (${all.length})`, pageData.items.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    elements.memberPagination.innerHTML = paginationMarkup('member', pageData.page, pageData.pages);
   } else if (state.memberFilter === 'research') {
-    const items = enrolled.filter((item) => item.group === 'researchProfessor');
-    sections.push(adminSection(`연구교수 · 박사후연구원 (${items.length})`, items.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    const all = enrolled.filter((item) => item.group === 'researchProfessor');
+    const pageData = paginateItems(all, state.memberPage);
+    state.memberPage = pageData.page;
+    sections.push(adminSection(`연구교수 · 박사후연구원 (${all.length})`, pageData.items.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    elements.memberPagination.innerHTML = paginationMarkup('member', pageData.page, pageData.pages);
   } else if (state.memberFilter === 'phd') {
-    const full = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'phd' && item.track === 'fullTime');
-    const part = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'phd' && item.track === 'partTime');
-    sections.push(adminSection(`박사과정 · 풀타임 (${full.length})`, full.map(memberItemMarkup).join('') || emptyAdmin('없음')));
-    sections.push(adminSection(`박사과정 · 파트타임 (${part.length})`, part.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    const all = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'phd');
+    const pageData = paginateItems(all, state.memberPage);
+    state.memberPage = pageData.page;
+    const full = pageData.items.filter((item) => item.track === 'fullTime');
+    const part = pageData.items.filter((item) => item.track === 'partTime');
+    sections.push(adminSection(`박사과정 · 풀타임`, full.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    sections.push(adminSection(`박사과정 · 파트타임`, part.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    elements.memberPagination.innerHTML = paginationMarkup('member', pageData.page, pageData.pages);
   } else if (state.memberFilter === 'ms') {
-    const full = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'ms' && item.track === 'fullTime');
-    const part = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'ms' && item.track === 'partTime');
-    sections.push(adminSection(`석사과정 · 풀타임 (${full.length})`, full.map(memberItemMarkup).join('') || emptyAdmin('없음')));
-    sections.push(adminSection(`석사과정 · 파트타임 (${part.length})`, part.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    const all = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'ms');
+    const pageData = paginateItems(all, state.memberPage);
+    state.memberPage = pageData.page;
+    const full = pageData.items.filter((item) => item.track === 'fullTime');
+    const part = pageData.items.filter((item) => item.track === 'partTime');
+    sections.push(adminSection(`석사과정 · 풀타임`, full.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    sections.push(adminSection(`석사과정 · 파트타임`, part.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    elements.memberPagination.innerHTML = paginationMarkup('member', pageData.page, pageData.pages);
   } else if (state.memberFilter === 'undergrad') {
-    const items = enrolled.filter((item) => item.group === 'studentResearcher');
-    sections.push(adminSection(`학부연구생 (${items.length})`, items.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    const all = enrolled.filter((item) => item.group === 'studentResearcher');
+    const pageData = paginateItems(all, state.memberPage);
+    state.memberPage = pageData.page;
+    sections.push(adminSection(`학부연구생 (${all.length})`, pageData.items.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    elements.memberPagination.innerHTML = paginationMarkup('member', pageData.page, pageData.pages);
   } else if (state.memberFilter === 'alumni') {
-    const grouped = Object.entries(groupBy(alumni, (item) => item.graduationYear || '이전')).sort((a, b) => numericYearSort(b[0]) - numericYearSort(a[0]));
+    const pageData = paginateItems(alumni, state.memberPage);
+    state.memberPage = pageData.page;
+    const grouped = Object.entries(groupBy(pageData.items, (item) => item.graduationYear || '이전')).sort((a, b) => numericYearSort(b[0]) - numericYearSort(a[0]));
     sections = grouped.map(([year, items]) => adminSection(`${year} (${items.length})`, items.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    elements.memberPagination.innerHTML = paginationMarkup('member', pageData.page, pageData.pages);
   }
   elements.memberList.innerHTML = sections.join('');
+  bindPagination(elements.memberPagination, 'memberPage');
 }
 
 function renderProjectFilterTabs() {
@@ -866,12 +995,12 @@ function projectItemMarkup(project) {
       <div class="admin-item-main">
         <div>
           <div class="card-topline">
-            <strong>${escapeHTML(project.title)}</strong>
+            <strong>${escapeHTML(localizedProjectTitle(project, 'kr'))}</strong>
             <span class="status-badge ${project.status === 'completed' ? 'is-alumni' : ''}">${escapeHTML(projectStatusLabel(project.status, 'kr'))}</span>
           </div>
           ${project.period ? `<p class="muted">기간 · ${escapeHTML(project.period)}</p>` : ''}
           ${project.principalInvestigator ? `<p class="muted">${escapeHTML(roleLabel)} · ${escapeHTML(project.principalInvestigator)}</p>` : ''}
-          ${project.description ? `<p>${escapeHTML(project.description)}</p>` : ''}
+          ${localizedProjectDescription(project, 'kr') ? `<p>${escapeHTML(localizedProjectDescription(project, 'kr'))}</p>` : ''}
         </div>
       </div>
       <div class="admin-item-actions">
@@ -889,16 +1018,29 @@ function renderProjectsList() {
   const completed = state.projects.filter((item) => item.status === 'completed');
   let sections = [];
   if (state.projectFilter === 'all') {
-    sections.push(adminSection(`진행 중 (${ongoing.length})`, ongoing.map(projectItemMarkup).join('') || emptyAdmin('없음')));
-    const grouped = Object.entries(groupBy(completed, (item) => item.year || '이전')).sort((a, b) => numericYearSort(b[0]) - numericYearSort(a[0]));
+    const all = [...ongoing, ...completed];
+    const pageData = paginateItems(all, state.projectPage);
+    state.projectPage = pageData.page;
+    const ongoingPage = pageData.items.filter((item) => item.status === 'ongoing');
+    const completedPage = pageData.items.filter((item) => item.status === 'completed');
+    sections.push(adminSection(`진행 중 (${ongoing.length})`, ongoingPage.map(projectItemMarkup).join('') || emptyAdmin('없음')));
+    const grouped = Object.entries(groupBy(completedPage, (item) => item.year || '이전')).sort((a, b) => numericYearSort(b[0]) - numericYearSort(a[0]));
     sections.push(...grouped.map(([year, items]) => adminSection(`${year} (${items.length})`, items.map(projectItemMarkup).join('') || emptyAdmin('없음'))));
+    elements.projectPagination.innerHTML = paginationMarkup('project', pageData.page, pageData.pages);
   } else if (state.projectFilter === 'ongoing') {
-    sections.push(adminSection(`진행 중 (${ongoing.length})`, ongoing.map(projectItemMarkup).join('') || emptyAdmin('없음')));
+    const pageData = paginateItems(ongoing, state.projectPage);
+    state.projectPage = pageData.page;
+    sections.push(adminSection(`진행 중 (${ongoing.length})`, pageData.items.map(projectItemMarkup).join('') || emptyAdmin('없음')));
+    elements.projectPagination.innerHTML = paginationMarkup('project', pageData.page, pageData.pages);
   } else {
     const items = completed.filter((item) => String(item.year) === String(state.projectFilter));
-    sections.push(adminSection(`${state.projectFilter} (${items.length})`, items.map(projectItemMarkup).join('') || emptyAdmin('없음')));
+    const pageData = paginateItems(items, state.projectPage);
+    state.projectPage = pageData.page;
+    sections.push(adminSection(`${state.projectFilter} (${items.length})`, pageData.items.map(projectItemMarkup).join('') || emptyAdmin('없음')));
+    elements.projectPagination.innerHTML = paginationMarkup('project', pageData.page, pageData.pages);
   }
   elements.projectList.innerHTML = sections.join('');
+  bindPagination(elements.projectPagination, 'projectPage');
 }
 
 function renderPublicationFilterTabs() {
@@ -932,9 +1074,19 @@ function renderPublicationsList() {
   if (!elements.publicationList) return;
   renderPublicationFilterTabs();
   let groups;
-  if (state.publicationFilter === 'all') groups = Object.entries(groupBy(state.publications, (item) => item.year || '기타')).sort((a, b) => numericYearSort(b[0]) - numericYearSort(a[0]));
-  else groups = [[state.publicationFilter, state.publications.filter((item) => String(item.year) === String(state.publicationFilter))]];
+  let pageData;
+  if (state.publicationFilter === 'all') {
+    pageData = paginateItems(state.publications, state.publicationPage);
+    groups = Object.entries(groupBy(pageData.items, (item) => item.year || '기타')).sort((a, b) => numericYearSort(b[0]) - numericYearSort(a[0]));
+  } else {
+    const filtered = state.publications.filter((item) => String(item.year) === String(state.publicationFilter));
+    pageData = paginateItems(filtered, state.publicationPage);
+    groups = [[state.publicationFilter, pageData.items]];
+  }
+  state.publicationPage = pageData.page;
   elements.publicationList.innerHTML = groups.map(([year, items]) => adminSection(`${year} (${items.length}편)`, items.map(publicationItemMarkup).join('') || emptyAdmin('없음'))).join('');
+  elements.publicationPagination.innerHTML = paginationMarkup('publication', pageData.page, pageData.pages);
+  bindPagination(elements.publicationPagination, 'publicationPage');
 }
 
 function renderBoardFilterTabs() {
@@ -971,7 +1123,11 @@ function renderBoardList() {
   if (!elements.boardList) return;
   renderBoardFilterTabs();
   const items = state.boardFilter === 'all' ? state.board : state.board.filter((item) => item.category === state.boardFilter);
-  elements.boardList.innerHTML = adminSection(`게시글 (${items.length})`, items.map(boardItemMarkup).join('') || emptyAdmin('없음'));
+  const pageData = paginateItems(items, state.boardPage);
+  state.boardPage = pageData.page;
+  elements.boardList.innerHTML = adminSection(`게시글 (${items.length})`, pageData.items.map(boardItemMarkup).join('') || emptyAdmin('없음'));
+  elements.boardPagination.innerHTML = paginationMarkup('board', pageData.page, pageData.pages);
+  bindPagination(elements.boardPagination, 'boardPage');
 }
 
 function adminSection(title, content) { return `<section class="admin-list-section"><h3>${escapeHTML(title)}</h3>${content}</section>`; }
@@ -1018,21 +1174,29 @@ function loadMemberForm(member) {
   const form = elements.memberForm;
   ['nameKr','nameEn','name','group','track','course','email','bio','education','experience','researchInterest','coursesInfo','relatedProjects','authorshipNote','currentPosition','status','graduationYear','startYear'].forEach((field) => setFormValue(form, field, member[field] || ''));
   renderMemberPhotoPreview();
+  openEditor('member');
 }
 function loadProjectForm(project) {
   state.editingProject = project;
   elements.projectTitle.textContent = '과제 수정';
   const form = elements.projectForm;
-  ['title','description','status','period','leadRole','principalInvestigator','figureAspect'].forEach((field) => setFormValue(form, field, project[field] || ''));
+  setFormValue(form, 'titleKr', project.titleKr || project.title || '');
+  setFormValue(form, 'titleEn', project.titleEn || project.title || '');
+  setFormValue(form, 'descriptionKr', project.descriptionKr || project.description || '');
+  setFormValue(form, 'descriptionEn', project.descriptionEn || project.description || '');
+  ['status','period','leadRole','principalInvestigator','figureAspect'].forEach((field) => setFormValue(form, field, project[field] || ''));
   renderProjectLeadOptions();
-  setFormValue(form, 'tags', (project.tags || []).join(', '));
+  setFormValue(form, 'tagsKr', ((project.tagsKr && project.tagsKr.length) ? project.tagsKr : project.tags || []).join(', '));
+  setFormValue(form, 'tagsEn', ((project.tagsEn && project.tagsEn.length) ? project.tagsEn : project.tags || []).join(', '));
   renderProjectFigurePreview();
+  openEditor('project');
 }
 function loadPublicationForm(item) {
   state.editingPublication = item;
   elements.publicationTitle.textContent = '논문 수정';
   const form = elements.publicationForm;
   ['title','authors','journal','year','month','doi','url','abstract','indexing'].forEach((field) => setFormValue(form, field, item[field] || ''));
+  openEditor('publication');
 }
 function loadBoardForm(item) {
   state.editingBoard = item;
@@ -1040,6 +1204,7 @@ function loadBoardForm(item) {
   const form = elements.boardForm;
   ['category','title','description','linkUrl','date'].forEach((field) => setFormValue(form, field, item[field] || ''));
   renderBoardImagePreview();
+  openEditor('board');
 }
 
 async function quickGraduate(member) {
