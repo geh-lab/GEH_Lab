@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GEH Lab 관리자</title>
   <meta name="description" content="GEH Lab Firebase 관리자 페이지">
-  <link rel="stylesheet" href="assets/css/styles.css?v=25">
+  <link rel="stylesheet" href="assets/css/styles.css?v=26">
 </head>
 <body class="admin-body" data-root=".">
   <div class="admin-shell">
@@ -74,8 +74,7 @@
 
       <section class="admin-stage" data-panel="members">
         <article class="admin-card admin-editor-modal" id="member-editor-card" hidden>
-          <div class="admin-card-head"><span class="eyebrow">멤버</span><button type="button" class="small-button" data-editor-close="member">닫기</button></div>
-          <h2 id="member-form-title">멤버 추가</h2>
+          <div class="editor-title-row"><h2 id="member-form-title">멤버 추가</h2><button type="button" class="small-button editor-close-button" data-editor-close="member">닫기</button></div>
           <form id="member-form" class="editor-form">
             <div class="form-grid form-grid--double">
               <label class="field"><span>한국 이름 (성, 이름) *</span><input name="nameKr" type="text" required></label>
@@ -116,8 +115,7 @@
 
       <section class="admin-stage" data-panel="projects" hidden>
         <article class="admin-card admin-editor-modal" id="project-editor-card" hidden>
-          <div class="admin-card-head"><span class="eyebrow">과제</span><button type="button" class="small-button" data-editor-close="project">닫기</button></div>
-          <h2 id="project-form-title">과제 추가</h2>
+          <div class="editor-title-row"><h2 id="project-form-title">과제 추가</h2><button type="button" class="small-button editor-close-button" data-editor-close="project">닫기</button></div>
           <form id="project-form" class="editor-form">
             <div class="form-grid form-grid--double">
               <label class="field"><span>과제 제목 (한국어) *</span><input name="titleKr" type="text" required></label>
@@ -141,8 +139,7 @@
 
       <section class="admin-stage" data-panel="publications" hidden>
         <article class="admin-card admin-editor-modal" id="publication-editor-card" hidden>
-          <div class="admin-card-head"><span class="eyebrow">논문</span><button type="button" class="small-button" data-editor-close="publication">닫기</button></div>
-          <h2 id="publication-form-title">논문 추가</h2>
+          <div class="editor-title-row"><h2 id="publication-form-title">논문 추가</h2><button type="button" class="small-button editor-close-button" data-editor-close="publication">닫기</button></div>
           <form id="publication-form" class="editor-form">
             <label class="field"><span>논문 제목 *</span><input name="title" type="text" required></label>
             <div class="form-grid form-grid--double">
@@ -163,8 +160,7 @@
 
       <section class="admin-stage" data-panel="board" hidden>
         <article class="admin-card admin-editor-modal" id="board-editor-card" hidden>
-          <div class="admin-card-head"><span class="eyebrow">게시판</span><button type="button" class="small-button" data-editor-close="board">닫기</button></div>
-          <h2 id="board-form-title">게시글 추가</h2>
+          <div class="editor-title-row"><h2 id="board-form-title">게시글 추가</h2><button type="button" class="small-button editor-close-button" data-editor-close="board">닫기</button></div>
           <form id="board-form" class="editor-form">
             <div class="form-grid form-grid--double">
               <label class="field"><span>분류</span><select name="category"><option value="notice" selected>공지</option><option value="poster">포스터 발표</option><option value="oral">구두 발표</option><option value="news">소식</option></select></label>
@@ -199,6 +195,6 @@
   </div>
 
 <script src="firebase-config.js"></script>
-  <script type="module" src="assets/js/admin.js?v=25"></script>
+  <script type="module" src="assets/js/admin.js?v=26"></script>
 </body>
 </html>
