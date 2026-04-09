@@ -67,6 +67,97 @@ function memberDisplayName(member, locale = lang) {
   return locale === 'en' ? (member.nameEn || member.name || member.nameKr || '') : (member.nameKr || member.name || member.nameEn || '');
 }
 
+
+function multilineText(value = '') {
+  return escapeHTML(String(value || '')).replace(/\n+/g, '<br>');
+}
+
+function detailHtmlSection(title, html = '') {
+  if (!html) return '';
+  return `
+    <article class="detail-block">
+      <h4>${escapeHTML(title)}</h4>
+      <div class="detail-block__body">${html}</div>
+    </article>
+  `;
+}
+
+function memberEducationLines(member = {}, locale = lang) {
+  const degreeLabels = locale === 'en'
+    ? { bs: 'B.S.', ms: 'M.S.', phd: 'Ph.D.' }
+    : { bs: '학사', ms: '석사', phd: '박사' };
+  const specs = [
+    ['bs', member.bachelorsSchool, member.bachelorsMajor],
+    ['ms', member.mastersSchool, member.mastersMajor],
+    ['phd', member.doctoralSchool, member.doctoralMajor]
+  ];
+  const lines = specs
+    .filter(([, school, major]) => String(school || '').trim() || String(major || '').trim())
+    .map(([key, school, major]) => [degreeLabels[key], school, major].filter(Boolean).join(' · '));
+  if (lines.length) return lines;
+  return String(member.education || '')
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function memberEducationMarkup(member = {}, locale = lang, variant = 'detail') {
+  const lines = memberEducationLines(member, locale);
+  if (!lines.length) return '';
+  return `<div class="member-education-lines member-education-lines--${escapeHTML(variant)}">${lines.map((line) => `<p>${escapeHTML(line)}</p>`).join('')}</div>`;
+}
+
+function memberCourseScheduleEntries(member = {}) {
+  return (Array.isArray(member.courseSchedule) ? member.courseSchedule : []).filter((entry) => {
+    return ['day', 'time', 'courseName', 'credits', 'description'].some((key) => String(entry?.[key] || '').trim());
+  });
+}
+
+function memberCourseScheduleMarkup(member = {}, locale = lang) {
+  const rows = memberCourseScheduleEntries(member);
+  if (!rows.length) return '';
+  const labels = locale === 'en'
+    ? { day: 'Day', time: 'Time', name: 'Course', credits: 'Credits', description: 'Description' }
+    : { day: '요일', time: '시간', name: '강의명', credits: '학점', description: '강의 내용' };
+  const dayMap = locale === 'en'
+    ? { '월': 'Mon', '화': 'Tue', '수': 'Wed', '목': 'Thu', '금': 'Fri' }
+    : {};
+  return `
+    <div class="schedule-table-wrap">
+      <table class="schedule-table">
+        <thead>
+          <tr>
+            <th>${escapeHTML(labels.day)}</th>
+            <th>${escapeHTML(labels.time)}</th>
+            <th>${escapeHTML(labels.name)}</th>
+            <th>${escapeHTML(labels.credits)}</th>
+            <th>${escapeHTML(labels.description)}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((entry) => `
+            <tr>
+              <td>${escapeHTML(dayMap[entry.day] || entry.day || '')}</td>
+              <td>${escapeHTML(entry.time || '')}</td>
+              <td>${escapeHTML(entry.courseName || '')}</td>
+              <td>${escapeHTML(entry.credits || '')}</td>
+              <td>${escapeHTML(entry.description || '')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function memberCourseSectionMarkup(member = {}, locale = lang) {
+  const title = locale === 'en' ? 'Course schedule' : '수업 시간표';
+  const table = member.group === 'pi' ? memberCourseScheduleMarkup(member, locale) : '';
+  const note = member.group === 'pi' ? String(member.coursesInfo || '').trim() : '';
+  const html = [table, note ? `<p class="detail-note">${multilineText(note)}</p>` : ''].filter(Boolean).join('');
+  return html ? detailHtmlSection(title, html) : '';
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   setupHeader();
   ensureModal();
@@ -282,8 +373,9 @@ function openMemberModal(member) {
   const title = displayName;
   const photo = member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}">` : `<div class="modal-avatar__placeholder">${escapeHTML(getInitials(member.name))}</div>`;
   const currentLabel = member.status === 'alumni' ? copy.currentPosition : (lang === 'en' ? 'Current role' : '현재 역할');
-  const courseSectionTitle = member.group === 'pi' ? (lang === 'en' ? 'Courses' : '수업 정보') : (member.group === 'researchProfessor' ? (lang === 'en' ? 'Related projects' : '관련 과제') : '');
-  const courseSectionValue = member.group === 'pi' ? (member.coursesInfo || (lang === 'en' ? 'To be updated by the administrator.' : '관리자에서 수업 정보를 추가할 수 있습니다.')) : (member.group === 'researchProfessor' ? (member.relatedProjects || (lang === 'en' ? 'To be updated by the administrator.' : '관리자에서 관련 과제 정보를 추가할 수 있습니다.')) : '');
+  const relatedProjectSection = member.group === 'researchProfessor'
+    ? detailSection(lang === 'en' ? 'Related projects' : '관련 과제', member.relatedProjects || (lang === 'en' ? 'To be updated by the administrator.' : '관리자에서 관련 과제 정보를 추가할 수 있습니다.'))
+    : '';
   openModal(title, `
     <div class="detail-modal detail-modal--member">
       <div class="detail-modal__hero">
@@ -296,11 +388,12 @@ function openMemberModal(member) {
         </div>
       </div>
       <div class="detail-grid">
-        ${detailSection(copy.education, member.education)}
+        ${detailHtmlSection(copy.education, memberEducationMarkup(member, lang, 'detail'))}
         ${detailSection(copy.experience, member.experience)}
         ${detailSection(copy.interest, member.researchInterest)}
         ${detailSection(currentLabel, member.currentPosition || member.bio)}
-        ${courseSectionTitle ? detailSection(courseSectionTitle, courseSectionValue) : ''}
+        ${memberCourseSectionMarkup(member, lang)}
+        ${relatedProjectSection}
         ${renderMemberPublicationBlock(member)}
       </div>
     </div>
@@ -348,10 +441,11 @@ function detailSection(title, value = '') {
   return `
     <article class="detail-block">
       <h4>${escapeHTML(title)}</h4>
-      <p>${escapeHTML(value)}</p>
+      <p>${multilineText(value)}</p>
     </article>
   `;
 }
+
 
 function publicationRoleLabel(role, locale = lang) {
   const map = {
@@ -594,10 +688,11 @@ function renderMembers() {
               <div class="pi-head-actions"><button type="button" class="button secondary detail-open-button" data-member-id="${escapeHTML(pi.id)}">${lang === 'en' ? 'View profile' : '상세 보기'}</button></div>
             </div>
             <div class="pi-card-grid">
-              <article><h3>${escapeHTML(copy.education)}</h3><p>${escapeHTML(pi.education || '')}</p></article>
-              <article><h3>${escapeHTML(copy.experience)}</h3><p>${escapeHTML(pi.experience || '')}</p></article>
-              <article><h3>${escapeHTML(copy.interest)}</h3><p>${escapeHTML(pi.researchInterest || '')}</p></article>
+              <article><h3>${escapeHTML(copy.education)}</h3>${memberEducationMarkup(pi, lang, 'panel')}</article>
+              <article><h3>${escapeHTML(copy.experience)}</h3><p>${multilineText(pi.experience || '')}</p></article>
+              <article><h3>${escapeHTML(copy.interest)}</h3><p>${multilineText(pi.researchInterest || '')}</p></article>
               <article><h3>${escapeHTML(copy.contact)}</h3><p>${pi.email ? `<a class="member-link" href="mailto:${escapeHTML(pi.email)}">${escapeHTML(pi.email)}</a>` : ''}</p></article>
+              ${memberCourseScheduleEntries(pi).length ? `<article class="pi-card-grid__full"><h3>${escapeHTML(lang === 'en' ? 'Course schedule' : '수업 시간표')}</h3>${memberCourseScheduleMarkup(pi, lang)}</article>` : ''}
             </div>
           </div>
         </div>
@@ -638,7 +733,7 @@ function renderMembers() {
 
   const alumniAccordion = qs('#alumni-accordion');
   if (alumniAccordion) {
-    const alumniByYear = Object.entries(groupBy(alumni, (item) => dynamicYearBucket(item.graduationYear)))
+    const alumniByYear = Object.entries(groupBy(alumni, (item) => item.graduationYear || (lang === 'en' ? 'Unspecified' : '미정')))
       .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
     alumniAccordion.innerHTML = alumniByYear.map(([year, items], index) => accordionMarkup(
       year,
@@ -671,7 +766,7 @@ function renderProjects() {
 
   const completedAccordion = qs('#completed-project-accordion');
   if (completedAccordion) {
-    const completedByYear = Object.entries(groupBy(completed, (item) => dynamicYearBucket(item.year || extractYearFromText(item.period))))
+    const completedByYear = Object.entries(groupBy(completed, (item) => item.year || extractYearFromText(item.period) || (lang === 'en' ? 'Unspecified' : '미정')))
       .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
     completedAccordion.innerHTML = completedByYear.map(([year, items], index) => accordionMarkup(year, items.length, `<div class="archive-list">${items.map((item) => archiveProjectItem(item)).join('')}</div>`, index === 0)).join('');
   }
@@ -701,7 +796,7 @@ function renderPublications() {
 
   const publicationAccordion = qs('#publication-accordion');
   if (publicationAccordion) {
-    const grouped = Object.entries(groupBy(filtered, (item) => dynamicYearBucket(item.year)))
+    const grouped = Object.entries(groupBy(filtered, (item) => item.year || (lang === 'en' ? 'Unspecified' : '미정')))
       .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
     publicationAccordion.innerHTML = grouped.map(([year, items], index) => accordionMarkup(year, items.length, `<div class="publication-list">${items.map((item) => publicationCard(item)).join('')}</div>`, index === 0)).join('');
   }
@@ -834,13 +929,13 @@ function journalToneClass(journal = '') {
 }
 
 function projectLeadRoleLabel(project = {}, locale = lang) {
-  const key = project.leadRole || 'principalInvestigator';
+  const key = project.leadRole || 'leadInstitutionInvestigator';
   const map = {
-    principalInvestigator: locale === 'en' ? 'Principal investigator' : '연구책임자',
+    principalInvestigator: locale === 'en' ? 'Lead investigator' : '주관연구책임자',
     coPrincipalInvestigator: locale === 'en' ? 'Co-principal investigator' : '공동연구책임자',
-    leadInstitutionInvestigator: locale === 'en' ? 'Lead institution investigator' : '주관책임자'
+    leadInstitutionInvestigator: locale === 'en' ? 'Lead investigator' : '주관연구책임자'
   };
-  return map[key] || (locale === 'en' ? 'Principal investigator' : '연구책임자');
+  return map[key] || (locale === 'en' ? 'Lead investigator' : '주관연구책임자');
 }
 
 function isGenericOngoingPeriod(value = '') {
@@ -869,6 +964,7 @@ function memberMetaChips(member) {
 }
 
 function memberCard(member) {
+  const education = memberEducationMarkup(member, lang, 'compact');
   return `
     <article class="member-card reveal interactive-card" data-member-id="${escapeHTML(member.id)}" tabindex="0" role="button" aria-label="${escapeHTML(memberDisplayName(member))}">
       <div class="member-thumb">
@@ -877,12 +973,13 @@ function memberCard(member) {
       <div class="member-copy">
         ${memberMetaChips(member) ? `<div class="member-chip-row">${memberMetaChips(member)}</div>` : ''}
         <h3>${escapeHTML(memberDisplayName(member))}</h3>
-        ${member.education ? `<p>${escapeHTML(member.education)}</p>` : ''}
+        ${education || ''}
         ${member.email ? `<a class="member-link" href="mailto:${escapeHTML(member.email)}">${escapeHTML(member.email)}</a>` : ''}
       </div>
     </article>
   `;
 }
+
 
 function alumniCard(member) {
   return `

@@ -106,6 +106,12 @@ const elements = {
   memberPhotoInput: qs('#member-photo-input'),
   memberPhotoPreview: qs('#member-photo-preview'),
   memberPhotoRemove: qs('#member-photo-remove'),
+  memberPhotoFileName: qs('#member-photo-file-name'),
+  memberCourseScheduleWrap: qs('#member-course-schedule-wrap'),
+  memberCourseScheduleList: qs('#member-course-schedule-list'),
+  memberCourseScheduleAdd: qs('#member-course-schedule-add'),
+  memberCoursesNoteField: qs('#member-courses-note-field'),
+  memberRelatedProjectsField: qs('#member-related-projects-field'),
   memberFilterTabs: qs('#member-filter-tabs'),
   projectForm: qs('#project-form'),
   projectList: qs('#project-list'),
@@ -135,6 +141,7 @@ const elements = {
   boardImageInput: qs('#board-image-input'),
   boardImagePreview: qs('#board-image-preview'),
   boardImageRemove: qs('#board-image-remove'),
+  boardImageFileName: qs('#board-image-file-name'),
   summaryMembers: qs('#summary-members'),
   summaryProjects: qs('#summary-projects'),
   summaryPublications: qs('#summary-publications'),
@@ -183,6 +190,67 @@ function syncMemberNameField() {
 function setFormValue(form, fieldName, value) {
   const field = form?.elements?.namedItem(fieldName);
   if (field) field.value = value ?? '';
+}
+
+
+function updateFileInputLabel(input, labelElement, emptyText = '선택된 파일 없음') {
+  if (!labelElement) return;
+  const [file] = input?.files || [];
+  labelElement.textContent = file?.name || emptyText;
+}
+
+function normalizeDoiInput(value = '') {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const withoutLabel = text.replace(/^doi\s*:\s*/i, '').trim();
+  const doiMatch = withoutLabel.match(/^https?:\/\/(?:dx\.)?doi\.org\/(.+)$/i);
+  if (doiMatch?.[1]) return doiMatch[1].trim();
+  return withoutLabel;
+}
+
+function memberDisplayName(member = {}) {
+  return member.nameKr || member.nameEn || member.name || '';
+}
+
+function courseScheduleRowTemplate(entry = {}, index = 0) {
+  const days = [
+    ['월', '월'], ['화', '화'], ['수', '수'], ['목', '목'], ['금', '금']
+  ];
+  return `
+    <article class="course-schedule-row" data-schedule-row="${index}">
+      <label class="field field--compact"><span>요일</span><select data-schedule-field="day">${days.map(([value, label]) => `<option value="${escapeHTML(value)}" ${String(entry.day || '') === value ? 'selected' : ''}>${escapeHTML(label)}</option>`).join('')}</select></label>
+      <label class="field field--compact"><span>시간</span><input data-schedule-field="time" type="text" value="${escapeHTML(entry.time || '')}" placeholder="09:00-10:15"></label>
+      <label class="field field--compact"><span>강의명</span><input data-schedule-field="courseName" type="text" value="${escapeHTML(entry.courseName || '')}" placeholder="스마트농업개론"></label>
+      <label class="field field--compact"><span>학점</span><input data-schedule-field="credits" type="text" value="${escapeHTML(entry.credits || '')}" placeholder="3"></label>
+      <label class="field field--compact course-schedule-row__description"><span>강의 내용</span><input data-schedule-field="description" type="text" value="${escapeHTML(entry.description || '')}" placeholder="식물공장, 환경제어"></label>
+      <div class="course-schedule-row__actions"><button type="button" class="small-button is-danger" data-schedule-remove>삭제</button></div>
+    </article>
+  `;
+}
+
+function renderMemberCourseSchedule(schedule = []) {
+  if (!elements.memberCourseScheduleList) return;
+  const rows = Array.isArray(schedule) && schedule.length ? schedule : [{ day: '월', time: '', courseName: '', credits: '', description: '' }];
+  elements.memberCourseScheduleList.innerHTML = rows.map((entry, index) => courseScheduleRowTemplate(entry, index)).join('');
+  elements.memberCourseScheduleList.querySelectorAll('[data-schedule-remove]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const row = button.closest('.course-schedule-row');
+      row?.remove();
+      if (!elements.memberCourseScheduleList?.children.length) renderMemberCourseSchedule([]);
+    });
+  });
+}
+
+function collectMemberCourseSchedule() {
+  const list = elements.memberCourseScheduleList;
+  if (!list) return [];
+  return Array.from(list.querySelectorAll('.course-schedule-row')).map((row) => ({
+    day: String(row.querySelector('[data-schedule-field="day"]')?.value || '').trim(),
+    time: String(row.querySelector('[data-schedule-field="time"]')?.value || '').trim(),
+    courseName: String(row.querySelector('[data-schedule-field="courseName"]')?.value || '').trim(),
+    credits: String(row.querySelector('[data-schedule-field="credits"]')?.value || '').trim(),
+    description: String(row.querySelector('[data-schedule-field="description"]')?.value || '').trim()
+  })).filter((entry) => Object.values(entry).some((value) => String(value || '').trim()));
 }
 
 function numericYearSort(value) {
@@ -360,6 +428,11 @@ function bindEvents() {
   elements.memberForm?.elements?.namedItem('nameEn')?.addEventListener('input', syncMemberNameField);
   elements.memberForm?.elements?.namedItem('group')?.addEventListener('change', updateMemberEducationVisibility);
   elements.memberForm?.elements?.namedItem('course')?.addEventListener('change', updateMemberEducationVisibility);
+  elements.memberCourseScheduleAdd?.addEventListener('click', () => {
+    const current = collectMemberCourseSchedule();
+    current.push({ day: '월', time: '', courseName: '', credits: '', description: '' });
+    renderMemberCourseSchedule(current);
+  });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
     if (state.openEditorKind) closeEditor(state.openEditorKind);
@@ -413,14 +486,22 @@ ${payload.doctoralMajor}` : ''}`.trim());
 function updateMemberEducationVisibility() {
   const form = elements.memberForm;
   if (!form) return;
-  const level = educationLevelForMember({ group: form.elements.namedItem('group')?.value, course: form.elements.namedItem('course')?.value });
+  const group = String(form.elements.namedItem('group')?.value || '').trim();
+  const course = String(form.elements.namedItem('course')?.value || '').trim();
+  const level = educationLevelForMember({ group, course });
   const showBs = ['bs','ms','phd'].includes(level);
   const showMs = ['ms','phd'].includes(level);
   const showPhd = level === 'phd';
   qsa('.degree-field[data-degree-level="bs"]').forEach((el) => el.hidden = !showBs);
   qsa('.degree-field[data-degree-level="ms"]').forEach((el) => el.hidden = !showMs);
   qsa('.degree-field[data-degree-level="phd"]').forEach((el) => el.hidden = !showPhd);
+  const isPi = group === 'pi' || course === 'professor';
+  const isResearch = group === 'researchProfessor' || course === 'postdoc';
+  if (elements.memberCourseScheduleWrap) elements.memberCourseScheduleWrap.hidden = !isPi;
+  if (elements.memberCoursesNoteField) elements.memberCoursesNoteField.hidden = !isPi;
+  if (elements.memberRelatedProjectsField) elements.memberRelatedProjectsField.hidden = !isResearch;
 }
+
 
 function renderMemberPublicationPicker(selected = []) {
   const container = qs('#member-publication-picker');
@@ -665,22 +746,22 @@ function openDialog({ title = '확인', message = '', inputLabel = '입력', def
     elements.dialogInputLabel.textContent = inputLabel;
     elements.dialogInput.value = defaultValue;
     elements.dialogInputWrap.hidden = type !== 'prompt';
+    elements.dialogInputWrap.style.display = type === 'prompt' ? '' : 'none';
     elements.dialogCancel.hidden = type === 'alert';
     elements.dialogCancel.textContent = cancelText;
     elements.dialogConfirm.textContent = confirmText;
     elements.dialog.hidden = false;
-    document.body.classList.add('modal-open');
     document.body.classList.add('modal-open');
     if (type === 'prompt') setTimeout(() => elements.dialogInput.focus(), 40);
     else setTimeout(() => elements.dialogConfirm.focus(), 40);
   });
 }
 
+
 function closeDialog(result = null) {
   if (!elements.dialog) return;
   elements.dialog.hidden = true;
   if (!state.openEditorKind) document.body.classList.remove('modal-open');
-  document.body.classList.remove('modal-open');
   const resolve = dialogState.resolve;
   dialogState.resolve = null;
   resolve?.(result);
@@ -698,14 +779,16 @@ function renderProjectLeadOptions() {
   const seen = new Set();
   const options = ['<option value="">선택</option>'];
   candidates.forEach((member) => {
-    if (!member.name || seen.has(member.name)) return;
-    seen.add(member.name);
-    const role = member.group === 'pi' ? '교수' : '연구교수 / 박사후연구원';
-    options.push(`<option value="${escapeHTML(member.name)}">${escapeHTML(member.name)} · ${escapeHTML(role)}</option>`);
+    const displayName = memberDisplayName(member);
+    if (!displayName || seen.has(displayName)) return;
+    seen.add(displayName);
+    const role = member.group === 'pi' ? '지도교수' : '연구교수 / 박사후연구원';
+    options.push(`<option value="${escapeHTML(displayName)}">${escapeHTML(displayName)} · ${escapeHTML(role)}</option>`);
   });
   elements.projectPrincipalInvestigator.innerHTML = options.join('');
   elements.projectPrincipalInvestigator.value = currentValue;
 }
+
 
 function setActiveTab(tabName) {
   state.activeTab = tabName;
@@ -743,6 +826,7 @@ function onBoardFilterClick(event) {
 }
 
 function onMemberPhotoChange(event) {
+  updateFileInputLabel(event.currentTarget, elements.memberPhotoFileName);
   const [file] = event.currentTarget.files || [];
   state.pendingMemberFile = file || null;
   state.memberPhotoRemoved = false;
@@ -756,6 +840,7 @@ function clearMemberPhoto() {
   if (state.pendingMemberPreview) URL.revokeObjectURL(state.pendingMemberPreview);
   state.pendingMemberPreview = '';
   if (elements.memberPhotoInput) elements.memberPhotoInput.value = '';
+  updateFileInputLabel(elements.memberPhotoInput, elements.memberPhotoFileName);
   if (state.editingMember) {
     state.editingMember.photoUrl = '';
     state.editingMember.photoPath = '';
@@ -790,6 +875,7 @@ function renderProjectFigurePreview() {
 }
 
 function onBoardImageChange(event) {
+  updateFileInputLabel(event.currentTarget, elements.boardImageFileName);
   const [file] = event.currentTarget.files || [];
   state.pendingBoardFile = file || null;
   if (state.pendingBoardPreview) URL.revokeObjectURL(state.pendingBoardPreview);
@@ -801,6 +887,7 @@ function clearBoardImage() {
   if (state.pendingBoardPreview) URL.revokeObjectURL(state.pendingBoardPreview);
   state.pendingBoardPreview = '';
   if (elements.boardImageInput) elements.boardImageInput.value = '';
+  updateFileInputLabel(elements.boardImageInput, elements.boardImageFileName);
   if (state.editingBoard) state.editingBoard.imageUrl = '';
   renderBoardImagePreview();
 }
@@ -816,10 +903,13 @@ function resetMemberForm() {
   state.pendingMemberFile = null;
   if (state.pendingMemberPreview) URL.revokeObjectURL(state.pendingMemberPreview);
   state.pendingMemberPreview = '';
+  state.memberPhotoRemoved = false;
   if (elements.memberTitle) elements.memberTitle.textContent = '멤버 추가';
   if (elements.memberPhotoInput) elements.memberPhotoInput.value = '';
+  updateFileInputLabel(elements.memberPhotoInput, elements.memberPhotoFileName);
   renderMemberPhotoPreview();
   renderMemberPublicationPicker([]);
+  renderMemberCourseSchedule([]);
   updateMemberEducationVisibility();
   renderProjectLeadOptions();
 }
@@ -841,6 +931,7 @@ function resetPublicationForm() {
 function resetBoardForm() {
   elements.boardForm?.reset();
   state.editingBoard = null;
+  updateFileInputLabel(elements.boardImageInput, elements.boardImageFileName);
   state.pendingBoardFile = null;
   if (state.pendingBoardPreview) URL.revokeObjectURL(state.pendingBoardPreview);
   state.pendingBoardPreview = '';
@@ -860,7 +951,7 @@ async function handleMemberSubmit(event) {
     course: String(formData.get('course') || 'ms'),
     email: String(formData.get('email') || '').trim(),
     bio: String(formData.get('bio') || '').trim(),
-    education: String(formData.get('education') || '').trim(),
+    education: state.editingMember?.education || '',
     experience: String(formData.get('experience') || '').trim(),
     researchInterest: String(formData.get('researchInterest') || '').trim(),
     bachelorsSchool: String(formData.get('bachelorsSchool') || '').trim(),
@@ -870,6 +961,7 @@ async function handleMemberSubmit(event) {
     doctoralSchool: String(formData.get('doctoralSchool') || '').trim(),
     doctoralMajor: String(formData.get('doctoralMajor') || '').trim(),
     coursesInfo: String(formData.get('coursesInfo') || '').trim(),
+    courseSchedule: collectMemberCourseSchedule(),
     relatedProjects: String(formData.get('relatedProjects') || '').trim(),
     publicationLinks: collectMemberPublicationLinks(),
     authorshipNote: '',
@@ -885,8 +977,15 @@ async function handleMemberSubmit(event) {
     photoPath: state.editingMember?.photoPath || '',
     photoRemoved: state.memberPhotoRemoved
   };
-  payload.education = buildEducationLines(payload) || String(formData.get('education') || '').trim();
+  payload.education = buildEducationLines(payload) || state.editingMember?.education || '';
   payload.authorshipNote = publicationLinksSummary(payload.publicationLinks);
+  if (!(payload.group === 'pi' || payload.course === 'professor')) {
+    payload.courseSchedule = [];
+    payload.coursesInfo = '';
+  }
+  if (!(payload.group === 'researchProfessor' || payload.course === 'postdoc')) {
+    payload.relatedProjects = '';
+  }
   if (!payload.nameKr && !payload.nameEn && !payload.name) return showNotice('이름을 입력해주세요.', 'warning');
   try {
     if (state.pendingMemberFile) {
@@ -953,12 +1052,12 @@ async function handleProjectSubmit(event) {
     status: String(formData.get('status') || 'ongoing'),
     period,
     year: extractYearFromPeriod(period),
-    leadRole: String(formData.get('leadRole') || 'principalInvestigator').trim(),
+    leadRole: String(formData.get('leadRole') || 'leadInstitutionInvestigator').trim(),
     principalInvestigator: String(formData.get('principalInvestigator') || '').trim(),
     coResearchers: '',
     figureUrl: state.editingProject?.figureUrl || '',
     figurePath: state.editingProject?.figurePath || '',
-    figureAspect: String(formData.get('figureAspect') || '16:9'),
+    figureAspect: state.editingProject?.figureAspect || '16:9',
     tagsKr: String(formData.get('tagsKr') || '').split(',').map((tag) => tag.trim()).filter(Boolean),
     tagsEn: String(formData.get('tagsEn') || '').split(',').map((tag) => tag.trim()).filter(Boolean),
     tags: String(formData.get('tagsKr') || formData.get('tagsEn') || '').split(',').map((tag) => tag.trim()).filter(Boolean),
@@ -966,14 +1065,6 @@ async function handleProjectSubmit(event) {
   };
   if (!payload.titleKr && !payload.titleEn) return showNotice('과제 제목을 입력해주세요.', 'warning');
   try {
-    if (state.pendingProjectFile) {
-      const upload = await uploadProjectFigure(state.pendingProjectFile);
-      if (state.editingProject?.figurePath && state.editingProject.figurePath !== upload.figurePath) {
-        try { await deleteStoragePath(state.editingProject.figurePath); } catch {}
-      }
-      payload.figureUrl = upload.figureUrl;
-      payload.figurePath = upload.figurePath;
-    }
     const id = await saveDocument(COLLECTIONS.projects, state.editingProject?.id || null, payload);
     state.projects = sortProjects(mergeProjects(state.projects, [{ ...payload, id, updatedAt: new Date().toISOString() }]));
     renderProjectsList();
@@ -996,8 +1087,8 @@ async function handlePublicationSubmit(event) {
     journal: String(formData.get('journal') || '').trim(),
     year: String(formData.get('year') || '').trim(),
     month: String(formData.get('month') || '').trim().padStart(2, '0'),
-    doi: String(formData.get('doi') || '').trim(),
-    url: String(formData.get('url') || '').trim(),
+    doi: normalizeDoiInput(String(formData.get('doi') || '').trim()),
+    url: '',
     abstract: String(formData.get('abstract') || '').trim(),
     indexing: String(formData.get('indexing') || '').trim(),
     sortOrder: state.editingPublication?.sortOrder ?? 999
@@ -1189,8 +1280,8 @@ function renderProjectFilterTabs() {
 }
 
 function projectItemMarkup(project) {
-  const roleMap = { principalInvestigator: '연구책임자', coPrincipalInvestigator: '공동연구책임자', leadInstitutionInvestigator: '주관책임자' };
-  const roleLabel = roleMap[project.leadRole] || '연구책임자';
+  const roleMap = { leadInstitutionInvestigator: '주관연구책임자', coPrincipalInvestigator: '공동연구책임자', principalInvestigator: '주관연구책임자' };
+  const roleLabel = roleMap[project.leadRole] || '주관연구책임자';
   return `
     <article class="admin-item-card">
       <div class="admin-item-main admin-item-main--single">
@@ -1371,9 +1462,12 @@ function onBoardListClick(event) {
 
 function loadMemberForm(member) {
   state.editingMember = member;
+  state.memberPhotoRemoved = false;
   elements.memberTitle.textContent = '멤버 수정';
   const form = elements.memberForm;
-  ['nameKr','nameEn','group','track','course','email','bio','education','experience','researchInterest','coursesInfo','relatedProjects','currentPosition','status','graduationYear','startYear','bachelorsSchool','bachelorsMajor','mastersSchool','mastersMajor','doctoralSchool','doctoralMajor'].forEach((field) => setFormValue(form, field, member[field] || ''));
+  ['nameKr','nameEn','group','track','course','email','bio','experience','researchInterest','coursesInfo','relatedProjects','currentPosition','status','graduationYear','startYear','bachelorsSchool','bachelorsMajor','mastersSchool','mastersMajor','doctoralSchool','doctoralMajor'].forEach((field) => setFormValue(form, field, member[field] || ''));
+  renderMemberCourseSchedule(member.courseSchedule || []);
+  updateFileInputLabel(elements.memberPhotoInput, elements.memberPhotoFileName);
   renderMemberPhotoPreview();
   renderMemberPublicationPicker(member.publicationLinks || []);
   updateMemberEducationVisibility();
@@ -1387,7 +1481,7 @@ function loadProjectForm(project) {
   setFormValue(form, 'titleEn', project.titleEn || project.title || '');
   setFormValue(form, 'descriptionKr', project.descriptionKr || project.description || '');
   setFormValue(form, 'descriptionEn', project.descriptionEn || project.description || '');
-  ['status','period','leadRole','principalInvestigator','figureAspect'].forEach((field) => setFormValue(form, field, project[field] || ''));
+  ['status','period','leadRole','principalInvestigator'].forEach((field) => setFormValue(form, field, project[field] || ''));
   renderProjectLeadOptions();
   setFormValue(form, 'tagsKr', ((project.tagsKr && project.tagsKr.length) ? project.tagsKr : project.tags || []).join(', '));
   setFormValue(form, 'tagsEn', ((project.tagsEn && project.tagsEn.length) ? project.tagsEn : project.tags || []).join(', '));
@@ -1398,7 +1492,7 @@ function loadPublicationForm(item) {
   state.editingPublication = item;
   elements.publicationTitle.textContent = '논문 수정';
   const form = elements.publicationForm;
-  ['title','authors','journal','year','month','doi','url','abstract','indexing'].forEach((field) => setFormValue(form, field, item[field] || ''));
+  ['title','authors','journal','year','month','doi','abstract','indexing'].forEach((field) => setFormValue(form, field, field === 'doi' ? (item.doi || item.url || '') : (item[field] || '')));
   openEditor('publication');
 }
 function loadBoardForm(item) {
@@ -1406,6 +1500,7 @@ function loadBoardForm(item) {
   elements.boardTitle.textContent = '게시글 수정';
   const form = elements.boardForm;
   ['category','title','description','linkUrl','date'].forEach((field) => setFormValue(form, field, item[field] || ''));
+  updateFileInputLabel(elements.boardImageInput, elements.boardImageFileName);
   renderBoardImagePreview();
   openEditor('board');
 }
@@ -1453,7 +1548,7 @@ async function quickRestore(member) {
   showNotice('재학 상태로 변경되었습니다.', 'success');
 }
 async function removeMember(member) {
-  const ok = await openDialog({ title: '멤버 삭제', message: `${member.name} 멤버를 삭제할까요?`, type: 'confirm' });
+  const ok = await openDialog({ title: '멤버 삭제', message: `${memberDisplayName(member)} 멤버를 삭제할까요?`, type: 'confirm' });
   if (!ok) return;
   try {
     if (member.photoPath) { try { await deleteStoragePath(member.photoPath); } catch {} }
@@ -1468,7 +1563,7 @@ async function removeMember(member) {
   }
 }
 async function removeProject(project) {
-  const ok = await openDialog({ title: '과제 삭제', message: `${project.title} 과제를 삭제할까요?`, type: 'confirm' });
+  const ok = await openDialog({ title: '과제 삭제', message: `${localizedProjectTitle(project, 'kr')} 과제를 삭제할까요?`, type: 'confirm' });
   if (!ok) return;
   try {
     if (project.figurePath) { try { await deleteStoragePath(project.figurePath); } catch {} }

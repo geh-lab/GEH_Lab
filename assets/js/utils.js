@@ -37,7 +37,7 @@ function mergeObjects(base = {}, override = {}) {
   const result = { ...base };
   Object.entries(override).forEach(([key, value]) => {
     if (Array.isArray(value)) {
-      if (value.length) result[key] = value;
+      result[key] = value;
       return;
     }
     if (key === 'photoRemoved' && value === true) {
@@ -63,7 +63,7 @@ function semanticKey(value = '') {
 }
 
 export function memberSemanticKey(item = {}) {
-  return semanticKey(item.id || item.name || '');
+  return semanticKey(item.email || item.id || item.nameKr || item.nameEn || item.name || '');
 }
 
 export function projectSemanticKey(item = {}) {
@@ -71,7 +71,7 @@ export function projectSemanticKey(item = {}) {
 }
 
 export function publicationSemanticKey(item = {}) {
-  return semanticKey(item.id || item.doi || item.url || `${item.year || ''}-${item.title || ''}`);
+  return semanticKey(item.doi || item.title || item.url || item.id || `${item.year || ''}-${item.title || ''}`);
 }
 
 export function boardSemanticKey(item = {}) {
@@ -122,6 +122,15 @@ export function formatDate(value, locale = 'ko-KR') {
 
 function normalizeString(value = '') {
   return String(value || '').trim().toLowerCase();
+}
+
+function normalizeDoiValue(value = '') {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const withoutLabel = text.replace(/^doi\s*:\s*/i, '').trim();
+  const doiUrlMatch = withoutLabel.match(/^https?:\/\/(?:dx\.)?doi\.org\/(.+)$/i);
+  if (doiUrlMatch?.[1]) return doiUrlMatch[1].trim();
+  return withoutLabel;
 }
 
 function hasExplicitKey(item = {}, key) {
@@ -276,6 +285,15 @@ function mapGroup(value = '', status = '', course = '') {
 }
 
 
+
+function mapProjectLeadRole(value = '') {
+  const text = normalizeString(value);
+  if (!text || text === 'principalinvestigator' || text === 'principal-investigator' || text === '연구책임자') return 'leadInstitutionInvestigator';
+  if (text === 'leadinstitutioninvestigator' || text === 'lead-institution-investigator' || text === '주관책임자' || text === '주관연구책임자') return 'leadInstitutionInvestigator';
+  if (text === 'coprincipalinvestigator' || text === 'co-principal-investigator' || text === '공동연구책임자') return 'coPrincipalInvestigator';
+  return 'leadInstitutionInvestigator';
+}
+
 function inferPublicationIndexing(journal = '') {
   const name = normalizeString(journal);
   if (!name) return '';
@@ -331,7 +349,14 @@ export function normalizeMember(item = {}, options = {}) {
     coursesInfo: item.coursesInfo || item.courseInfo || '',
     relatedProjects: item.relatedProjects || '',
     authorshipNote: item.authorshipNote || '',
-    publicationLinks: Array.isArray(item.publicationLinks) ? item.publicationLinks : [],
+    publicationLinks: Array.isArray(item.publicationLinks) ? item.publicationLinks : (preserveMissing ? undefined : []),
+    courseSchedule: Array.isArray(item.courseSchedule) ? item.courseSchedule.map((entry) => ({
+      day: entry?.day || '',
+      time: entry?.time || '',
+      courseName: entry?.courseName || '',
+      credits: entry?.credits || '',
+      description: entry?.description || ''
+    })) : (preserveMissing ? undefined : []),
     currentPosition: item.currentPosition || item.employment || '',
     status,
     graduationYear: item.graduationYear || '',
@@ -361,15 +386,25 @@ export function normalizeProject(item = {}, options = {}) {
     ? item.tags
     : hasExplicitKey(item, 'tags')
       ? String(item.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean)
-      : preserveMissing ? undefined : [];
+      : (preserveMissing ? undefined : []);
   const period = normalizeProjectPeriod(item.period || '');
   const year = item.year || extractYear(period);
   const titleKr = item.titleKr || item.title || '';
   const titleEn = item.titleEn || item.title || '';
   const descriptionKr = item.descriptionKr || item.description || item.desc || '';
   const descriptionEn = item.descriptionEn || item.description || item.desc || '';
-  const tagsKr = Array.isArray(item.tagsKr) ? item.tagsKr : hasExplicitKey(item, 'tagsKr') ? String(item.tagsKr || '').split(',').map((tag) => tag.trim()).filter(Boolean) : [];
-  const tagsEn = Array.isArray(item.tagsEn) ? item.tagsEn : hasExplicitKey(item, 'tagsEn') ? String(item.tagsEn || '').split(',').map((tag) => tag.trim()).filter(Boolean) : [];
+  const tagsKr = Array.isArray(item.tagsKr)
+    ? item.tagsKr
+    : hasExplicitKey(item, 'tagsKr')
+      ? String(item.tagsKr || '').split(',').map((tag) => tag.trim()).filter(Boolean)
+      : (preserveMissing ? undefined : []);
+  const tagsEn = Array.isArray(item.tagsEn)
+    ? item.tagsEn
+    : hasExplicitKey(item, 'tagsEn')
+      ? String(item.tagsEn || '').split(',').map((tag) => tag.trim()).filter(Boolean)
+      : (preserveMissing ? undefined : []);
+  const leadRole = hasExplicitKey(item, 'leadRole') ? mapProjectLeadRole(item.leadRole) : (preserveMissing ? undefined : 'leadInstitutionInvestigator');
+  const figureAspect = hasExplicitKey(item, 'figureAspect') ? (item.figureAspect || '16:9') : (preserveMissing ? undefined : '16:9');
   return {
     id: item.id || (!preserveMissing ? slugify(titleKr || titleEn || item.title || crypto.randomUUID()) : undefined),
     title: item.title || titleKr || titleEn || '',
@@ -381,11 +416,11 @@ export function normalizeProject(item = {}, options = {}) {
     status: preserveMissing ? explicitStatus : (explicitStatus || 'ongoing'),
     period,
     year,
-    leadRole: item.leadRole || 'principalInvestigator',
+    leadRole,
     principalInvestigator: item.principalInvestigator || item.pi || '',
-        figureUrl: item.figureUrl || item.imageUrl || '',
+    figureUrl: item.figureUrl || item.imageUrl || '',
     figurePath: item.figurePath || '',
-    figureAspect: item.figureAspect || '16:9',
+    figureAspect,
     tags,
     tagsKr,
     tagsEn,
@@ -401,6 +436,7 @@ export function normalizePublication(item = {}, options = {}) {
   const inferredIndexing = inferPublicationIndexing(item.journal || '');
   const year = derivePublicationYear(item);
   const month = derivePublicationMonth(item);
+  const doi = normalizeDoiValue(item.doi || '');
   return {
     id: item.id || (!preserveMissing ? slugify(`${year || ''}-${item.title || crypto.randomUUID()}`) : undefined),
     title: item.title || '',
@@ -408,7 +444,7 @@ export function normalizePublication(item = {}, options = {}) {
     journal: item.journal || '',
     year,
     month,
-    doi: item.doi || '',
+    doi,
     url: item.url || '',
     abstract: item.abstract || '',
     indexing: inferredIndexing || item.indexing || '',
@@ -578,8 +614,9 @@ export function lastUpdated(items = [], fallback) {
 
 export function resolvePublicationLink(item = {}) {
   if (item.url) return item.url;
-  if (item.doi) return /^https?:/i.test(item.doi) ? item.doi : `https://doi.org/${item.doi}`;
-  return '';
+  const doi = normalizeDoiValue(item.doi || '');
+  if (!doi) return '';
+  return /^https?:/i.test(doi) ? doi : `https://doi.org/${doi}`;
 }
 
 export function memberStatusLabel(member, lang = 'kr') {

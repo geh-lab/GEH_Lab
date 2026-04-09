@@ -2636,3 +2636,213 @@ article#member-editor-card::before,
     flex-wrap: wrap;
   }
 }
+
+
+/* ----- v27 modal/admin/member refinements ----- */
+.site-modal__dialog {
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.site-modal__scroll {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  max-height: none !important;
+}
+
+.site-modal__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.member-education-lines {
+  display: grid;
+  gap: .35rem;
+}
+
+.member-education-lines p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.member-education-lines--compact {
+  gap: .2rem;
+  margin-top: .75rem;
+}
+
+.member-education-lines--compact p {
+  font-size: .97rem;
+  line-height: 1.5;
+}
+
+.member-education-lines--panel p,
+.member-education-lines--detail p {
+  line-height: 1.6;
+}
+
+.pi-card-grid__full {
+  grid-column: 1 / -1;
+}
+
+.detail-note {
+  margin: .85rem 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.schedule-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+}
+
+.schedule-table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+}
+
+.schedule-table th,
+.schedule-table td {
+  padding: .8rem .95rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+
+.schedule-table th {
+  background: #f8fafc;
+  font-size: .88rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.schedule-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.field-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  flex-wrap: wrap;
+}
+
+.schedule-field[hidden],
+.admin-dialog__input-wrap[hidden] {
+  display: none !important;
+}
+
+.course-schedule-editor {
+  display: grid;
+  gap: .9rem;
+  margin-top: .35rem;
+}
+
+.course-schedule-row {
+  display: grid;
+  grid-template-columns: 110px 170px minmax(180px, 1fr) 90px minmax(220px, 1.2fr) auto;
+  gap: .75rem;
+  align-items: end;
+  padding: .95rem;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #fff;
+}
+
+.field--compact span {
+  font-size: .82rem;
+}
+
+.course-schedule-row__description {
+  min-width: 0;
+}
+
+.course-schedule-row__actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.file-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: .8rem;
+  min-height: 64px;
+  padding: .85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #fff;
+  cursor: pointer;
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.file-picker input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.file-picker__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: .72rem 1rem;
+  border-radius: 14px;
+  background: #111317;
+  color: #fff;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.file-picker__name {
+  min-width: 0;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.form-actions--upload {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.admin-dialog__panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-dialog__actions {
+  margin-top: .25rem;
+}
+
+@media (max-width: 960px) {
+  .course-schedule-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .course-schedule-row__description,
+  .course-schedule-row__actions {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .course-schedule-row {
+    grid-template-columns: 1fr;
+  }
+
+  .file-picker {
+    width: 100%;
+  }
+}
