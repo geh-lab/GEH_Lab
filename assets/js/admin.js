@@ -520,6 +520,15 @@ function bindEvents() {
     current.push({ period: '', detail: '' });
     renderMemberExperienceRows(current);
   });
+  qs('#member-publication-picker')?.addEventListener('click', onPublicationPickerClick);
+  document.addEventListener('pointerdown', (event) => {
+    if (!state.openEditorKind) return;
+    if (elements.dialog && !elements.dialog.hidden && elements.dialog.contains(event.target)) return;
+    const editor = editorElement(state.openEditorKind);
+    if (!editor || editor.hidden) return;
+    if (editor.contains(event.target)) return;
+    closeEditor(state.openEditorKind);
+  });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
     if (state.openEditorKind) closeEditor(state.openEditorKind);
@@ -546,6 +555,9 @@ function bindEvents() {
   elements.dialogCancel?.addEventListener('click', () => closeDialog(null));
   elements.dialogConfirm?.addEventListener('click', submitDialog);
   qsa('[data-dialog-close]').forEach((btn) => btn.addEventListener('click', () => closeDialog(null)));
+  elements.dialog?.addEventListener('click', (event) => {
+    if (event.target === elements.dialog || event.target.closest('[data-dialog-close]')) closeDialog(null);
+  });
 }
 
 
@@ -607,7 +619,16 @@ function renderMemberPublicationPicker(selected = []) {
   }
   const groups = Object.entries(groupBy(items, (pub) => pub.year || '미정'))
     .sort((a, b) => numericYearSort(b[0]) - numericYearSort(a[0]));
-  container.innerHTML = groups.map(([year, yearItems]) => `
+  const toolbar = `
+    <div class="publication-picker__toolbar">
+      <button type="button" class="small-button" data-publication-bulk="all">모두 선택</button>
+      <button type="button" class="small-button" data-publication-bulk="first">제1저자 전체</button>
+      <button type="button" class="small-button" data-publication-bulk="co">공동저자 전체</button>
+      <button type="button" class="small-button" data-publication-bulk="corresponding">교신저자 전체</button>
+      <button type="button" class="small-button secondary" data-publication-bulk="clear">전체 해제</button>
+    </div>
+  `;
+  container.innerHTML = toolbar + groups.map(([year, yearItems]) => `
     <section class="publication-picker__group">
       <div class="publication-picker__group-title">${escapeHTML(year)}</div>
       <div class="publication-picker__table">
@@ -636,6 +657,29 @@ function renderMemberPublicationPicker(selected = []) {
       </div>
     </section>
   `).join('');
+}
+
+function onPublicationPickerClick(event) {
+  const button = event.target.closest('[data-publication-bulk]');
+  if (!button) return;
+  const picker = qs('#member-publication-picker');
+  if (!picker) return;
+  const action = button.dataset.publicationBulk;
+  if (action === 'clear') {
+    picker.querySelectorAll('[data-pub-role]').forEach((input) => {
+      input.checked = false;
+    });
+    return;
+  }
+  if (action === 'all') {
+    picker.querySelectorAll('[data-pub-role]').forEach((input) => {
+      input.checked = true;
+    });
+    return;
+  }
+  picker.querySelectorAll(`[data-pub-role="${action}"]`).forEach((input) => {
+    input.checked = true;
+  });
 }
 
 function collectMemberPublicationLinks() {
@@ -873,7 +917,9 @@ async function moveItemToTrash(itemType, collectionName, item, title) {
   const deletedAt = now.toISOString();
   const purgeAfterAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
   const payload = { ...item, deleted: false, deletedAt: '', purgeAfterAt: '', trashExpired: false };
-  await saveDocument(COLLECTIONS.trash, null, {
+  const trashId = `${itemType}__${item.id}`;
+  const trashEntry = {
+    id: trashId,
     itemType,
     originalCollection: collectionName,
     originalId: item.id,
@@ -881,7 +927,8 @@ async function moveItemToTrash(itemType, collectionName, item, title) {
     deletedAt,
     purgeAfterAt,
     payload
-  });
+  };
+  await saveDocument(COLLECTIONS.trash, trashId, trashEntry);
   await saveDocument(collectionName, item.id, {
     id: item.id,
     deleted: true,
@@ -889,6 +936,7 @@ async function moveItemToTrash(itemType, collectionName, item, title) {
     purgeAfterAt,
     trashExpired: false
   });
+  return trashEntry;
 }
 
 async function restoreTrashItem(item) {
@@ -1786,7 +1834,8 @@ function loadBoardForm(item) {
   state.editingBoard = item;
   elements.boardTitle.textContent = '게시글 수정';
   const form = elements.boardForm;
-  ['category','title','description','linkUrl','date'].forEach((field) => setFormValue(form, field, item[field] || ''));
+  setFormValue(form, 'category', item.category || 'notice');
+  ['title','description','linkUrl','date'].forEach((field) => setFormValue(form, field, item[field] || ''));
   state.boardImageRemoved = false;
   updateFileInputLabel(elements.boardImageInput, elements.boardImageFileName);
   renderBoardImagePreview();
@@ -1839,8 +1888,9 @@ async function removeMember(member) {
   const ok = await openDialog({ title: '멤버 삭제', message: `${memberDisplayName(member)} 멤버를 휴지통으로 이동할까요?`, type: 'confirm' });
   if (!ok) return;
   try {
-    await moveItemToTrash('member', COLLECTIONS.members, member, memberDisplayName(member));
+    const trashEntry = await moveItemToTrash('member', COLLECTIONS.members, member, memberDisplayName(member));
     state.members = state.members.filter((item) => item.id !== member.id);
+    state.trash = sortTrashItems([trashEntry, ...state.trash.filter((item) => item.id !== trashEntry.id)]);
     renderMembersList();
     renderTrashList();
     renderSummary();
@@ -1855,8 +1905,9 @@ async function removeProject(project) {
   const ok = await openDialog({ title: '과제 삭제', message: `${title} 과제를 휴지통으로 이동할까요?`, type: 'confirm' });
   if (!ok) return;
   try {
-    await moveItemToTrash('project', COLLECTIONS.projects, project, title);
+    const trashEntry = await moveItemToTrash('project', COLLECTIONS.projects, project, title);
     state.projects = state.projects.filter((item) => item.id !== project.id);
+    state.trash = sortTrashItems([trashEntry, ...state.trash.filter((item) => item.id !== trashEntry.id)]);
     renderProjectsList();
     renderTrashList();
     renderSummary();
@@ -1870,8 +1921,9 @@ async function removePublication(item) {
   const ok = await openDialog({ title: '논문 삭제', message: `${item.title} 논문을 휴지통으로 이동할까요?`, type: 'confirm' });
   if (!ok) return;
   try {
-    await moveItemToTrash('publication', COLLECTIONS.publications, item, item.title);
+    const trashEntry = await moveItemToTrash('publication', COLLECTIONS.publications, item, item.title);
     state.publications = state.publications.filter((pub) => pub.id !== item.id);
+    state.trash = sortTrashItems([trashEntry, ...state.trash.filter((entry) => entry.id !== trashEntry.id)]);
     renderPublicationsList();
     renderTrashList();
     renderSummary();
@@ -1885,8 +1937,9 @@ async function removeBoard(item) {
   const ok = await openDialog({ title: '게시글 삭제', message: `${item.title} 게시글을 휴지통으로 이동할까요?`, type: 'confirm' });
   if (!ok) return;
   try {
-    await moveItemToTrash('board', COLLECTIONS.board, item, item.title);
+    const trashEntry = await moveItemToTrash('board', COLLECTIONS.board, item, item.title);
     state.board = state.board.filter((entry) => entry.id !== item.id);
+    state.trash = sortTrashItems([trashEntry, ...state.trash.filter((entry) => entry.id !== trashEntry.id)]);
     renderBoardList();
     renderTrashList();
     renderSummary();
@@ -1902,6 +1955,9 @@ async function restoreTrash(item) {
   if (!ok) return;
   try {
     await restoreTrashItem(item);
+    state.trash = state.trash.filter((entry) => entry.id !== item.id);
+    renderTrashList();
+    renderSummary();
     showNotice('항목이 복원되었습니다.', 'success');
   } catch (error) {
     console.error(error);
@@ -1914,6 +1970,9 @@ async function purgeTrash(item) {
   if (!ok) return;
   try {
     await permanentlyDeleteTrashItem(item);
+    state.trash = state.trash.filter((entry) => entry.id !== item.id);
+    renderTrashList();
+    renderSummary();
   } catch (error) {
     console.error(error);
     showNotice(adminErrorMessage(error, '영구 삭제에 실패했습니다.'), 'danger');
