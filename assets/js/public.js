@@ -35,6 +35,14 @@ const copy = SITE_COPY[lang];
 const qs = (selector) => document.querySelector(selector);
 const qsa = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
 
+function firstFilled(...values) {
+  for (const value of values) {
+    const text = String(value || '').trim();
+    if (text) return text;
+  }
+  return '';
+}
+
 function stretchProjectGrid(grid) {
   if (!grid) return;
   grid.style.alignItems = 'stretch';
@@ -132,14 +140,24 @@ function detailHtmlSection(title, html = '') {
   `;
 }
 
+function memberEducationValue(member = {}, baseKey = '', locale = lang) {
+  const primarySuffix = locale === 'en' ? 'En' : 'Kr';
+  const secondarySuffix = locale === 'en' ? 'Kr' : 'En';
+  return firstFilled(
+    member[`${baseKey}${primarySuffix}`],
+    member[baseKey],
+    member[`${baseKey}${secondarySuffix}`]
+  );
+}
+
 function memberEducationLines(member = {}, locale = lang) {
   const degreeLabels = locale === 'en'
     ? { bs: 'B.S.', ms: 'M.S.', phd: 'Ph.D.' }
     : { bs: '학사', ms: '석사', phd: '박사' };
   const specs = [
-    ['bs', member.bachelorsSchool, member.bachelorsMajor],
-    ['ms', member.mastersSchool, member.mastersMajor],
-    ['phd', member.doctoralSchool, member.doctoralMajor]
+    ['bs', memberEducationValue(member, 'bachelorsSchool', locale), memberEducationValue(member, 'bachelorsMajor', locale)],
+    ['ms', memberEducationValue(member, 'mastersSchool', locale), memberEducationValue(member, 'mastersMajor', locale)],
+    ['phd', memberEducationValue(member, 'doctoralSchool', locale), memberEducationValue(member, 'doctoralMajor', locale)]
   ];
   const lines = specs
     .filter(([, school, major]) => String(school || '').trim() || String(major || '').trim())

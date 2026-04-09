@@ -572,14 +572,34 @@ function educationLevelForMember(formOrMember = {}) {
   return 'phd';
 }
 
+function firstFilledValue(...values) {
+  for (const value of values) {
+    const text = String(value || '').trim();
+    if (text) return text;
+  }
+  return '';
+}
+
+function degreeValue(payload = {}, key, locale = 'en') {
+  const suffix = locale === 'kr' ? 'Kr' : 'En';
+  const opposite = locale === 'kr' ? 'En' : 'Kr';
+  return firstFilledValue(payload[`${key}${suffix}`], payload[key], payload[`${key}${opposite}`]);
+}
+
 function buildEducationLines(payload = {}) {
   const lines = [];
-  if (payload.bachelorsSchool || payload.bachelorsMajor) lines.push(`B.S. ${payload.bachelorsSchool || ''}${payload.bachelorsMajor ? `
-${payload.bachelorsMajor}` : ''}`.trim());
-  if (payload.mastersSchool || payload.mastersMajor) lines.push(`M.S. ${payload.mastersSchool || ''}${payload.mastersMajor ? `
-${payload.mastersMajor}` : ''}`.trim());
-  if (payload.doctoralSchool || payload.doctoralMajor) lines.push(`Ph.D. ${payload.doctoralSchool || ''}${payload.doctoralMajor ? `
-${payload.doctoralMajor}` : ''}`.trim());
+  const bsSchool = degreeValue(payload, 'bachelorsSchool', 'en');
+  const bsMajor = degreeValue(payload, 'bachelorsMajor', 'en');
+  const msSchool = degreeValue(payload, 'mastersSchool', 'en');
+  const msMajor = degreeValue(payload, 'mastersMajor', 'en');
+  const phdSchool = degreeValue(payload, 'doctoralSchool', 'en');
+  const phdMajor = degreeValue(payload, 'doctoralMajor', 'en');
+  if (bsSchool || bsMajor) lines.push(`B.S. ${bsSchool || ''}${bsMajor ? `
+${bsMajor}` : ''}`.trim());
+  if (msSchool || msMajor) lines.push(`M.S. ${msSchool || ''}${msMajor ? `
+${msMajor}` : ''}`.trim());
+  if (phdSchool || phdMajor) lines.push(`Ph.D. ${phdSchool || ''}${phdMajor ? `
+${phdMajor}` : ''}`.trim());
   return lines.join('\n');
 }
 
@@ -1198,6 +1218,18 @@ function resetBoardForm() {
 async function handleMemberSubmit(event) {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
+  const bachelorsSchoolKr = String(formData.get('bachelorsSchoolKr') || '').trim();
+  const bachelorsSchoolEn = String(formData.get('bachelorsSchoolEn') || '').trim();
+  const bachelorsMajorKr = String(formData.get('bachelorsMajorKr') || '').trim();
+  const bachelorsMajorEn = String(formData.get('bachelorsMajorEn') || '').trim();
+  const mastersSchoolKr = String(formData.get('mastersSchoolKr') || '').trim();
+  const mastersSchoolEn = String(formData.get('mastersSchoolEn') || '').trim();
+  const mastersMajorKr = String(formData.get('mastersMajorKr') || '').trim();
+  const mastersMajorEn = String(formData.get('mastersMajorEn') || '').trim();
+  const doctoralSchoolKr = String(formData.get('doctoralSchoolKr') || '').trim();
+  const doctoralSchoolEn = String(formData.get('doctoralSchoolEn') || '').trim();
+  const doctoralMajorKr = String(formData.get('doctoralMajorKr') || '').trim();
+  const doctoralMajorEn = String(formData.get('doctoralMajorEn') || '').trim();
   const payload = {
     nameKr: String(formData.get('nameKr') || '').trim(),
     nameEn: String(formData.get('nameEn') || '').trim(),
@@ -1211,12 +1243,24 @@ async function handleMemberSubmit(event) {
     experienceEntries: collectMemberExperienceEntries(),
     experience: '',
     researchInterest: String(formData.get('researchInterest') || '').trim(),
-    bachelorsSchool: String(formData.get('bachelorsSchool') || '').trim(),
-    bachelorsMajor: String(formData.get('bachelorsMajor') || '').trim(),
-    mastersSchool: String(formData.get('mastersSchool') || '').trim(),
-    mastersMajor: String(formData.get('mastersMajor') || '').trim(),
-    doctoralSchool: String(formData.get('doctoralSchool') || '').trim(),
-    doctoralMajor: String(formData.get('doctoralMajor') || '').trim(),
+    bachelorsSchoolKr,
+    bachelorsSchoolEn,
+    bachelorsMajorKr,
+    bachelorsMajorEn,
+    mastersSchoolKr,
+    mastersSchoolEn,
+    mastersMajorKr,
+    mastersMajorEn,
+    doctoralSchoolKr,
+    doctoralSchoolEn,
+    doctoralMajorKr,
+    doctoralMajorEn,
+    bachelorsSchool: firstFilledValue(bachelorsSchoolEn, bachelorsSchoolKr),
+    bachelorsMajor: firstFilledValue(bachelorsMajorEn, bachelorsMajorKr),
+    mastersSchool: firstFilledValue(mastersSchoolEn, mastersSchoolKr),
+    mastersMajor: firstFilledValue(mastersMajorEn, mastersMajorKr),
+    doctoralSchool: firstFilledValue(doctoralSchoolEn, doctoralSchoolKr),
+    doctoralMajor: firstFilledValue(doctoralMajorEn, doctoralMajorKr),
     coursesInfo: String(formData.get('coursesInfo') || '').trim(),
     courseSchedule: collectMemberCourseSchedule(),
     relatedProjects: String(formData.get('relatedProjects') || '').trim(),
@@ -1798,7 +1842,21 @@ function loadMemberForm(member) {
   state.memberPhotoRemoved = false;
   elements.memberTitle.textContent = '멤버 수정';
   const form = elements.memberForm;
-  ['nameKr','nameEn','group','track','course','email','bio','experience','researchInterest','coursesInfo','relatedProjects','currentPosition','status','graduationYear','startYear','bachelorsSchool','bachelorsMajor','mastersSchool','mastersMajor','doctoralSchool','doctoralMajor'].forEach((field) => setFormValue(form, field, member[field] || ''));
+  ['nameKr','nameEn','group','track','course','email','bio','experience','researchInterest','coursesInfo','relatedProjects','currentPosition','status','graduationYear','startYear'].forEach((field) => setFormValue(form, field, member[field] || ''));
+  [
+    ['bachelorsSchoolKr', member.bachelorsSchoolKr || ''],
+    ['bachelorsSchoolEn', member.bachelorsSchoolEn || member.bachelorsSchool || ''],
+    ['bachelorsMajorKr', member.bachelorsMajorKr || ''],
+    ['bachelorsMajorEn', member.bachelorsMajorEn || member.bachelorsMajor || ''],
+    ['mastersSchoolKr', member.mastersSchoolKr || ''],
+    ['mastersSchoolEn', member.mastersSchoolEn || member.mastersSchool || ''],
+    ['mastersMajorKr', member.mastersMajorKr || ''],
+    ['mastersMajorEn', member.mastersMajorEn || member.mastersMajor || ''],
+    ['doctoralSchoolKr', member.doctoralSchoolKr || ''],
+    ['doctoralSchoolEn', member.doctoralSchoolEn || member.doctoralSchool || ''],
+    ['doctoralMajorKr', member.doctoralMajorKr || ''],
+    ['doctoralMajorEn', member.doctoralMajorEn || member.doctoralMajor || '']
+  ].forEach(([field, value]) => setFormValue(form, field, value));
   renderMemberCourseSchedule(member.courseSchedule || []);
   renderMemberExperienceRows(member.experienceEntries || []);
   updateFileInputLabel(elements.memberPhotoInput, elements.memberPhotoFileName);

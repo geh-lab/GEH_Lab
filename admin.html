@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GEH Lab 관리자</title>
   <meta name="description" content="GEH Lab Firebase 관리자 페이지">
-  <link rel="stylesheet" href="assets/css/styles.css?v=32">
+  <link rel="stylesheet" href="assets/css/styles.css?v=33">
 </head>
 <body class="admin-body" data-root=".">
   <div class="admin-shell">
@@ -98,13 +98,34 @@
               <div class="experience-editor" id="member-experience-list"></div>
             </section>
             <label class="field"><span>연구 관심 분야</span><textarea name="researchInterest"></textarea></label>
-            <div class="form-grid form-grid--double degree-grid" id="member-degree-grid">
-              <label class="field degree-field" data-degree-level="bs"><span>학사 학교</span><input name="bachelorsSchool" type="text"></label>
-              <label class="field degree-field" data-degree-level="bs"><span>학사 전공</span><input name="bachelorsMajor" type="text"></label>
-              <label class="field degree-field" data-degree-level="ms"><span>석사 학교</span><input name="mastersSchool" type="text"></label>
-              <label class="field degree-field" data-degree-level="ms"><span>석사 전공</span><input name="mastersMajor" type="text"></label>
-              <label class="field degree-field" data-degree-level="phd"><span>박사 학교</span><input name="doctoralSchool" type="text"></label>
-              <label class="field degree-field" data-degree-level="phd"><span>박사 전공</span><input name="doctoralMajor" type="text"></label>
+            <div class="degree-sections" id="member-degree-grid">
+              <section class="degree-section degree-field" data-degree-level="bs">
+                <div class="degree-section__head"><strong>학사</strong><small>B.S.</small></div>
+                <div class="form-grid form-grid--double degree-section__grid">
+                  <label class="field"><span>학교 (한국어)</span><input name="bachelorsSchoolKr" type="text"></label>
+                  <label class="field"><span>School (English)</span><input name="bachelorsSchoolEn" type="text"></label>
+                  <label class="field"><span>전공 (한국어)</span><input name="bachelorsMajorKr" type="text"></label>
+                  <label class="field"><span>Major (English)</span><input name="bachelorsMajorEn" type="text"></label>
+                </div>
+              </section>
+              <section class="degree-section degree-field" data-degree-level="ms">
+                <div class="degree-section__head"><strong>석사</strong><small>M.S.</small></div>
+                <div class="form-grid form-grid--double degree-section__grid">
+                  <label class="field"><span>학교 (한국어)</span><input name="mastersSchoolKr" type="text"></label>
+                  <label class="field"><span>School (English)</span><input name="mastersSchoolEn" type="text"></label>
+                  <label class="field"><span>전공 (한국어)</span><input name="mastersMajorKr" type="text"></label>
+                  <label class="field"><span>Major (English)</span><input name="mastersMajorEn" type="text"></label>
+                </div>
+              </section>
+              <section class="degree-section degree-field" data-degree-level="phd">
+                <div class="degree-section__head"><strong>박사</strong><small>Ph.D.</small></div>
+                <div class="form-grid form-grid--double degree-section__grid">
+                  <label class="field"><span>학교 (한국어)</span><input name="doctoralSchoolKr" type="text"></label>
+                  <label class="field"><span>School (English)</span><input name="doctoralSchoolEn" type="text"></label>
+                  <label class="field"><span>전공 (한국어)</span><input name="doctoralMajorKr" type="text"></label>
+                  <label class="field"><span>Major (English)</span><input name="doctoralMajorEn" type="text"></label>
+                </div>
+              </section>
             </div>
             <section class="field schedule-field" id="member-course-schedule-wrap" hidden>
               <div class="field-heading-row">
@@ -221,6 +242,6 @@
   </div>
 
 <script src="firebase-config.js"></script>
-  <script type="module" src="assets/js/admin.js?v=32"></script>
+  <script type="module" src="assets/js/admin.js?v=33"></script>
 </body>
 </html>

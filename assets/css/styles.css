@@ -2744,6 +2744,41 @@ article#member-editor-card::before,
   flex-wrap: wrap;
 }
 
+.degree-sections {
+  display: grid;
+  gap: 1rem;
+}
+
+.degree-section {
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 1.1rem;
+  background: #fff;
+}
+
+.degree-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-bottom: .9rem;
+}
+
+.degree-section__head strong {
+  font-size: 1rem;
+  color: var(--ink);
+}
+
+.degree-section__head small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.degree-section__grid {
+  gap: .9rem 1rem;
+}
+
+
 .experience-editor {
   display: grid;
   gap: .9rem;
