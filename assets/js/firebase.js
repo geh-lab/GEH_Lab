@@ -33,7 +33,8 @@ export const COLLECTIONS = {
   members: 'members',
   projects: 'projects',
   publications: 'publications',
-  board: 'boardPosts'
+  board: 'boardPosts',
+  trash: 'trash'
 };
 
 const firebaseConfig = window.GEH_FIREBASE_CONFIG?.apiKey ? window.GEH_FIREBASE_CONFIG : null;
@@ -163,6 +164,60 @@ function readFileAsDataURL(file) {
     reader.onerror = () => reject(reader.error || new Error('파일을 읽지 못했습니다.'));
     reader.readAsDataURL(file);
   });
+}
+
+function estimateDataUrlBytes(dataUrl = '') {
+  const base64 = String(dataUrl || '').split(',')[1] || '';
+  const padding = (base64.match(/=+$/)?.[0]?.length) || 0;
+  return Math.max(0, Math.floor(base64.length * 3 / 4) - padding);
+}
+
+function loadImageElement(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('이미지를 불러오지 못했습니다.'));
+    image.src = src;
+  });
+}
+
+async function compressImageForFirestore(file, options = {}) {
+  const maxWidth = options.maxWidth || 1400;
+  const maxHeight = options.maxHeight || 1400;
+  const maxBytes = options.maxBytes || 650 * 1024;
+  const dataUrl = await readFileAsDataURL(file);
+  const image = await loadImageElement(dataUrl);
+  let width = image.naturalWidth || image.width || 0;
+  let height = image.naturalHeight || image.height || 0;
+  if (!width || !height) return dataUrl;
+  let scale = Math.min(1, maxWidth / width, maxHeight / height);
+  width = Math.max(1, Math.round(width * scale));
+  height = Math.max(1, Math.round(height * scale));
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const render = () => {
+    canvas.width = width;
+    canvas.height = height;
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(image, 0, 0, width, height);
+  };
+  render();
+  let quality = 0.86;
+  let output = canvas.toDataURL('image/jpeg', quality);
+  while (estimateDataUrlBytes(output) > maxBytes && quality > 0.5) {
+    quality -= 0.08;
+    output = canvas.toDataURL('image/jpeg', quality);
+  }
+  while (estimateDataUrlBytes(output) > maxBytes && (width > 720 || height > 720)) {
+    width = Math.max(720, Math.round(width * 0.86));
+    height = Math.max(720, Math.round(height * 0.86));
+    render();
+    output = canvas.toDataURL('image/jpeg', Math.max(quality, 0.72));
+  }
+  if (estimateDataUrlBytes(output) > maxBytes) {
+    throw new Error('maximum document size exceeded');
+  }
+  return output;
 }
 
 export async function signInAdminWithGoogle() {
@@ -370,8 +425,8 @@ export async function uploadProjectFigure(file) {
 }
 
 export async function uploadBoardImage(file) {
-  const asset = await uploadAsset(file, 'board-media');
-  return { imageUrl: asset.url, imagePath: asset.path };
+  const imageUrl = await compressImageForFirestore(file);
+  return { imageUrl, imagePath: '' };
 }
 
 export async function deleteStoragePath(path) {

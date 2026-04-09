@@ -222,6 +222,8 @@ export const FALLBACK_MEMBERS = [
   {
     "id": "kwangya-lee",
     "name": "Kwangya Lee",
+    "nameKr": "이광야",
+    "nameEn": "Kwangya Lee",
     "group": "researchProfessor",
     "track": "none",
     "course": "postdoc",
@@ -243,6 +245,8 @@ export const FALLBACK_MEMBERS = [
   },
   {
     "id": "vu-phong-lam",
+    "nameKr": "부풍람",
+    "nameEn": "Vu Phong Lam",
     "name": "Vu Phong Lam",
     "group": "researchProfessor",
     "track": "none",

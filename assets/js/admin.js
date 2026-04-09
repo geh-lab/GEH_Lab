@@ -28,7 +28,8 @@ import {
   publicationIndexingLabel,
   publicationYearMonthLabel,
   normalizeProjectPeriod,
-  groupBy
+  groupBy,
+  isActiveItem
 } from './utils.js';
 import {
   auth,
@@ -55,6 +56,7 @@ const state = {
   projects: sortProjects(FALLBACK_PROJECTS),
   publications: sortPublications(FALLBACK_PUBLICATIONS),
   board: sortBoardPosts(FALLBACK_BOARD_POSTS),
+  trash: [],
   editingMember: null,
   editingProject: null,
   editingPublication: null,
@@ -66,6 +68,7 @@ const state = {
   pendingProjectPreview: '',
   pendingBoardFile: null,
   pendingBoardPreview: '',
+  boardImageRemoved: false,
   seeded: false,
   unsubs: [],
   authResolved: false,
@@ -75,10 +78,12 @@ const state = {
   projectFilter: 'all',
   publicationFilter: 'all',
   boardFilter: 'all',
+  trashFilter: 'all',
   memberPage: 1,
   projectPage: 1,
   publicationPage: 1,
   boardPage: 1,
+  trashPage: 1,
   pageSize: 10
 };
 
@@ -112,6 +117,8 @@ const elements = {
   memberCourseScheduleAdd: qs('#member-course-schedule-add'),
   memberCoursesNoteField: qs('#member-courses-note-field'),
   memberRelatedProjectsField: qs('#member-related-projects-field'),
+  memberExperienceList: qs('#member-experience-list'),
+  memberExperienceAdd: qs('#member-experience-add'),
   memberFilterTabs: qs('#member-filter-tabs'),
   projectForm: qs('#project-form'),
   projectList: qs('#project-list'),
@@ -142,10 +149,14 @@ const elements = {
   boardImagePreview: qs('#board-image-preview'),
   boardImageRemove: qs('#board-image-remove'),
   boardImageFileName: qs('#board-image-file-name'),
+  trashList: qs('#trash-list'),
+  trashPagination: qs('#trash-pagination'),
+  trashFilterTabs: qs('#trash-filter-tabs'),
   summaryMembers: qs('#summary-members'),
   summaryProjects: qs('#summary-projects'),
   summaryPublications: qs('#summary-publications'),
   summaryBoard: qs('#summary-board'),
+  summaryTrash: qs('#summary-trash'),
   dialog: qs('#admin-dialog'),
   dialogTitle: qs('#admin-dialog-title'),
   dialogMessage: qs('#admin-dialog-message'),
@@ -212,6 +223,76 @@ function memberDisplayName(member = {}) {
   return member.nameKr || member.nameEn || member.name || '';
 }
 
+function normalizeLookupKey(value = '') {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9가-힣]+/g, '');
+}
+
+function findMemberByAnyName(value = '') {
+  const target = normalizeLookupKey(value);
+  if (!target) return null;
+  return state.members.find((member) => {
+    return [member.id, member.nameKr, member.nameEn, member.name].some((candidate) => normalizeLookupKey(candidate) === target);
+  }) || null;
+}
+
+function resolveProjectInvestigatorMember(project = {}) {
+  if (project.principalInvestigatorId) {
+    const byId = state.members.find((member) => member.id === project.principalInvestigatorId);
+    if (byId) return byId;
+  }
+  return findMemberByAnyName(project.principalInvestigator || '');
+}
+
+function projectInvestigatorDisplay(project = {}, locale = 'kr') {
+  const member = resolveProjectInvestigatorMember(project);
+  if (member) return locale === 'en' ? (member.nameEn || member.name || member.nameKr || '') : (member.nameKr || member.name || member.nameEn || '');
+  return project.principalInvestigator || '';
+}
+
+function activeItems(items = []) {
+  return (Array.isArray(items) ? items : []).filter(isActiveItem);
+}
+
+function experienceRowTemplate(entry = {}, index = 0) {
+  return `
+    <article class="experience-row" data-experience-row="${index}">
+      <label class="field field--compact"><span>연도</span><input data-experience-field="period" type="text" value="${escapeHTML(entry.period || '')}" placeholder="2006–2008"></label>
+      <label class="field field--compact experience-row__detail"><span>경력 (직위 | 소속)</span><input data-experience-field="detail" type="text" value="${escapeHTML(entry.detail || '')}" placeholder="Postdoctoral Fellow | University of Tokyo"></label>
+      <div class="experience-row__actions"><button type="button" class="small-button is-danger" data-experience-remove>삭제</button></div>
+    </article>
+  `;
+}
+
+function renderMemberExperienceRows(entries = []) {
+  if (!elements.memberExperienceList) return;
+  const rows = Array.isArray(entries) && entries.length ? entries : [{ period: '', detail: '' }];
+  elements.memberExperienceList.innerHTML = rows.map((entry, index) => experienceRowTemplate(entry, index)).join('');
+  elements.memberExperienceList.querySelectorAll('[data-experience-remove]').forEach((button) => {
+    button.addEventListener('click', () => {
+      button.closest('.experience-row')?.remove();
+      if (!elements.memberExperienceList?.children.length) renderMemberExperienceRows([]);
+    });
+  });
+}
+
+function collectMemberExperienceEntries() {
+  const list = elements.memberExperienceList;
+  if (!list) return [];
+  return Array.from(list.querySelectorAll('.experience-row')).map((row) => ({
+    period: String(row.querySelector('[data-experience-field="period"]')?.value || '').trim(),
+    detail: String(row.querySelector('[data-experience-field="detail"]')?.value || '').trim()
+  })).filter((entry) => entry.period || entry.detail);
+}
+
+function buildExperienceText(entries = []) {
+  return (Array.isArray(entries) ? entries : []).map((entry) => {
+    const period = String(entry?.period || '').trim();
+    const detail = String(entry?.detail || '').trim();
+    if (period && detail) return `${period} | ${detail}`;
+    return detail || period;
+  }).filter(Boolean).join('\n');
+}
+
 function courseScheduleRowTemplate(entry = {}, index = 0) {
   const days = [
     ['월', '월'], ['화', '화'], ['수', '수'], ['목', '목'], ['금', '금']
@@ -259,7 +340,7 @@ function numericYearSort(value) {
 
 function adminErrorMessage(error, fallback) {
   if (error?.code === 'permission-denied' || /Missing or insufficient permissions/i.test(error?.message || '')) {
-    return `${fallback} Firestore 보안 규칙에 ${COLLECTIONS.board} / ${COLLECTIONS.members} / ${COLLECTIONS.projects} / ${COLLECTIONS.publications} 쓰기 권한이 반영되었는지 확인해주세요.`;
+    return `${fallback} Firestore 보안 규칙에 ${COLLECTIONS.board} / ${COLLECTIONS.members} / ${COLLECTIONS.projects} / ${COLLECTIONS.publications} / ${COLLECTIONS.trash} 쓰기 권한이 반영되었는지 확인해주세요.`;
   }
   return error?.message || fallback;
 }
@@ -423,6 +504,7 @@ function bindEvents() {
   elements.projectFilterTabs?.addEventListener('click', onProjectFilterClick);
   elements.publicationFilterTabs?.addEventListener('click', onPublicationFilterClick);
   elements.boardFilterTabs?.addEventListener('click', onBoardFilterClick);
+  elements.trashFilterTabs?.addEventListener('click', onTrashFilterClick);
   elements.memberForm?.addEventListener('submit', handleMemberSubmit);
   elements.memberForm?.elements?.namedItem('nameKr')?.addEventListener('input', syncMemberNameField);
   elements.memberForm?.elements?.namedItem('nameEn')?.addEventListener('input', syncMemberNameField);
@@ -432,6 +514,11 @@ function bindEvents() {
     const current = collectMemberCourseSchedule();
     current.push({ day: '월', time: '', courseName: '', credits: '', description: '' });
     renderMemberCourseSchedule(current);
+  });
+  elements.memberExperienceAdd?.addEventListener('click', () => {
+    const current = collectMemberExperienceEntries();
+    current.push({ period: '', detail: '' });
+    renderMemberExperienceRows(current);
   });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
@@ -455,6 +542,7 @@ function bindEvents() {
   elements.projectList?.addEventListener('click', onProjectListClick);
   elements.publicationList?.addEventListener('click', onPublicationListClick);
   elements.boardList?.addEventListener('click', onBoardListClick);
+  elements.trashList?.addEventListener('click', onTrashListClick);
   elements.dialogCancel?.addEventListener('click', () => closeDialog(null));
   elements.dialogConfirm?.addEventListener('click', submitDialog);
   qsa('[data-dialog-close]').forEach((btn) => btn.addEventListener('click', () => closeDialog(null)));
@@ -666,11 +754,12 @@ async function ensureSeeded() {
   if (!state.user || state.seeded) return;
   state.seeded = true;
   try {
-    const [members, projects, publications, board] = await Promise.all([
+    const [members, projects, publications, board, trash] = await Promise.all([
       fetchCollection(COLLECTIONS.members),
       fetchCollection(COLLECTIONS.projects),
       fetchCollection(COLLECTIONS.publications),
-      fetchCollection(COLLECTIONS.board)
+      fetchCollection(COLLECTIONS.board),
+      fetchCollection(COLLECTIONS.trash)
     ]);
 
     const seedMissing = async (collectionName, existingItems, fallbackItems, normalizer, keyGetter) => {
@@ -698,26 +787,32 @@ function attachListeners() {
   teardownListeners();
   state.unsubs = [
     listenCollection(COLLECTIONS.members, (items) => {
-      state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, items));
+      state.members = activeItems(sortMembers(mergeMembers(FALLBACK_MEMBERS, items)));
       renderMembersList();
       renderProjectLeadOptions();
       renderMemberPublicationPicker(state.editingMember?.publicationLinks || []);
       renderSummary();
     }),
     listenCollection(COLLECTIONS.projects, (items) => {
-      state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, items));
+      state.projects = activeItems(sortProjects(mergeProjects(FALLBACK_PROJECTS, items)));
       renderProjectsList();
       renderSummary();
     }),
     listenCollection(COLLECTIONS.publications, (items) => {
-      state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items));
+      state.publications = activeItems(sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items)));
       renderPublicationsList();
       renderSummary();
     }),
     listenCollection(COLLECTIONS.board, (items) => {
-      state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items));
+      state.board = activeItems(sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items)));
       renderBoardList();
       renderSummary();
+    }),
+    listenCollection(COLLECTIONS.trash, (items) => {
+      state.trash = sortTrashItems(items);
+      renderTrashList();
+      renderSummary();
+      cleanupExpiredTrash().catch((error) => console.error(error));
     })
   ];
 }
@@ -732,6 +827,98 @@ function renderSummary() {
   if (elements.summaryProjects) elements.summaryProjects.textContent = state.projects.length;
   if (elements.summaryPublications) elements.summaryPublications.textContent = state.publications.length;
   if (elements.summaryBoard) elements.summaryBoard.textContent = state.board.length;
+  if (elements.summaryTrash) elements.summaryTrash.textContent = state.trash.length;
+}
+
+function sortTrashItems(items = []) {
+  return [...(Array.isArray(items) ? items : [])].sort((a, b) => String(b.deletedAt || '').localeCompare(String(a.deletedAt || '')));
+}
+
+function trashTypeLabel(type = '') {
+  const map = { member: '멤버', project: '과제', publication: '논문', board: '게시글' };
+  return map[type] || '기타';
+}
+
+function trashTitle(item = {}) {
+  return item.title || item.payload?.title || item.payload?.nameKr || item.payload?.nameEn || item.payload?.name || item.originalId || '제목 없음';
+}
+
+function storagePathsForPayload(payload = {}) {
+  return [payload?.photoPath, payload?.figurePath, payload?.imagePath]
+    .map((value) => String(value || '').trim())
+    .filter((value) => value && !value.startsWith('inline:') && !value.startsWith('data:'));
+}
+
+let trashCleanupRunning = false;
+async function cleanupExpiredTrash() {
+  if (trashCleanupRunning || !state.user || !state.trash.length) return;
+  const now = Date.now();
+  const expired = state.trash.filter((item) => {
+    const time = Date.parse(String(item.purgeAfterAt || ''));
+    return Number.isFinite(time) && time <= now;
+  });
+  if (!expired.length) return;
+  trashCleanupRunning = true;
+  try {
+    for (const item of expired) {
+      await permanentlyDeleteTrashItem(item, { silent: true });
+    }
+  } finally {
+    trashCleanupRunning = false;
+  }
+}
+
+async function moveItemToTrash(itemType, collectionName, item, title) {
+  const now = new Date();
+  const deletedAt = now.toISOString();
+  const purgeAfterAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const payload = { ...item, deleted: false, deletedAt: '', purgeAfterAt: '', trashExpired: false };
+  await saveDocument(COLLECTIONS.trash, null, {
+    itemType,
+    originalCollection: collectionName,
+    originalId: item.id,
+    title,
+    deletedAt,
+    purgeAfterAt,
+    payload
+  });
+  await saveDocument(collectionName, item.id, {
+    id: item.id,
+    deleted: true,
+    deletedAt,
+    purgeAfterAt,
+    trashExpired: false
+  });
+}
+
+async function restoreTrashItem(item) {
+  const payload = item?.payload || null;
+  if (!item || !payload) return;
+  await saveDocument(item.originalCollection || COLLECTIONS[item.itemType], item.originalId, {
+    ...payload,
+    deleted: false,
+    deletedAt: '',
+    purgeAfterAt: '',
+    trashExpired: false
+  });
+  await deleteDocumentById(COLLECTIONS.trash, item.id);
+}
+
+async function permanentlyDeleteTrashItem(item, options = {}) {
+  if (!item) return;
+  const payload = item.payload || {};
+  for (const path of storagePathsForPayload(payload)) {
+    try { await deleteStoragePath(path); } catch (error) { console.warn(error); }
+  }
+  await saveDocument(item.originalCollection || COLLECTIONS[item.itemType], item.originalId, {
+    id: item.originalId,
+    deleted: true,
+    deletedAt: item.deletedAt || new Date().toISOString(),
+    purgeAfterAt: item.purgeAfterAt || '',
+    trashExpired: true
+  });
+  await deleteDocumentById(COLLECTIONS.trash, item.id);
+  if (!options.silent) showNotice('휴지통 항목이 영구 삭제되었습니다.', 'success');
 }
 
 const dialogState = { resolve: null, type: 'alert' };
@@ -774,17 +961,24 @@ function submitDialog() {
 
 function renderProjectLeadOptions() {
   if (!elements.projectPrincipalInvestigator) return;
-  const currentValue = state.editingProject?.principalInvestigator || elements.projectPrincipalInvestigator.value || '';
+  const currentProject = state.editingProject || {};
+  const currentMember = resolveProjectInvestigatorMember(currentProject);
+  const currentValue = currentMember?.id || currentProject.principalInvestigatorId || currentProject.principalInvestigator || '';
   const candidates = sortMembers(state.members).filter((member) => member.status !== 'alumni' && ['pi', 'researchProfessor'].includes(member.group));
   const seen = new Set();
   const options = ['<option value="">선택</option>'];
   candidates.forEach((member) => {
-    const displayName = memberDisplayName(member);
-    if (!displayName || seen.has(displayName)) return;
-    seen.add(displayName);
+    if (!member?.id || seen.has(member.id)) return;
+    seen.add(member.id);
+    const displayName = String(memberDisplayName(member) || member.nameEn || member.name || '').trim();
+    if (!displayName) return;
     const role = member.group === 'pi' ? '지도교수' : '연구교수 / 박사후연구원';
-    options.push(`<option value="${escapeHTML(displayName)}">${escapeHTML(displayName)} · ${escapeHTML(role)}</option>`);
+    options.push(`<option value="${escapeHTML(member.id)}">${escapeHTML(displayName)} · ${escapeHTML(role)}</option>`);
   });
+  if (currentValue && !candidates.some((member) => member.id === currentValue)) {
+    const fallbackText = currentProject.principalInvestigator || currentValue;
+    options.push(`<option value="${escapeHTML(currentValue)}">${escapeHTML(fallbackText)}</option>`);
+  }
   elements.projectPrincipalInvestigator.innerHTML = options.join('');
   elements.projectPrincipalInvestigator.value = currentValue;
 }
@@ -823,6 +1017,13 @@ function onBoardFilterClick(event) {
   state.boardFilter = button.dataset.boardFilter;
   state.boardPage = 1;
   renderBoardList();
+}
+function onTrashFilterClick(event) {
+  const button = event.target.closest('[data-trash-filter]');
+  if (!button) return;
+  state.trashFilter = button.dataset.trashFilter;
+  state.trashPage = 1;
+  renderTrashList();
 }
 
 function onMemberPhotoChange(event) {
@@ -878,17 +1079,22 @@ function onBoardImageChange(event) {
   updateFileInputLabel(event.currentTarget, elements.boardImageFileName);
   const [file] = event.currentTarget.files || [];
   state.pendingBoardFile = file || null;
+  state.boardImageRemoved = false;
   if (state.pendingBoardPreview) URL.revokeObjectURL(state.pendingBoardPreview);
   state.pendingBoardPreview = file ? URL.createObjectURL(file) : '';
   renderBoardImagePreview();
 }
 function clearBoardImage() {
   state.pendingBoardFile = null;
+  state.boardImageRemoved = true;
   if (state.pendingBoardPreview) URL.revokeObjectURL(state.pendingBoardPreview);
   state.pendingBoardPreview = '';
   if (elements.boardImageInput) elements.boardImageInput.value = '';
   updateFileInputLabel(elements.boardImageInput, elements.boardImageFileName);
-  if (state.editingBoard) state.editingBoard.imageUrl = '';
+  if (state.editingBoard) {
+    state.editingBoard.imageUrl = '';
+    state.editingBoard.imagePath = '';
+  }
   renderBoardImagePreview();
 }
 function renderBoardImagePreview() {
@@ -910,6 +1116,7 @@ function resetMemberForm() {
   renderMemberPhotoPreview();
   renderMemberPublicationPicker([]);
   renderMemberCourseSchedule([]);
+  renderMemberExperienceRows([]);
   updateMemberEducationVisibility();
   renderProjectLeadOptions();
 }
@@ -935,6 +1142,7 @@ function resetBoardForm() {
   state.pendingBoardFile = null;
   if (state.pendingBoardPreview) URL.revokeObjectURL(state.pendingBoardPreview);
   state.pendingBoardPreview = '';
+  state.boardImageRemoved = false;
   if (elements.boardTitle) elements.boardTitle.textContent = '게시글 추가';
   renderBoardImagePreview();
 }
@@ -952,7 +1160,8 @@ async function handleMemberSubmit(event) {
     email: String(formData.get('email') || '').trim(),
     bio: String(formData.get('bio') || '').trim(),
     education: state.editingMember?.education || '',
-    experience: String(formData.get('experience') || '').trim(),
+    experienceEntries: collectMemberExperienceEntries(),
+    experience: '',
     researchInterest: String(formData.get('researchInterest') || '').trim(),
     bachelorsSchool: String(formData.get('bachelorsSchool') || '').trim(),
     bachelorsMajor: String(formData.get('bachelorsMajor') || '').trim(),
@@ -978,6 +1187,7 @@ async function handleMemberSubmit(event) {
     photoRemoved: state.memberPhotoRemoved
   };
   payload.education = buildEducationLines(payload) || state.editingMember?.education || '';
+  payload.experience = buildExperienceText(payload.experienceEntries);
   payload.authorshipNote = publicationLinksSummary(payload.publicationLinks);
   if (!(payload.group === 'pi' || payload.course === 'professor')) {
     payload.courseSchedule = [];
@@ -1014,7 +1224,7 @@ async function handleMemberSubmit(event) {
       payload.enrolledTrack = payload.enrolledTrack || payload.track;
     }
     const id = await saveDocument(COLLECTIONS.members, state.editingMember?.id || null, payload);
-    state.members = sortMembers(mergeMembers(state.members, [{ ...payload, id, updatedAt: new Date().toISOString() }]));
+    state.members = activeItems(sortMembers(mergeMembers(state.members, [{ ...payload, id, updatedAt: new Date().toISOString() }])));
     state.memberFilter = memberFilterFor(payload);
     renderMembersList();
     renderProjectLeadOptions();
@@ -1042,6 +1252,8 @@ async function handleProjectSubmit(event) {
   const titleEn = String(formData.get('titleEn') || '').trim();
   const descriptionKr = String(formData.get('descriptionKr') || '').trim();
   const descriptionEn = String(formData.get('descriptionEn') || '').trim();
+  const investigatorValue = String(formData.get('principalInvestigator') || '').trim();
+  const selectedMember = state.members.find((member) => member.id === investigatorValue) || findMemberByAnyName(investigatorValue);
   const payload = {
     titleKr,
     titleEn,
@@ -1053,7 +1265,8 @@ async function handleProjectSubmit(event) {
     period,
     year: extractYearFromPeriod(period),
     leadRole: String(formData.get('leadRole') || 'leadInstitutionInvestigator').trim(),
-    principalInvestigator: String(formData.get('principalInvestigator') || '').trim(),
+    principalInvestigatorId: selectedMember?.id || '',
+    principalInvestigator: selectedMember ? memberDisplayName(selectedMember) : investigatorValue,
     coResearchers: '',
     figureUrl: state.editingProject?.figureUrl || '',
     figurePath: state.editingProject?.figurePath || '',
@@ -1066,7 +1279,7 @@ async function handleProjectSubmit(event) {
   if (!payload.titleKr && !payload.titleEn) return showNotice('과제 제목을 입력해주세요.', 'warning');
   try {
     const id = await saveDocument(COLLECTIONS.projects, state.editingProject?.id || null, payload);
-    state.projects = sortProjects(mergeProjects(state.projects, [{ ...payload, id, updatedAt: new Date().toISOString() }]));
+    state.projects = activeItems(sortProjects(mergeProjects(state.projects, [{ ...payload, id, updatedAt: new Date().toISOString() }])));
     renderProjectsList();
     renderSummary();
     showNotice('과제 정보가 저장되었습니다.', 'success');
@@ -1096,7 +1309,7 @@ async function handlePublicationSubmit(event) {
   if (!payload.title) return showNotice('논문 제목을 입력해주세요.', 'warning');
   try {
     const id = await saveDocument(COLLECTIONS.publications, state.editingPublication?.id || null, payload);
-    state.publications = sortPublications(mergePublications(state.publications, [{ ...payload, id, updatedAt: new Date().toISOString() }]));
+    state.publications = activeItems(sortPublications(mergePublications(state.publications, [{ ...payload, id, updatedAt: new Date().toISOString() }])));
     renderPublicationsList();
     renderSummary();
     showNotice('논문 정보가 저장되었습니다.', 'success');
@@ -1122,6 +1335,7 @@ async function handleBoardSubmit(event) {
   };
   if (!payload.title) return showNotice('게시글 제목을 입력해주세요.', 'warning');
   try {
+    showNotice('게시글을 저장하는 중입니다. 이미지가 있으면 잠시 더 걸릴 수 있습니다.', 'info');
     if (state.pendingBoardFile) {
       const upload = await uploadBoardImage(state.pendingBoardFile);
       if (state.editingBoard?.imagePath && state.editingBoard.imagePath !== upload.imagePath) {
@@ -1129,9 +1343,15 @@ async function handleBoardSubmit(event) {
       }
       payload.imageUrl = upload.imageUrl;
       payload.imagePath = upload.imagePath;
+    } else if (state.boardImageRemoved) {
+      if (state.editingBoard?.imagePath) {
+        try { await deleteStoragePath(state.editingBoard.imagePath); } catch {}
+      }
+      payload.imageUrl = '';
+      payload.imagePath = '';
     }
     const id = await saveDocument(COLLECTIONS.board, state.editingBoard?.id || null, payload);
-    state.board = sortBoardPosts(mergeBoardPosts(state.board, [{ ...payload, id, updatedAt: new Date().toISOString() }]));
+    state.board = activeItems(sortBoardPosts(mergeBoardPosts(state.board, [{ ...payload, id, updatedAt: new Date().toISOString() }])));
     renderBoardList();
     renderSummary();
     showNotice('게시글이 저장되었습니다.', 'success');
@@ -1139,7 +1359,10 @@ async function handleBoardSubmit(event) {
     closeEditor('board');
   } catch (error) {
     console.error(error);
-    showNotice(adminErrorMessage(error, '게시글 저장에 실패했습니다.'), 'danger');
+    const message = /document.*too.*large|maximum document size|too many bytes/i.test(error?.message || '')
+      ? '게시판 이미지는 데이터베이스에 바로 저장되므로, 이미지 용량을 더 줄인 뒤 다시 시도해주세요.'
+      : adminErrorMessage(error, '게시글 저장에 실패했습니다.');
+    showNotice(message, 'danger');
   }
 }
 
@@ -1148,6 +1371,7 @@ function renderAllLists() {
   renderProjectsList();
   renderPublicationsList();
   renderBoardList();
+  renderTrashList();
   renderSummary();
   renderMemberPhotoPreview();
   renderProjectFigurePreview();
@@ -1291,7 +1515,7 @@ function projectItemMarkup(project) {
             <span class="status-badge ${project.status === 'completed' ? 'is-alumni' : ''}">${escapeHTML(projectStatusLabel(project.status, 'kr'))}</span>
           </div>
           ${project.period ? `<p class="muted">기간 · ${escapeHTML(normalizeProjectPeriod(project.period))}</p>` : ''}
-          ${project.principalInvestigator ? `<p class="muted">${escapeHTML(roleLabel)} · ${escapeHTML(project.principalInvestigator)}</p>` : ''}
+          ${projectInvestigatorDisplay(project, 'kr') ? `<p class="muted">${escapeHTML(roleLabel)} · ${escapeHTML(projectInvestigatorDisplay(project, 'kr'))}</p>` : ''}
           ${localizedProjectDescription(project, 'kr') ? `<p>${escapeHTML(localizedProjectDescription(project, 'kr'))}</p>` : ''}
         </div>
       </div>
@@ -1422,6 +1646,58 @@ function renderBoardList() {
   bindPagination(elements.boardPagination, 'boardPage');
 }
 
+function renderTrashFilterTabs() {
+  if (!elements.trashFilterTabs) return;
+  const filters = [
+    ['all', '전체'],
+    ['member', '멤버'],
+    ['project', '과제'],
+    ['publication', '논문'],
+    ['board', '게시글']
+  ];
+  elements.trashFilterTabs.innerHTML = filters.map(([value, label]) => `
+    <button type="button" class="admin-subtab${state.trashFilter === value ? ' is-active' : ''}" data-trash-filter="${escapeHTML(value)}">${escapeHTML(label)}</button>
+  `).join('');
+}
+
+function trashItemMarkup(item) {
+  const deletedAt = String(item.deletedAt || '').slice(0, 10);
+  const purgeAt = String(item.purgeAfterAt || '').slice(0, 10);
+  return `
+    <article class="admin-item-card">
+      <div class="admin-item-main admin-item-main--single">
+        <div class="admin-item-content">
+          <div class="card-topline">
+            <strong>${escapeHTML(trashTitle(item))}</strong>
+            <span class="status-badge is-alumni">${escapeHTML(trashTypeLabel(item.itemType))}</span>
+          </div>
+          <p class="muted">삭제일 · ${escapeHTML(deletedAt || '-')}</p>
+          <p class="muted">자동 삭제 예정 · ${escapeHTML(purgeAt || '-')}</p>
+          <p>${escapeHTML(item.originalId || '')}</p>
+        </div>
+      </div>
+      <div class="admin-item-actions">
+        <button type="button" class="small-button" data-trash-action="restore" data-id="${escapeHTML(item.id)}">복원</button>
+        <button type="button" class="small-button is-danger" data-trash-action="purge" data-id="${escapeHTML(item.id)}">영구 삭제</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderTrashList() {
+  if (!elements.trashList) return;
+  renderTrashFilterTabs();
+  const items = state.trashFilter === 'all' ? state.trash : state.trash.filter((item) => item.itemType === state.trashFilter);
+  const pageData = paginateItems(items, state.trashPage);
+  state.trashPage = pageData.page;
+  const groups = Object.entries(groupBy(pageData.items, (item) => trashTypeLabel(item.itemType))).map(([title, groupItems]) => adminSection(`${title} (${groupItems.length})`, groupItems.map(trashItemMarkup).join('') || emptyAdmin('없음')));
+  elements.trashList.innerHTML = groups.join('') || emptyAdmin('휴지통이 비어 있습니다.');
+  if (elements.trashPagination) {
+    elements.trashPagination.innerHTML = paginationMarkup('trash', pageData.page, pageData.pages);
+    bindPagination(elements.trashPagination, 'trashPage');
+  }
+}
+
 function adminSection(title, content) { return `<section class="admin-list-section"><h3>${escapeHTML(title)}</h3>${content}</section>`; }
 function emptyAdmin(text) { return `<div class="admin-empty">${escapeHTML(text)}</div>`; }
 
@@ -1460,6 +1736,15 @@ function onBoardListClick(event) {
   if (button.dataset.boardAction === 'delete') return removeBoard(item);
 }
 
+function onTrashListClick(event) {
+  const button = event.target.closest('[data-trash-action]');
+  if (!button) return;
+  const item = state.trash.find((entry) => entry.id === button.dataset.id);
+  if (!item) return;
+  if (button.dataset.trashAction === 'restore') return restoreTrash(item);
+  if (button.dataset.trashAction === 'purge') return purgeTrash(item);
+}
+
 function loadMemberForm(member) {
   state.editingMember = member;
   state.memberPhotoRemoved = false;
@@ -1467,6 +1752,7 @@ function loadMemberForm(member) {
   const form = elements.memberForm;
   ['nameKr','nameEn','group','track','course','email','bio','experience','researchInterest','coursesInfo','relatedProjects','currentPosition','status','graduationYear','startYear','bachelorsSchool','bachelorsMajor','mastersSchool','mastersMajor','doctoralSchool','doctoralMajor'].forEach((field) => setFormValue(form, field, member[field] || ''));
   renderMemberCourseSchedule(member.courseSchedule || []);
+  renderMemberExperienceRows(member.experienceEntries || []);
   updateFileInputLabel(elements.memberPhotoInput, elements.memberPhotoFileName);
   renderMemberPhotoPreview();
   renderMemberPublicationPicker(member.publicationLinks || []);
@@ -1481,8 +1767,9 @@ function loadProjectForm(project) {
   setFormValue(form, 'titleEn', project.titleEn || project.title || '');
   setFormValue(form, 'descriptionKr', project.descriptionKr || project.description || '');
   setFormValue(form, 'descriptionEn', project.descriptionEn || project.description || '');
-  ['status','period','leadRole','principalInvestigator'].forEach((field) => setFormValue(form, field, project[field] || ''));
+  ['status','period','leadRole'].forEach((field) => setFormValue(form, field, project[field] || ''));
   renderProjectLeadOptions();
+  setFormValue(form, 'principalInvestigator', project.principalInvestigatorId || resolveProjectInvestigatorMember(project)?.id || project.principalInvestigator || '');
   setFormValue(form, 'tagsKr', ((project.tagsKr && project.tagsKr.length) ? project.tagsKr : project.tags || []).join(', '));
   setFormValue(form, 'tagsEn', ((project.tagsEn && project.tagsEn.length) ? project.tagsEn : project.tags || []).join(', '));
   renderProjectFigurePreview();
@@ -1500,6 +1787,7 @@ function loadBoardForm(item) {
   elements.boardTitle.textContent = '게시글 수정';
   const form = elements.boardForm;
   ['category','title','description','linkUrl','date'].forEach((field) => setFormValue(form, field, item[field] || ''));
+  state.boardImageRemoved = false;
   updateFileInputLabel(elements.boardImageInput, elements.boardImageFileName);
   renderBoardImagePreview();
   openEditor('board');
@@ -1520,7 +1808,7 @@ async function quickGraduate(member) {
     enrolledTrack: member.enrolledTrack || member.track
   };
   await saveDocument(COLLECTIONS.members, member.id, payload);
-  state.members = sortMembers(mergeMembers(state.members, [{ ...payload, updatedAt: new Date().toISOString() }]));
+  state.members = activeItems(sortMembers(mergeMembers(state.members, [{ ...payload, updatedAt: new Date().toISOString() }])));
   state.memberFilter = 'alumni';
   renderMembersList();
   renderSummary();
@@ -1541,69 +1829,94 @@ async function quickRestore(member) {
   const restoredTrack = member.enrolledTrack || (member.track || 'none');
   const payload = { ...member, status: 'enrolled', graduationYear: '', group: restoredGroup, course: restoredCourse, track: restoredTrack };
   await saveDocument(COLLECTIONS.members, member.id, payload);
-  state.members = sortMembers(mergeMembers(state.members, [{ ...payload, updatedAt: new Date().toISOString() }]));
+  state.members = activeItems(sortMembers(mergeMembers(state.members, [{ ...payload, updatedAt: new Date().toISOString() }])));
   state.memberFilter = memberFilterFor(payload);
   renderMembersList();
   renderSummary();
   showNotice('재학 상태로 변경되었습니다.', 'success');
 }
 async function removeMember(member) {
-  const ok = await openDialog({ title: '멤버 삭제', message: `${memberDisplayName(member)} 멤버를 삭제할까요?`, type: 'confirm' });
+  const ok = await openDialog({ title: '멤버 삭제', message: `${memberDisplayName(member)} 멤버를 휴지통으로 이동할까요?`, type: 'confirm' });
   if (!ok) return;
   try {
-    if (member.photoPath) { try { await deleteStoragePath(member.photoPath); } catch {} }
-    await deleteDocumentById(COLLECTIONS.members, member.id);
+    await moveItemToTrash('member', COLLECTIONS.members, member, memberDisplayName(member));
     state.members = state.members.filter((item) => item.id !== member.id);
     renderMembersList();
+    renderTrashList();
     renderSummary();
-    showNotice('멤버가 삭제되었습니다.', 'success');
+    showNotice('멤버가 휴지통으로 이동되었습니다.', 'success');
   } catch (error) {
     console.error(error);
     showNotice(adminErrorMessage(error, '멤버 삭제에 실패했습니다.'), 'danger');
   }
 }
 async function removeProject(project) {
-  const ok = await openDialog({ title: '과제 삭제', message: `${localizedProjectTitle(project, 'kr')} 과제를 삭제할까요?`, type: 'confirm' });
+  const title = localizedProjectTitle(project, 'kr');
+  const ok = await openDialog({ title: '과제 삭제', message: `${title} 과제를 휴지통으로 이동할까요?`, type: 'confirm' });
   if (!ok) return;
   try {
-    if (project.figurePath) { try { await deleteStoragePath(project.figurePath); } catch {} }
-    await deleteDocumentById(COLLECTIONS.projects, project.id);
+    await moveItemToTrash('project', COLLECTIONS.projects, project, title);
     state.projects = state.projects.filter((item) => item.id !== project.id);
     renderProjectsList();
+    renderTrashList();
     renderSummary();
-    showNotice('과제가 삭제되었습니다.', 'success');
+    showNotice('과제가 휴지통으로 이동되었습니다.', 'success');
   } catch (error) {
     console.error(error);
     showNotice(adminErrorMessage(error, '과제 삭제에 실패했습니다.'), 'danger');
   }
 }
 async function removePublication(item) {
-  const ok = await openDialog({ title: '논문 삭제', message: `${item.title} 논문을 삭제할까요?`, type: 'confirm' });
+  const ok = await openDialog({ title: '논문 삭제', message: `${item.title} 논문을 휴지통으로 이동할까요?`, type: 'confirm' });
   if (!ok) return;
   try {
-    await deleteDocumentById(COLLECTIONS.publications, item.id);
+    await moveItemToTrash('publication', COLLECTIONS.publications, item, item.title);
     state.publications = state.publications.filter((pub) => pub.id !== item.id);
     renderPublicationsList();
+    renderTrashList();
     renderSummary();
-    showNotice('논문이 삭제되었습니다.', 'success');
+    showNotice('논문이 휴지통으로 이동되었습니다.', 'success');
   } catch (error) {
     console.error(error);
     showNotice(adminErrorMessage(error, '논문 삭제에 실패했습니다.'), 'danger');
   }
 }
 async function removeBoard(item) {
-  const ok = await openDialog({ title: '게시글 삭제', message: `${item.title} 게시글을 삭제할까요?`, type: 'confirm' });
+  const ok = await openDialog({ title: '게시글 삭제', message: `${item.title} 게시글을 휴지통으로 이동할까요?`, type: 'confirm' });
   if (!ok) return;
   try {
-    if (item.imagePath) { try { await deleteStoragePath(item.imagePath); } catch {} }
-    await deleteDocumentById(COLLECTIONS.board, item.id);
+    await moveItemToTrash('board', COLLECTIONS.board, item, item.title);
     state.board = state.board.filter((entry) => entry.id !== item.id);
     renderBoardList();
+    renderTrashList();
     renderSummary();
-    showNotice('게시글이 삭제되었습니다.', 'success');
+    showNotice('게시글이 휴지통으로 이동되었습니다.', 'success');
   } catch (error) {
     console.error(error);
     showNotice(adminErrorMessage(error, '게시글 삭제에 실패했습니다.'), 'danger');
+  }
+}
+
+async function restoreTrash(item) {
+  const ok = await openDialog({ title: '휴지통 복원', message: `${trashTitle(item)} 항목을 복원할까요?`, type: 'confirm', confirmText: '복원' });
+  if (!ok) return;
+  try {
+    await restoreTrashItem(item);
+    showNotice('항목이 복원되었습니다.', 'success');
+  } catch (error) {
+    console.error(error);
+    showNotice(adminErrorMessage(error, '휴지통 복원에 실패했습니다.'), 'danger');
+  }
+}
+
+async function purgeTrash(item) {
+  const ok = await openDialog({ title: '영구 삭제', message: `${trashTitle(item)} 항목을 영구 삭제할까요? 되돌릴 수 없습니다.`, type: 'confirm', confirmText: '영구 삭제' });
+  if (!ok) return;
+  try {
+    await permanentlyDeleteTrashItem(item);
+  } catch (error) {
+    console.error(error);
+    showNotice(adminErrorMessage(error, '영구 삭제에 실패했습니다.'), 'danger');
   }
 }
 

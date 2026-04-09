@@ -63,7 +63,7 @@ function semanticKey(value = '') {
 }
 
 export function memberSemanticKey(item = {}) {
-  return semanticKey(item.email || item.id || item.nameKr || item.nameEn || item.name || '');
+  return semanticKey(item.id || item.email || item.nameKr || item.nameEn || item.name || '');
 }
 
 export function projectSemanticKey(item = {}) {
@@ -71,7 +71,7 @@ export function projectSemanticKey(item = {}) {
 }
 
 export function publicationSemanticKey(item = {}) {
-  return semanticKey(item.doi || item.title || item.url || item.id || `${item.year || ''}-${item.title || ''}`);
+  return semanticKey(item.id || item.doi || item.title || item.url || `${item.year || ''}-${item.title || ''}`);
 }
 
 export function boardSemanticKey(item = {}) {
@@ -294,6 +294,35 @@ function mapProjectLeadRole(value = '') {
   return 'leadInstitutionInvestigator';
 }
 
+function parseExperienceEntries(value = '') {
+  const rawLines = String(value || '')
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const segments = rawLines.flatMap((line) => {
+    if (/\|/.test(line)) return [line];
+    return line.split(/\s+[·•]\s+/).map((chunk) => chunk.trim()).filter(Boolean);
+  });
+  return segments.map((segment) => {
+    const pipeMatch = segment.match(/^([^|]+)\|\s*(.+)$/);
+    if (pipeMatch) {
+      return { period: pipeMatch[1].trim(), detail: pipeMatch[2].trim() };
+    }
+    const parenMatch = segment.match(/^(.*?)\s*\(([^()]+)\)\s*$/);
+    if (parenMatch) {
+      return { period: parenMatch[2].trim(), detail: parenMatch[1].trim() };
+    }
+    return { period: '', detail: segment.trim() };
+  }).filter((entry) => entry.period || entry.detail);
+}
+
+function normalizeExperienceEntries(entries = []) {
+  return (Array.isArray(entries) ? entries : []).map((entry) => ({
+    period: String(entry?.period || '').trim(),
+    detail: String(entry?.detail || '').trim()
+  })).filter((entry) => entry.period || entry.detail);
+}
+
 function inferPublicationIndexing(journal = '') {
   const name = normalizeString(journal);
   if (!name) return '';
@@ -339,6 +368,11 @@ export function normalizeMember(item = {}, options = {}) {
     bio: item.bio || '',
     education: item.education || '',
     experience: item.experience || '',
+    experienceEntries: Array.isArray(item.experienceEntries)
+      ? normalizeExperienceEntries(item.experienceEntries)
+      : Array.isArray(item.experienceHistory)
+        ? normalizeExperienceEntries(item.experienceHistory)
+        : (hasExplicitKey(item, 'experience') ? parseExperienceEntries(item.experience || '') : (preserveMissing ? undefined : parseExperienceEntries(item.experience || ''))),
     researchInterest: item.researchInterest || '',
     bachelorsSchool: item.bachelorsSchool || '',
     bachelorsMajor: item.bachelorsMajor || '',
@@ -371,6 +405,10 @@ export function normalizeMember(item = {}, options = {}) {
     restoreGroup: item.restoreGroup || '',
     restoreCourse: item.restoreCourse || '',
     restoreTrack: item.restoreTrack || '',
+    deleted: item.deleted === true,
+    deletedAt: item.deletedAt || '',
+    purgeAfterAt: item.purgeAfterAt || '',
+    trashExpired: item.trashExpired === true,
     createdAt: item.createdAt || undefined,
     updatedAt: item.updatedAt || undefined
   };
@@ -417,6 +455,7 @@ export function normalizeProject(item = {}, options = {}) {
     period,
     year,
     leadRole,
+    principalInvestigatorId: item.principalInvestigatorId || item.piId || '',
     principalInvestigator: item.principalInvestigator || item.pi || '',
     figureUrl: item.figureUrl || item.imageUrl || '',
     figurePath: item.figurePath || '',
@@ -425,6 +464,10 @@ export function normalizeProject(item = {}, options = {}) {
     tagsKr,
     tagsEn,
     sortOrder,
+    deleted: item.deleted === true,
+    deletedAt: item.deletedAt || '',
+    purgeAfterAt: item.purgeAfterAt || '',
+    trashExpired: item.trashExpired === true,
     createdAt: item.createdAt || undefined,
     updatedAt: item.updatedAt || undefined
   };
@@ -449,6 +492,10 @@ export function normalizePublication(item = {}, options = {}) {
     abstract: item.abstract || '',
     indexing: inferredIndexing || item.indexing || '',
     sortOrder,
+    deleted: item.deleted === true,
+    deletedAt: item.deletedAt || '',
+    purgeAfterAt: item.purgeAfterAt || '',
+    trashExpired: item.trashExpired === true,
     createdAt: item.createdAt || undefined,
     updatedAt: item.updatedAt || undefined
   };
@@ -465,6 +512,10 @@ export function normalizeBoardPost(item = {}, options = {}) {
     imageUrl: item.imageUrl || '',
     imagePath: item.imagePath || '',
     date: item.date || '',
+    deleted: item.deleted === true,
+    deletedAt: item.deletedAt || '',
+    purgeAfterAt: item.purgeAfterAt || '',
+    trashExpired: item.trashExpired === true,
     createdAt: item.createdAt || undefined,
     updatedAt: item.updatedAt || undefined
   };
@@ -605,6 +656,10 @@ export function sortBoardPosts(items = []) {
       if (byDate) return byDate;
       return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
     });
+}
+
+export function isActiveItem(item = {}) {
+  return item?.deleted !== true;
 }
 
 export function lastUpdated(items = [], fallback) {

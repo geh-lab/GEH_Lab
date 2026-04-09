@@ -21,7 +21,8 @@ import {
   memberYearLabel,
   publicationIndexingLabel,
   publicationYearMonthLabel,
-  normalizeProjectPeriod
+  normalizeProjectPeriod,
+  isActiveItem
 } from './utils.js';
 import { hasFirebaseConfig, fetchCollection, listenCollection, COLLECTIONS } from './firebase.js';
 
@@ -46,10 +47,10 @@ const focusImages = [
 ].map((path) => rootAsset(path, root));
 
 const state = {
-  members: sortMembers(FALLBACK_MEMBERS),
-  projects: sortProjects(FALLBACK_PROJECTS),
-  publications: sortPublications(FALLBACK_PUBLICATIONS),
-  board: sortBoardPosts(FALLBACK_BOARD_POSTS),
+  members: sortMembers(FALLBACK_MEMBERS).filter(isActiveItem),
+  projects: sortProjects(FALLBACK_PROJECTS).filter(isActiveItem),
+  publications: sortPublications(FALLBACK_PUBLICATIONS).filter(isActiveItem),
+  board: sortBoardPosts(FALLBACK_BOARD_POSTS).filter(isActiveItem),
   publicationQuery: '',
   boardTab: 'news',
   unsubs: []
@@ -65,6 +66,55 @@ const modalState = {
 function memberDisplayName(member, locale = lang) {
   if (!member) return '';
   return locale === 'en' ? (member.nameEn || member.name || member.nameKr || '') : (member.nameKr || member.name || member.nameEn || '');
+}
+
+function normalizeLookupKey(value = '') {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9가-힣]+/g, '');
+}
+
+function findMemberByAnyName(value = '') {
+  const target = normalizeLookupKey(value);
+  if (!target) return null;
+  return state.members.find((member) => [member.id, member.nameKr, member.nameEn, member.name].some((candidate) => normalizeLookupKey(candidate) === target)) || null;
+}
+
+function resolveProjectInvestigatorMember(project = {}) {
+  if (project.principalInvestigatorId) {
+    const byId = state.members.find((member) => member.id === project.principalInvestigatorId);
+    if (byId) return byId;
+  }
+  return findMemberByAnyName(project.principalInvestigator || '');
+}
+
+function projectInvestigatorName(project = {}, locale = lang) {
+  const member = resolveProjectInvestigatorMember(project);
+  if (member) return memberDisplayName(member, locale);
+  return project.principalInvestigator || '';
+}
+
+function normalizeExperienceEntries(value = '') {
+  const rawLines = String(value || '').split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const segments = rawLines.flatMap((line) => /\|/.test(line) ? [line] : line.split(/\s+[·•]\s+/).map((chunk) => chunk.trim()).filter(Boolean));
+  return segments.map((segment) => {
+    const pipeMatch = segment.match(/^([^|]+)\|\s*(.+)$/);
+    if (pipeMatch) return { period: pipeMatch[1].trim(), detail: pipeMatch[2].trim() };
+    const parenMatch = segment.match(/^(.*?)\s*\(([^()]+)\)\s*$/);
+    if (parenMatch) return { period: parenMatch[2].trim(), detail: parenMatch[1].trim() };
+    return { period: '', detail: segment.trim() };
+  }).filter((entry) => entry.period || entry.detail);
+}
+
+function memberExperienceEntries(member = {}) {
+  if (Array.isArray(member.experienceEntries) && member.experienceEntries.length) {
+    return member.experienceEntries.filter((entry) => String(entry?.period || '').trim() || String(entry?.detail || '').trim());
+  }
+  return normalizeExperienceEntries(member.experience || '');
+}
+
+function memberExperienceMarkup(member = {}, variant = 'detail') {
+  const lines = memberExperienceEntries(member).map((entry) => [String(entry.period || '').trim(), String(entry.detail || '').trim()].filter(Boolean).join(' | ')).filter(Boolean);
+  if (!lines.length) return '';
+  return `<div class="member-experience-lines member-experience-lines--${escapeHTML(variant)}">${lines.map((line) => `<p>${escapeHTML(line)}</p>`).join('')}</div>`;
 }
 
 
@@ -184,10 +234,10 @@ async function hydrate() {
   const publications = await readSafely(COLLECTIONS.publications);
   const board = COLLECTIONS.board ? await readSafely(COLLECTIONS.board) : [];
 
-  state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, members));
-  state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, projects));
-  state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, publications));
-  state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, board));
+  state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, members)).filter(isActiveItem);
+  state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, projects)).filter(isActiveItem);
+  state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, publications)).filter(isActiveItem);
+  state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, board)).filter(isActiveItem);
 
   state.unsubs.forEach((unsub) => { try { unsub(); } catch {} });
   state.unsubs = [];
@@ -200,20 +250,20 @@ async function hydrate() {
   };
 
   addListener(COLLECTIONS.members, (items) => {
-    state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, items));
+    state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, items)).filter(isActiveItem);
     if (page === 'home' || page === 'members') renderPage();
   });
   addListener(COLLECTIONS.projects, (items) => {
-    state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, items));
+    state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, items)).filter(isActiveItem);
     if (page === 'home' || page === 'projects') renderPage();
   });
   addListener(COLLECTIONS.publications, (items) => {
-    state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items));
+    state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items)).filter(isActiveItem);
     if (page === 'home' || page === 'publications') renderPage();
   });
   if (COLLECTIONS.board) {
     addListener(COLLECTIONS.board, (items) => {
-      state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items));
+      state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items)).filter(isActiveItem);
       if (page === 'board') renderPage();
     });
   }
@@ -389,7 +439,7 @@ function openMemberModal(member) {
       </div>
       <div class="detail-grid">
         ${detailHtmlSection(copy.education, memberEducationMarkup(member, lang, 'detail'))}
-        ${detailSection(copy.experience, member.experience)}
+        ${memberExperienceMarkup(member, 'detail') ? detailHtmlSection(copy.experience, memberExperienceMarkup(member, 'detail')) : detailSection(copy.experience, member.experience)}
         ${detailSection(copy.interest, member.researchInterest)}
         ${detailSection(currentLabel, member.currentPosition || member.bio)}
         ${memberCourseSectionMarkup(member, lang)}
@@ -413,7 +463,7 @@ function openProjectModal(project) {
       ${media}
       <div class="detail-grid detail-grid--project">
         ${detailSection(lang === 'en' ? 'Project description' : '과제 설명', localizedProjectDescription(project) || (lang === 'en' ? 'No description provided.' : '설명이 아직 입력되지 않았습니다.'))}
-        ${detailSection(leadLabel, project.principalInvestigator || (lang === 'en' ? 'Not set' : '미설정'))}
+        ${detailSection(leadLabel, projectInvestigatorName(project, lang) || (lang === 'en' ? 'Not set' : '미설정'))}
         ${detailSection(lang === 'en' ? 'Keywords' : '키워드', localizedProjectTags(project).join(', '))}
       </div>
     </div>
@@ -689,7 +739,7 @@ function renderMembers() {
             </div>
             <div class="pi-card-grid">
               <article><h3>${escapeHTML(copy.education)}</h3>${memberEducationMarkup(pi, lang, 'panel')}</article>
-              <article><h3>${escapeHTML(copy.experience)}</h3><p>${multilineText(pi.experience || '')}</p></article>
+              <article><h3>${escapeHTML(copy.experience)}</h3>${memberExperienceMarkup(pi, 'panel') || `<p>${multilineText(pi.experience || '')}</p>`}</article>
               <article><h3>${escapeHTML(copy.interest)}</h3><p>${multilineText(pi.researchInterest || '')}</p></article>
               <article><h3>${escapeHTML(copy.contact)}</h3><p>${pi.email ? `<a class="member-link" href="mailto:${escapeHTML(pi.email)}">${escapeHTML(pi.email)}</a>` : ''}</p></article>
               ${memberCourseScheduleEntries(pi).length ? `<article class="pi-card-grid__full"><h3>${escapeHTML(lang === 'en' ? 'Course schedule' : '수업 시간표')}</h3>${memberCourseScheduleMarkup(pi, lang)}</article>` : ''}
@@ -999,8 +1049,9 @@ function alumniCard(member) {
 
 function projectCard(project, { compact = false } = {}) {
   const period = getProjectPeriodDisplay(project);
-  const leadMeta = project.principalInvestigator
-    ? `<strong>${escapeHTML(projectLeadRoleLabel(project, lang))}</strong> ${escapeHTML(project.principalInvestigator)}`
+  const investigatorName = projectInvestigatorName(project, lang);
+  const leadMeta = investigatorName
+    ? `<strong>${escapeHTML(projectLeadRoleLabel(project, lang))}</strong> ${escapeHTML(investigatorName)}`
     : '';
   return `
     <article class="project-card${compact ? ' compact-card' : ''} reveal interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(localizedProjectTitle(project))}">
@@ -1018,8 +1069,9 @@ function projectCard(project, { compact = false } = {}) {
 
 function archiveProjectItem(project) {
   const period = getProjectPeriodDisplay(project) || project.year || '';
-  const leadMeta = project.principalInvestigator
-    ? `<strong>${escapeHTML(projectLeadRoleLabel(project, lang))}</strong> ${escapeHTML(project.principalInvestigator)}`
+  const investigatorName = projectInvestigatorName(project, lang);
+  const leadMeta = investigatorName
+    ? `<strong>${escapeHTML(projectLeadRoleLabel(project, lang))}</strong> ${escapeHTML(investigatorName)}`
     : '';
   return `
     <article class="archive-item reveal interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(localizedProjectTitle(project))}">
