@@ -415,8 +415,8 @@ export async function uploadAsset(file, folder = 'uploads') {
 }
 
 export async function uploadMemberPhoto(file) {
-  const asset = await uploadAsset(file, 'member-photos');
-  return { photoUrl: asset.url, photoPath: asset.path };
+  const photoUrl = await compressImageForFirestore(file, { maxWidth: 960, maxHeight: 960, maxBytes: 400 * 1024 });
+  return { photoUrl, photoPath: '' };
 }
 
 export async function uploadProjectFigure(file) {

@@ -27,6 +27,15 @@ export function getInitials(name = '') {
   return initials || 'GEH';
 }
 
+export function formatEnglishName(value = '') {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (!text.includes(',')) return text;
+  const parts = text.split(',').map((part) => part.trim()).filter(Boolean);
+  if (parts.length < 2) return text.replace(/\s+/g, ' ').trim();
+  return `${parts.slice(1).join(' ')} ${parts[0]}`.replace(/\s+/g, ' ').trim();
+}
+
 function hasMeaningfulValue(value) {
   if (Array.isArray(value)) return value.length > 0;
   if (value === 0 || value === false) return true;
@@ -317,10 +326,17 @@ function parseExperienceEntries(value = '') {
 }
 
 function normalizeExperienceEntries(entries = []) {
-  return (Array.isArray(entries) ? entries : []).map((entry) => ({
-    period: String(entry?.period || '').trim(),
-    detail: String(entry?.detail || '').trim()
-  })).filter((entry) => entry.period || entry.detail);
+  return (Array.isArray(entries) ? entries : []).map((entry) => {
+    const detail = String(entry?.detail || '').trim();
+    const detailKr = String(entry?.detailKr || detail || '').trim();
+    const detailEn = String(entry?.detailEn || detail || '').trim();
+    return {
+      period: String(entry?.period || '').trim(),
+      detailKr,
+      detailEn,
+      detail: detail || detailKr || detailEn
+    };
+  }).filter((entry) => entry.period || entry.detailKr || entry.detailEn || entry.detail);
 }
 
 function inferPublicationIndexing(journal = '') {
@@ -365,15 +381,23 @@ export function normalizeMember(item = {}, options = {}) {
     track,
     course,
     email: item.email || '',
-    bio: item.bio || '',
+    bio: item.bio || item.bioKr || item.bioEn || '',
+    bioKr: item.bioKr || item.bio || '',
+    bioEn: item.bioEn || item.bio || '',
     education: item.education || '',
-    experience: item.experience || '',
+    experience: item.experience || item.experienceKr || item.experienceEn || '',
+    experienceKr: item.experienceKr || item.experience || '',
+    experienceEn: item.experienceEn || item.experience || '',
     experienceEntries: Array.isArray(item.experienceEntries)
       ? normalizeExperienceEntries(item.experienceEntries)
       : Array.isArray(item.experienceHistory)
         ? normalizeExperienceEntries(item.experienceHistory)
-        : (hasExplicitKey(item, 'experience') ? parseExperienceEntries(item.experience || '') : (preserveMissing ? undefined : parseExperienceEntries(item.experience || ''))),
-    researchInterest: item.researchInterest || '',
+        : (hasExplicitKey(item, 'experience') || hasExplicitKey(item, 'experienceKr') || hasExplicitKey(item, 'experienceEn')
+          ? parseExperienceEntries(item.experience || item.experienceKr || item.experienceEn || '')
+          : (preserveMissing ? undefined : parseExperienceEntries(item.experience || item.experienceKr || item.experienceEn || ''))),
+    researchInterest: item.researchInterest || item.researchInterestKr || item.researchInterestEn || '',
+    researchInterestKr: item.researchInterestKr || item.researchInterest || '',
+    researchInterestEn: item.researchInterestEn || item.researchInterest || '',
     bachelorsSchoolKr: item.bachelorsSchoolKr || '',
     bachelorsSchoolEn: item.bachelorsSchoolEn || item.bachelorsSchool || '',
     bachelorsMajorKr: item.bachelorsMajorKr || '',
@@ -403,7 +427,9 @@ export function normalizeMember(item = {}, options = {}) {
       credits: entry?.credits || '',
       description: entry?.description || ''
     })) : (preserveMissing ? undefined : []),
-    currentPosition: item.currentPosition || item.employment || '',
+    currentPosition: item.currentPosition || item.currentPositionKr || item.currentPositionEn || item.employment || '',
+    currentPositionKr: item.currentPositionKr || item.currentPosition || item.employment || '',
+    currentPositionEn: item.currentPositionEn || item.currentPosition || item.employment || '',
     status,
     graduationYear: item.graduationYear || '',
     startYear: item.startYear || item.admissionYear || '',

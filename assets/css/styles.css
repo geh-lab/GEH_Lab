@@ -2787,7 +2787,7 @@ article#member-editor-card::before,
 
 .experience-row {
   display: grid;
-  grid-template-columns: 170px minmax(240px, 1fr) auto;
+  grid-template-columns: 170px minmax(240px, 1fr) minmax(240px, 1fr) auto;
   gap: .75rem;
   align-items: end;
   padding: .95rem;
@@ -2802,8 +2802,9 @@ article#member-editor-card::before,
 
 .experience-row__actions {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: flex-end;
+  height: 100%;
 }
 
 .publication-picker__toolbar {
@@ -2952,3 +2953,9 @@ article#member-editor-card::before,
 .member-experience-lines p{margin:0;line-height:1.75;white-space:normal;word-break:keep-all;}
 .member-experience-lines--compact p{font-size:.98rem;}
 .member-experience-lines--panel p,.member-experience-lines--detail p{font-size:1rem;}
+
+
+.bilingual-field-grid textarea,
+.bilingual-field-grid input {
+  min-width: 0;
+}

@@ -16,6 +16,7 @@ import {
   memberGroupLabel,
   projectStatusLabel,
   rootAsset,
+  formatEnglishName,
   mergeMembers,
   mergeProjects,
   mergePublications,
@@ -188,13 +189,13 @@ function syncMemberNameField() {
   const form = elements.memberForm;
   if (!form) return;
   const nameKr = String(form.elements.namedItem('nameKr')?.value || '').trim();
-  const nameEn = String(form.elements.namedItem('nameEn')?.value || '').trim();
+  const nameEn = formatEnglishName(String(form.elements.namedItem('nameEn')?.value || '').trim());
   if (!state.editingMember) return;
   state.editingMember = {
     ...state.editingMember,
     nameKr: nameKr || state.editingMember.nameKr || '',
     nameEn: nameEn || state.editingMember.nameEn || '',
-    name: nameEn || nameKr || state.editingMember.name || ''
+    name: nameKr || nameEn || state.editingMember.name || ''
   };
 }
 
@@ -219,8 +220,9 @@ function normalizeDoiInput(value = '') {
   return withoutLabel;
 }
 
-function memberDisplayName(member = {}) {
-  return member.nameKr || member.nameEn || member.name || '';
+function memberDisplayName(member = {}, locale = 'kr') {
+  if (locale === 'en') return firstFilledValue(formatEnglishName(member.nameEn), formatEnglishName(member.name), member.nameKr);
+  return firstFilledValue(member.nameKr, formatEnglishName(member.name), formatEnglishName(member.nameEn));
 }
 
 function normalizeLookupKey(value = '') {
@@ -245,8 +247,20 @@ function resolveProjectInvestigatorMember(project = {}) {
 
 function projectInvestigatorDisplay(project = {}, locale = 'kr') {
   const member = resolveProjectInvestigatorMember(project);
-  if (member) return locale === 'en' ? (member.nameEn || member.name || member.nameKr || '') : (member.nameKr || member.name || member.nameEn || '');
+  if (member) return memberDisplayName(member, locale);
   return project.principalInvestigator || '';
+}
+
+function localizedMemberText(member = {}, key, locale = 'kr') {
+  const primary = locale === 'en' ? `${key}En` : `${key}Kr`;
+  const secondary = locale === 'en' ? `${key}Kr` : `${key}En`;
+  return firstFilledValue(member[primary], member[key], member[secondary]);
+}
+
+function experienceDetail(entry = {}, locale = 'kr') {
+  return locale === 'en'
+    ? firstFilledValue(entry.detailEn, entry.detail, entry.detailKr)
+    : firstFilledValue(entry.detailKr, entry.detail, entry.detailEn);
 }
 
 function activeItems(items = []) {
@@ -254,10 +268,13 @@ function activeItems(items = []) {
 }
 
 function experienceRowTemplate(entry = {}, index = 0) {
+  const detailKr = firstFilledValue(entry.detailKr, entry.detail);
+  const detailEn = firstFilledValue(entry.detailEn, entry.detail);
   return `
     <article class="experience-row" data-experience-row="${index}">
       <label class="field field--compact"><span>연도</span><input data-experience-field="period" type="text" value="${escapeHTML(entry.period || '')}" placeholder="2006–2008"></label>
-      <label class="field field--compact experience-row__detail"><span>경력 (직위 | 소속)</span><input data-experience-field="detail" type="text" value="${escapeHTML(entry.detail || '')}" placeholder="Postdoctoral Fellow | University of Tokyo"></label>
+      <label class="field field--compact experience-row__detail"><span>경력 (한국어) · 직위 | 소속</span><input data-experience-field="detailKr" type="text" value="${escapeHTML(detailKr || '')}" placeholder="박사후연구원 | 도쿄대학교"></label>
+      <label class="field field--compact experience-row__detail"><span>Experience (English) · Position | Affiliation</span><input data-experience-field="detailEn" type="text" value="${escapeHTML(detailEn || '')}" placeholder="Postdoctoral Fellow | University of Tokyo"></label>
       <div class="experience-row__actions"><button type="button" class="small-button is-danger" data-experience-remove>삭제</button></div>
     </article>
   `;
@@ -278,16 +295,18 @@ function renderMemberExperienceRows(entries = []) {
 function collectMemberExperienceEntries() {
   const list = elements.memberExperienceList;
   if (!list) return [];
-  return Array.from(list.querySelectorAll('.experience-row')).map((row) => ({
-    period: String(row.querySelector('[data-experience-field="period"]')?.value || '').trim(),
-    detail: String(row.querySelector('[data-experience-field="detail"]')?.value || '').trim()
-  })).filter((entry) => entry.period || entry.detail);
+  return Array.from(list.querySelectorAll('.experience-row')).map((row) => {
+    const period = String(row.querySelector('[data-experience-field="period"]')?.value || '').trim();
+    const detailKr = String(row.querySelector('[data-experience-field="detailKr"]')?.value || '').trim();
+    const detailEn = String(row.querySelector('[data-experience-field="detailEn"]')?.value || '').trim();
+    return { period, detailKr, detailEn, detail: firstFilledValue(detailKr, detailEn) };
+  }).filter((entry) => entry.period || entry.detailKr || entry.detailEn || entry.detail);
 }
 
-function buildExperienceText(entries = []) {
+function buildExperienceText(entries = [], locale = 'kr') {
   return (Array.isArray(entries) ? entries : []).map((entry) => {
     const period = String(entry?.period || '').trim();
-    const detail = String(entry?.detail || '').trim();
+    const detail = experienceDetail(entry, locale);
     if (period && detail) return `${period} | ${detail}`;
     return detail || period;
   }).filter(Boolean).join('\n');
@@ -1230,19 +1249,34 @@ async function handleMemberSubmit(event) {
   const doctoralSchoolEn = String(formData.get('doctoralSchoolEn') || '').trim();
   const doctoralMajorKr = String(formData.get('doctoralMajorKr') || '').trim();
   const doctoralMajorEn = String(formData.get('doctoralMajorEn') || '').trim();
+  const nameKr = String(formData.get('nameKr') || '').trim();
+  const nameEn = formatEnglishName(String(formData.get('nameEn') || '').trim());
+  const bioKr = String(formData.get('bioKr') || '').trim();
+  const bioEn = String(formData.get('bioEn') || '').trim();
+  const researchInterestKr = String(formData.get('researchInterestKr') || '').trim();
+  const researchInterestEn = String(formData.get('researchInterestEn') || '').trim();
+  const currentPositionKr = String(formData.get('currentPositionKr') || '').trim();
+  const currentPositionEn = String(formData.get('currentPositionEn') || '').trim();
+  const experienceEntries = collectMemberExperienceEntries();
   const payload = {
-    nameKr: String(formData.get('nameKr') || '').trim(),
-    nameEn: String(formData.get('nameEn') || '').trim(),
-    name: String(formData.get('nameEn') || formData.get('nameKr') || '').trim(),
+    nameKr,
+    nameEn,
+    name: nameKr || nameEn || '',
     group: String(formData.get('group') || 'graduateStudent'),
     track: String(formData.get('track') || 'none'),
     course: String(formData.get('course') || 'ms'),
     email: String(formData.get('email') || '').trim(),
-    bio: String(formData.get('bio') || '').trim(),
+    bioKr,
+    bioEn,
+    bio: firstFilledValue(bioKr, bioEn),
     education: state.editingMember?.education || '',
-    experienceEntries: collectMemberExperienceEntries(),
+    experienceEntries,
+    experienceKr: '',
+    experienceEn: '',
     experience: '',
-    researchInterest: String(formData.get('researchInterest') || '').trim(),
+    researchInterestKr,
+    researchInterestEn,
+    researchInterest: firstFilledValue(researchInterestKr, researchInterestEn),
     bachelorsSchoolKr,
     bachelorsSchoolEn,
     bachelorsMajorKr,
@@ -1266,7 +1300,9 @@ async function handleMemberSubmit(event) {
     relatedProjects: String(formData.get('relatedProjects') || '').trim(),
     publicationLinks: collectMemberPublicationLinks(),
     authorshipNote: '',
-    currentPosition: String(formData.get('currentPosition') || '').trim(),
+    currentPositionKr,
+    currentPositionEn,
+    currentPosition: firstFilledValue(currentPositionKr, currentPositionEn),
     status: String(formData.get('status') || 'enrolled'),
     graduationYear: String(formData.get('graduationYear') || '').trim(),
     startYear: String(formData.get('startYear') || '').trim(),
@@ -1279,7 +1315,9 @@ async function handleMemberSubmit(event) {
     photoRemoved: state.memberPhotoRemoved
   };
   payload.education = buildEducationLines(payload) || state.editingMember?.education || '';
-  payload.experience = buildExperienceText(payload.experienceEntries);
+  payload.experienceKr = buildExperienceText(payload.experienceEntries, 'kr');
+  payload.experienceEn = buildExperienceText(payload.experienceEntries, 'en');
+  payload.experience = firstFilledValue(payload.experienceKr, payload.experienceEn);
   payload.authorshipNote = publicationLinksSummary(payload.publicationLinks);
   if (!(payload.group === 'pi' || payload.course === 'professor')) {
     payload.courseSchedule = [];
@@ -1498,12 +1536,12 @@ function memberItemMarkup(member) {
         <div class="admin-item-thumb">${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(member.name)}">` : `<span>${escapeHTML(getInitials(member.name))}</span>`}</div>
         <div class="admin-item-content">
           <div class="card-topline">
-            <strong>${escapeHTML(member.nameKr || member.name)}</strong>${member.nameEn ? `<small class=\"muted\">${escapeHTML(member.nameEn)}</small>` : ''}
+            <strong>${escapeHTML(memberDisplayName(member, 'kr'))}</strong>${member.nameEn ? `<small class=\"muted\">${escapeHTML(memberDisplayName(member, 'en'))}</small>` : ''}
             <span class="status-badge ${member.status === 'alumni' ? 'is-alumni' : ''}">${escapeHTML(memberStatusLabel(member, 'kr'))}</span>
           </div>
           ${detailBits ? `<p class="muted">${escapeHTML(detailBits)}</p>` : ''}
           ${member.email ? `<p>${escapeHTML(member.email)}</p>` : ''}
-          ${member.currentPosition ? `<p>${escapeHTML(member.currentPosition)}</p>` : ''}
+          ${localizedMemberText(member, 'currentPosition', 'kr') ? `<p>${escapeHTML(localizedMemberText(member, 'currentPosition', 'kr'))}</p>` : ''}
         </div>
       </div>
       <div class="admin-item-actions">
@@ -1842,7 +1880,25 @@ function loadMemberForm(member) {
   state.memberPhotoRemoved = false;
   elements.memberTitle.textContent = '멤버 수정';
   const form = elements.memberForm;
-  ['nameKr','nameEn','group','track','course','email','bio','experience','researchInterest','coursesInfo','relatedProjects','currentPosition','status','graduationYear','startYear'].forEach((field) => setFormValue(form, field, member[field] || ''));
+  [
+    ['nameKr', member.nameKr || ''],
+    ['nameEn', formatEnglishName(member.nameEn || '')],
+    ['group', member.group || 'graduateStudent'],
+    ['track', member.track || 'none'],
+    ['course', member.course || 'ms'],
+    ['email', member.email || ''],
+    ['bioKr', firstFilledValue(member.bioKr, member.bio)],
+    ['bioEn', firstFilledValue(member.bioEn, member.bio)],
+    ['researchInterestKr', firstFilledValue(member.researchInterestKr, member.researchInterest)],
+    ['researchInterestEn', firstFilledValue(member.researchInterestEn, member.researchInterest)],
+    ['coursesInfo', member.coursesInfo || ''],
+    ['relatedProjects', member.relatedProjects || ''],
+    ['currentPositionKr', firstFilledValue(member.currentPositionKr, member.currentPosition)],
+    ['currentPositionEn', firstFilledValue(member.currentPositionEn, member.currentPosition)],
+    ['status', member.status || 'enrolled'],
+    ['graduationYear', member.graduationYear || ''],
+    ['startYear', member.startYear || '']
+  ].forEach(([field, value]) => setFormValue(form, field, value));
   [
     ['bachelorsSchoolKr', member.bachelorsSchoolKr || ''],
     ['bachelorsSchoolEn', member.bachelorsSchoolEn || member.bachelorsSchool || ''],
@@ -1905,11 +1961,14 @@ async function quickGraduate(member) {
   if (year === null) return;
   const currentPosition = await openDialog({ title: '현재 소속', message: '현재 소속을 입력하세요.', inputLabel: '현재 소속', defaultValue: member.currentPosition || '', type: 'prompt' });
   if (currentPosition === null) return;
+  const currentPositionValue = String(currentPosition).trim();
   const payload = {
     ...member,
     status: 'alumni',
     graduationYear: String(year).trim(),
-    currentPosition: String(currentPosition).trim(),
+    currentPositionKr: currentPositionValue,
+    currentPositionEn: firstFilledValue(member.currentPositionEn, currentPositionValue),
+    currentPosition: currentPositionValue,
     enrolledGroup: member.enrolledGroup || member.group,
     enrolledCourse: member.enrolledCourse || member.course,
     enrolledTrack: member.enrolledTrack || member.track

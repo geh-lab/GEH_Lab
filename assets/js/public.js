@@ -22,7 +22,8 @@ import {
   publicationIndexingLabel,
   publicationYearMonthLabel,
   normalizeProjectPeriod,
-  isActiveItem
+  isActiveItem,
+  formatEnglishName
 } from './utils.js';
 import { hasFirebaseConfig, fetchCollection, listenCollection, COLLECTIONS } from './firebase.js';
 
@@ -73,7 +74,9 @@ const modalState = {
 
 function memberDisplayName(member, locale = lang) {
   if (!member) return '';
-  return locale === 'en' ? (member.nameEn || member.name || member.nameKr || '') : (member.nameKr || member.name || member.nameEn || '');
+  return locale === 'en'
+    ? firstFilled(formatEnglishName(member.nameEn), formatEnglishName(member.name), member.nameKr)
+    : firstFilled(member.nameKr, formatEnglishName(member.name), formatEnglishName(member.nameEn));
 }
 
 function normalizeLookupKey(value = '') {
@@ -100,6 +103,18 @@ function projectInvestigatorName(project = {}, locale = lang) {
   return project.principalInvestigator || '';
 }
 
+function localizedMemberText(member = {}, key, locale = lang) {
+  const primary = locale === 'en' ? `${key}En` : `${key}Kr`;
+  const secondary = locale === 'en' ? `${key}Kr` : `${key}En`;
+  return firstFilled(member[primary], member[key], member[secondary]);
+}
+
+function localizedExperienceDetail(entry = {}, locale = lang) {
+  return locale === 'en'
+    ? firstFilled(entry.detailEn, entry.detail, entry.detailKr)
+    : firstFilled(entry.detailKr, entry.detail, entry.detailEn);
+}
+
 function normalizeExperienceEntries(value = '') {
   const rawLines = String(value || '').split(/\n+/).map((line) => line.trim()).filter(Boolean);
   const segments = rawLines.flatMap((line) => /\|/.test(line) ? [line] : line.split(/\s+[·•]\s+/).map((chunk) => chunk.trim()).filter(Boolean));
@@ -114,13 +129,18 @@ function normalizeExperienceEntries(value = '') {
 
 function memberExperienceEntries(member = {}) {
   if (Array.isArray(member.experienceEntries) && member.experienceEntries.length) {
-    return member.experienceEntries.filter((entry) => String(entry?.period || '').trim() || String(entry?.detail || '').trim());
+    return member.experienceEntries.filter((entry) => {
+      return [entry?.period, entry?.detailKr, entry?.detailEn, entry?.detail].some((value) => String(value || '').trim());
+    });
   }
-  return normalizeExperienceEntries(member.experience || '');
+  return normalizeExperienceEntries(localizedMemberText(member, 'experience', 'en') || localizedMemberText(member, 'experience', 'kr') || member.experience || '');
 }
 
-function memberExperienceMarkup(member = {}, variant = 'detail') {
-  const lines = memberExperienceEntries(member).map((entry) => [String(entry.period || '').trim(), String(entry.detail || '').trim()].filter(Boolean).join(' | ')).filter(Boolean);
+function memberExperienceMarkup(member = {}, locale = lang, variant = 'detail') {
+  const lines = memberExperienceEntries(member).map((entry) => {
+    const detail = localizedExperienceDetail(entry, locale);
+    return [String(entry.period || '').trim(), detail].filter(Boolean).join(' | ');
+  }).filter(Boolean);
   if (!lines.length) return '';
   return `<div class="member-experience-lines member-experience-lines--${escapeHTML(variant)}">${lines.map((line) => `<p>${escapeHTML(line)}</p>`).join('')}</div>`;
 }
@@ -439,8 +459,8 @@ function openMemberModal(member) {
   if (yearLabel) chips.push(yearLabel);
   const displayName = memberDisplayName(member);
   const title = displayName;
-  const photo = member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}">` : `<div class="modal-avatar__placeholder">${escapeHTML(getInitials(member.name))}</div>`;
-  const currentLabel = member.status === 'alumni' ? copy.currentPosition : (lang === 'en' ? 'Current role' : '현재 역할');
+  const photo = member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}">` : `<div class="modal-avatar__placeholder">${escapeHTML(getInitials(memberDisplayName(member, 'en') || memberDisplayName(member) || member.name))}</div>`;
+  const currentLabel = copy.currentPosition;
   const relatedProjectSection = member.group === 'researchProfessor'
     ? detailSection(lang === 'en' ? 'Related projects' : '관련 과제', member.relatedProjects || (lang === 'en' ? 'To be updated by the administrator.' : '관리자에서 관련 과제 정보를 추가할 수 있습니다.'))
     : '';
@@ -451,15 +471,15 @@ function openMemberModal(member) {
         <div class="detail-modal__summary">
           <div class="member-chip-row">${chips.map((chip) => `<span class="member-chip member-chip--soft">${escapeHTML(chip)}</span>`).join('')}</div>
           <h3>${escapeHTML(displayName)}</h3>
-          ${member.bio ? `<p class="detail-lead">${escapeHTML(member.bio)}</p>` : ''}
+          ${localizedMemberText(member, 'bio') ? `<p class="detail-lead">${escapeHTML(localizedMemberText(member, 'bio'))}</p>` : ''}
           ${member.email ? `<a class="member-link" href="mailto:${escapeHTML(member.email)}">${escapeHTML(member.email)}</a>` : ''}
         </div>
       </div>
       <div class="detail-grid">
         ${detailHtmlSection(copy.education, memberEducationMarkup(member, lang, 'detail'))}
-        ${memberExperienceMarkup(member, 'detail') ? detailHtmlSection(copy.experience, memberExperienceMarkup(member, 'detail')) : detailSection(copy.experience, member.experience)}
-        ${detailSection(copy.interest, member.researchInterest)}
-        ${detailSection(currentLabel, member.currentPosition || member.bio)}
+        ${memberExperienceMarkup(member, lang, 'detail') ? detailHtmlSection(copy.experience, memberExperienceMarkup(member, lang, 'detail')) : detailSection(copy.experience, localizedMemberText(member, 'experience'))}
+        ${detailSection(copy.interest, localizedMemberText(member, 'researchInterest'))}
+        ${detailSection(currentLabel, localizedMemberText(member, 'currentPosition'))}
         ${memberCourseSectionMarkup(member, lang)}
         ${relatedProjectSection}
         ${renderMemberPublicationBlock(member)}
@@ -752,13 +772,13 @@ function renderMembers() {
             <div class="pi-card-head">
               <span class="eyebrow">${escapeHTML(copy.pi)}</span>
               <div class="pi-name-row"><h2>${escapeHTML(memberDisplayName(pi))}</h2>${memberYearLabel(pi, lang) ? `<span class="member-chip member-chip--soft">${escapeHTML(memberYearLabel(pi, lang))}</span>` : ''}</div>
-              <p class="pi-title">${escapeHTML(pi.bio || (lang === 'en' ? 'Professor, Chungnam National University' : '충남대학교 교수'))}</p>
+              <p class="pi-title">${escapeHTML(localizedMemberText(pi, 'bio') || (lang === 'en' ? 'Professor, Chungnam National University' : '충남대학교 교수'))}</p>
               <div class="pi-head-actions"><button type="button" class="button secondary detail-open-button" data-member-id="${escapeHTML(pi.id)}">${lang === 'en' ? 'View profile' : '상세 보기'}</button></div>
             </div>
             <div class="pi-card-grid">
               <article><h3>${escapeHTML(copy.education)}</h3>${memberEducationMarkup(pi, lang, 'panel')}</article>
-              <article><h3>${escapeHTML(copy.experience)}</h3>${memberExperienceMarkup(pi, 'panel') || `<p>${multilineText(pi.experience || '')}</p>`}</article>
-              <article><h3>${escapeHTML(copy.interest)}</h3><p>${multilineText(pi.researchInterest || '')}</p></article>
+              <article><h3>${escapeHTML(copy.experience)}</h3>${memberExperienceMarkup(pi, lang, 'panel') || `<p>${multilineText(localizedMemberText(pi, 'experience') || '')}</p>`}</article>
+              <article><h3>${escapeHTML(copy.interest)}</h3><p>${multilineText(localizedMemberText(pi, 'researchInterest') || '')}</p></article>
               <article><h3>${escapeHTML(copy.contact)}</h3><p>${pi.email ? `<a class="member-link" href="mailto:${escapeHTML(pi.email)}">${escapeHTML(pi.email)}</a>` : ''}</p></article>
               ${memberCourseScheduleEntries(pi).length ? `<article class="pi-card-grid__full"><h3>${escapeHTML(lang === 'en' ? 'Course schedule' : '수업 시간표')}</h3>${memberCourseScheduleMarkup(pi, lang)}</article>` : ''}
             </div>
@@ -1036,7 +1056,7 @@ function memberCard(member) {
   return `
     <article class="member-card reveal interactive-card" data-member-id="${escapeHTML(member.id)}" tabindex="0" role="button" aria-label="${escapeHTML(memberDisplayName(member))}">
       <div class="member-thumb">
-        ${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}">` : `<span>${escapeHTML(getInitials(member.name))}</span>`}
+        ${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}">` : `<span>${escapeHTML(getInitials(memberDisplayName(member, 'en') || memberDisplayName(member) || member.name))}</span>`}
       </div>
       <div class="member-copy">
         ${memberMetaChips(member) ? `<div class="member-chip-row">${memberMetaChips(member)}</div>` : ''}
@@ -1053,13 +1073,13 @@ function alumniCard(member) {
   return `
     <article class="member-card member-card--alumni reveal interactive-card" data-member-id="${escapeHTML(member.id)}" tabindex="0" role="button" aria-label="${escapeHTML(memberDisplayName(member))}">
       <div class="member-thumb">
-        ${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}">` : `<span>${escapeHTML(getInitials(member.name))}</span>`}
+        ${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}">` : `<span>${escapeHTML(getInitials(memberDisplayName(member, 'en') || memberDisplayName(member) || member.name))}</span>`}
       </div>
       <div class="member-copy">
         <div class="member-chip-row"><span class="member-chip">${escapeHTML(member.graduationYear || '')}</span></div>
         <h3>${escapeHTML(memberDisplayName(member))}</h3>
-        ${member.bio ? `<p>${escapeHTML(member.bio)}</p>` : ''}
-        ${member.currentPosition ? `<p class="muted"><strong>${escapeHTML(copy.currentPosition)}:</strong> ${escapeHTML(member.currentPosition)}</p>` : ''}
+        ${localizedMemberText(member, 'bio') ? `<p>${escapeHTML(localizedMemberText(member, 'bio'))}</p>` : ''}
+        ${localizedMemberText(member, 'currentPosition') ? `<p class="muted"><strong>${escapeHTML(copy.currentPosition)}:</strong> ${escapeHTML(localizedMemberText(member, 'currentPosition'))}</p>` : ''}
       </div>
     </article>
   `;
