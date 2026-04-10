@@ -85,7 +85,12 @@ const state = {
   publicationPage: 1,
   boardPage: 1,
   trashPage: 1,
-  pageSize: 10
+  pageSize: 10,
+  memberQuery: '',
+  projectQuery: '',
+  publicationQuery: '',
+  boardQuery: '',
+  trashQuery: ''
 };
 
 const qs = (selector) => document.querySelector(selector);
@@ -121,6 +126,9 @@ const elements = {
   memberExperienceList: qs('#member-experience-list'),
   memberExperienceAdd: qs('#member-experience-add'),
   memberFilterTabs: qs('#member-filter-tabs'),
+  memberSearchInput: qs('#member-search'),
+  memberProjectPicker: qs('#member-project-picker'),
+  memberProjectPickerLabel: qs('#member-project-picker-label'),
   projectForm: qs('#project-form'),
   projectList: qs('#project-list'),
   projectTitle: qs('#project-form-title'),
@@ -128,6 +136,7 @@ const elements = {
   projectAddButton: qs('#project-add-button'),
   projectPagination: qs('#project-pagination'),
   projectFilterTabs: qs('#project-filter-tabs'),
+  projectSearchInput: qs('#project-search'),
   projectFigureInput: qs('#project-figure-input'),
   projectFigurePreview: qs('#project-figure-preview'),
   projectFigureRemove: qs('#project-figure-remove'),
@@ -139,6 +148,7 @@ const elements = {
   publicationAddButton: qs('#publication-add-button'),
   publicationPagination: qs('#publication-pagination'),
   publicationFilterTabs: qs('#publication-filter-tabs'),
+  publicationSearchInput: qs('#publication-search-admin'),
   boardForm: qs('#board-form'),
   boardList: qs('#board-list'),
   boardTitle: qs('#board-form-title'),
@@ -146,6 +156,7 @@ const elements = {
   boardAddButton: qs('#board-add-button'),
   boardPagination: qs('#board-pagination'),
   boardFilterTabs: qs('#board-filter-tabs'),
+  boardSearchInput: qs('#board-search'),
   boardImageInput: qs('#board-image-input'),
   boardImagePreview: qs('#board-image-preview'),
   boardImageRemove: qs('#board-image-remove'),
@@ -153,6 +164,7 @@ const elements = {
   trashList: qs('#trash-list'),
   trashPagination: qs('#trash-pagination'),
   trashFilterTabs: qs('#trash-filter-tabs'),
+  trashSearchInput: qs('#trash-search'),
   summaryMembers: qs('#summary-members'),
   summaryProjects: qs('#summary-projects'),
   summaryPublications: qs('#summary-publications'),
@@ -228,6 +240,122 @@ function memberDisplayName(member = {}, locale = 'kr') {
 function normalizeLookupKey(value = '') {
   return String(value || '').trim().toLowerCase().replace(/[^a-z0-9가-힣]+/g, '');
 }
+
+
+function normalizeSearchText(value = '') {
+  return String(value || '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function matchesSearch(query = '', ...values) {
+  const keyword = normalizeSearchText(query);
+  if (!keyword) return true;
+  return values.some((value) => normalizeSearchText(value).includes(keyword));
+}
+
+function memberProjectPickerTitle(group = '', course = '') {
+  const isParticipant = group === 'graduateStudent' || group === 'studentResearcher' || ['phd', 'ms', 'undergrad'].includes(course);
+  return isParticipant ? '참여 과제 연결' : '관련 과제 연결';
+}
+
+function memberProjectSectionVisible(group = '', course = '', status = '') {
+  return !(status === 'alumni' || group === 'alumni' || course === 'alumni');
+}
+
+function memberProjectSearchValues(member = {}) {
+  return [
+    member.nameKr,
+    member.nameEn,
+    member.name,
+    member.email,
+    localizedMemberText(member, 'currentPosition', 'kr'),
+    localizedMemberText(member, 'currentPosition', 'en'),
+    localizedMemberText(member, 'bio', 'kr'),
+    localizedMemberText(member, 'bio', 'en')
+  ];
+}
+
+function projectSearchValues(project = {}) {
+  return [
+    localizedProjectTitle(project, 'kr'),
+    localizedProjectTitle(project, 'en'),
+    localizedProjectDescription(project, 'kr'),
+    localizedProjectDescription(project, 'en'),
+    projectInvestigatorDisplay(project, 'kr'),
+    projectInvestigatorDisplay(project, 'en'),
+    (Array.isArray(project.tagsKr) ? project.tagsKr : []).join(' '),
+    (Array.isArray(project.tagsEn) ? project.tagsEn : []).join(' '),
+    (Array.isArray(project.tags) ? project.tags : []).join(' ')
+  ];
+}
+
+function publicationSearchValues(item = {}) {
+  return [item.title, item.authors, item.journal, item.year, item.month, item.doi, item.abstract];
+}
+
+function boardSearchValues(item = {}) {
+  return [item.title, item.description, item.linkUrl, item.category, item.date];
+}
+
+function trashSearchValues(item = {}) {
+  return [item.title, item.originalId, item.kind, item.collectionName, item.deletedAt];
+}
+
+function adminMemberGridClass(count = 0) {
+  if (count <= 1) return 'admin-member-grid admin-member-grid--1';
+  if (count === 2) return 'admin-member-grid admin-member-grid--2';
+  return 'admin-member-grid admin-member-grid--3';
+}
+
+function adminMemberSection(title, items = []) {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return adminSection(title, emptyAdmin('없음'));
+  return `<section class="admin-list-section"><h3>${escapeHTML(title)}</h3><div class="${adminMemberGridClass(list.length)}">${list.map(memberItemMarkup).join('')}</div></section>`;
+}
+
+function collectMemberProjectLinks() {
+  if (!elements.memberProjectPicker) return [];
+  return qsa('#member-project-picker input[data-project-id]:checked').map((input) => {
+    const project = state.projects.find((item) => item.id === input.dataset.projectId);
+    if (!project) return null;
+    return {
+      projectId: project.id,
+      title: localizedProjectTitle(project, 'kr') || localizedProjectTitle(project, 'en'),
+      titleKr: localizedProjectTitle(project, 'kr') || '',
+      titleEn: localizedProjectTitle(project, 'en') || '',
+      period: project.period || '',
+      status: project.status || 'ongoing'
+    };
+  }).filter(Boolean);
+}
+
+function memberProjectLinksSummary(items = []) {
+  return (Array.isArray(items) ? items : [])
+    .map((item) => firstFilledValue(item.titleKr, item.titleEn, item.title))
+    .filter(Boolean)
+    .join('\n');
+}
+
+function renderMemberProjectPicker(selected = []) {
+  const container = elements.memberProjectPicker;
+  if (!container) return;
+  const selectedIds = new Set((Array.isArray(selected) ? selected : []).map((entry) => String(entry?.projectId || entry?.id || '')));
+  const items = state.projects.filter((project) => project.status === 'ongoing');
+  if (!items.length) {
+    container.className = 'project-picker project-picker--empty';
+    container.innerHTML = `<p class="muted">현재 진행 중인 과제가 없습니다. 과제 관리에서 먼저 과제를 등록해주세요.</p>`;
+    return;
+  }
+  const cols = items.length <= 1 ? 1 : items.length === 2 ? 2 : 3;
+  container.className = `project-picker project-picker--cols-${cols}`;
+  container.innerHTML = items.map((project) => {
+    const title = localizedProjectTitle(project, 'kr') || localizedProjectTitle(project, 'en');
+    const period = normalizeProjectPeriod(project.period || '');
+    const investigator = projectInvestigatorDisplay(project, 'kr');
+    const checked = selectedIds.has(String(project.id));
+    return `<label class="project-picker__item${checked ? ' is-selected' : ''}"><input type="checkbox" data-project-id="${escapeHTML(project.id)}" ${checked ? 'checked' : ''}><span class="project-picker__content"><strong>${escapeHTML(title)}</strong>${period ? `<small>${escapeHTML(period)}</small>` : ''}${investigator ? `<span class="project-picker__hint">${escapeHTML(investigator)}</span>` : ''}</span></label>`;
+  }).join('');
+}
+
 
 function findMemberByAnyName(value = '') {
   const target = normalizeLookupKey(value);
@@ -529,6 +657,12 @@ function bindEvents() {
   elements.memberForm?.elements?.namedItem('nameEn')?.addEventListener('input', syncMemberNameField);
   elements.memberForm?.elements?.namedItem('group')?.addEventListener('change', updateMemberEducationVisibility);
   elements.memberForm?.elements?.namedItem('course')?.addEventListener('change', updateMemberEducationVisibility);
+  elements.memberForm?.elements?.namedItem('status')?.addEventListener('change', updateMemberEducationVisibility);
+  elements.memberSearchInput?.addEventListener('input', (event) => { state.memberQuery = event.currentTarget.value; state.memberPage = 1; renderMembersList(); });
+  elements.projectSearchInput?.addEventListener('input', (event) => { state.projectQuery = event.currentTarget.value; state.projectPage = 1; renderProjectsList(); });
+  elements.publicationSearchInput?.addEventListener('input', (event) => { state.publicationQuery = event.currentTarget.value; state.publicationPage = 1; renderPublicationsList(); });
+  elements.boardSearchInput?.addEventListener('input', (event) => { state.boardQuery = event.currentTarget.value; state.boardPage = 1; renderBoardList(); });
+  elements.trashSearchInput?.addEventListener('input', (event) => { state.trashQuery = event.currentTarget.value; state.trashPage = 1; renderTrashList(); });
   elements.memberCourseScheduleAdd?.addEventListener('click', () => {
     const current = collectMemberCourseSchedule();
     current.push({ day: '월', time: '', courseName: '', credits: '', description: '' });
@@ -540,6 +674,7 @@ function bindEvents() {
     renderMemberExperienceRows(current);
   });
   qs('#member-publication-picker')?.addEventListener('click', onPublicationPickerClick);
+  elements.memberProjectPicker?.addEventListener('change', () => { qsa('#member-project-picker .project-picker__item').forEach((label) => label.classList.toggle('is-selected', Boolean(label.querySelector('input[data-project-id]')?.checked))); });
   document.addEventListener('pointerdown', (event) => {
     if (!state.openEditorKind) return;
     if (elements.dialog && !elements.dialog.hidden && elements.dialog.contains(event.target)) return;
@@ -622,11 +757,13 @@ ${phdMajor}` : ''}`.trim());
   return lines.join('\n');
 }
 
+
 function updateMemberEducationVisibility() {
   const form = elements.memberForm;
   if (!form) return;
   const group = String(form.elements.namedItem('group')?.value || '').trim();
   const course = String(form.elements.namedItem('course')?.value || '').trim();
+  const status = String(form.elements.namedItem('status')?.value || '').trim();
   const level = educationLevelForMember({ group, course });
   const showBs = ['bs','ms','phd'].includes(level);
   const showMs = ['ms','phd'].includes(level);
@@ -635,12 +772,12 @@ function updateMemberEducationVisibility() {
   qsa('.degree-field[data-degree-level="ms"]').forEach((el) => el.hidden = !showMs);
   qsa('.degree-field[data-degree-level="phd"]').forEach((el) => el.hidden = !showPhd);
   const isPi = group === 'pi' || course === 'professor';
-  const isResearch = group === 'researchProfessor' || course === 'postdoc';
   if (elements.memberCourseScheduleWrap) elements.memberCourseScheduleWrap.hidden = !isPi;
   if (elements.memberCoursesNoteField) elements.memberCoursesNoteField.hidden = !isPi;
-  if (elements.memberRelatedProjectsField) elements.memberRelatedProjectsField.hidden = !isResearch;
+  const showProjects = memberProjectSectionVisible(group, course, status);
+  if (elements.memberRelatedProjectsField) elements.memberRelatedProjectsField.hidden = !showProjects;
+  if (elements.memberProjectPickerLabel) elements.memberProjectPickerLabel.textContent = `${memberProjectPickerTitle(group, course)} (현재 진행 중 과제만)`;
 }
-
 
 function renderMemberPublicationPicker(selected = []) {
   const container = qs('#member-publication-picker');
@@ -918,7 +1055,7 @@ function sortTrashItems(items = []) {
 }
 
 function trashTypeLabel(type = '') {
-  const map = { member: '멤버', project: '과제', publication: '논문', board: '게시글' };
+  const map = { member: '멤버', project: '과제', publication: '논문', board: '소식' };
   return map[type] || '기타';
 }
 
@@ -1187,7 +1324,7 @@ function clearBoardImage() {
 function renderBoardImagePreview() {
   const url = state.pendingBoardPreview || state.editingBoard?.imageUrl || '';
   if (!elements.boardImagePreview) return;
-  elements.boardImagePreview.innerHTML = url ? `<img src="${escapeHTML(rootAsset(url, root))}" alt="preview">` : `<span>Board</span>`;
+  elements.boardImagePreview.innerHTML = url ? `<img src="${escapeHTML(rootAsset(url, root))}" alt="preview">` : `<span>News</span>`;
 }
 
 function resetMemberForm() {
@@ -1202,6 +1339,7 @@ function resetMemberForm() {
   updateFileInputLabel(elements.memberPhotoInput, elements.memberPhotoFileName);
   renderMemberPhotoPreview();
   renderMemberPublicationPicker([]);
+  renderMemberProjectPicker([]);
   renderMemberCourseSchedule([]);
   renderMemberExperienceRows([]);
   updateMemberEducationVisibility();
@@ -1230,7 +1368,7 @@ function resetBoardForm() {
   if (state.pendingBoardPreview) URL.revokeObjectURL(state.pendingBoardPreview);
   state.pendingBoardPreview = '';
   state.boardImageRemoved = false;
-  if (elements.boardTitle) elements.boardTitle.textContent = '게시글 추가';
+  if (elements.boardTitle) elements.boardTitle.textContent = '소식 추가';
   renderBoardImagePreview();
 }
 
@@ -1297,7 +1435,8 @@ async function handleMemberSubmit(event) {
     doctoralMajor: firstFilledValue(doctoralMajorEn, doctoralMajorKr),
     coursesInfo: String(formData.get('coursesInfo') || '').trim(),
     courseSchedule: collectMemberCourseSchedule(),
-    relatedProjects: String(formData.get('relatedProjects') || '').trim(),
+    projectLinks: collectMemberProjectLinks(),
+    relatedProjects: '',
     publicationLinks: collectMemberPublicationLinks(),
     authorshipNote: '',
     currentPositionKr,
@@ -1319,11 +1458,13 @@ async function handleMemberSubmit(event) {
   payload.experienceEn = buildExperienceText(payload.experienceEntries, 'en');
   payload.experience = firstFilledValue(payload.experienceKr, payload.experienceEn);
   payload.authorshipNote = publicationLinksSummary(payload.publicationLinks);
+  payload.relatedProjects = memberProjectLinksSummary(payload.projectLinks);
   if (!(payload.group === 'pi' || payload.course === 'professor')) {
     payload.courseSchedule = [];
     payload.coursesInfo = '';
   }
-  if (!(payload.group === 'researchProfessor' || payload.course === 'postdoc')) {
+  if (!memberProjectSectionVisible(payload.group, payload.course, payload.status)) {
+    payload.projectLinks = [];
     payload.relatedProjects = '';
   }
   if (!payload.nameKr && !payload.nameEn && !payload.name) return showNotice('이름을 입력해주세요.', 'warning');
@@ -1463,9 +1604,9 @@ async function handleBoardSubmit(event) {
     imagePath: state.editingBoard?.imagePath || '',
     date: String(formData.get('date') || '').trim()
   };
-  if (!payload.title) return showNotice('게시글 제목을 입력해주세요.', 'warning');
+  if (!payload.title) return showNotice('소식 제목을 입력해주세요.', 'warning');
   try {
-    showNotice('게시글을 저장하는 중입니다. 이미지가 있으면 잠시 더 걸릴 수 있습니다.', 'info');
+    showNotice('소식을 저장하는 중입니다. 이미지가 있으면 잠시 더 걸릴 수 있습니다.', 'info');
     if (state.pendingBoardFile) {
       const upload = await uploadBoardImage(state.pendingBoardFile);
       if (state.editingBoard?.imagePath && state.editingBoard.imagePath !== upload.imagePath) {
@@ -1484,14 +1625,14 @@ async function handleBoardSubmit(event) {
     state.board = activeItems(sortBoardPosts(mergeBoardPosts(state.board, [{ ...payload, id, updatedAt: new Date().toISOString() }])));
     renderBoardList();
     renderSummary();
-    showNotice('게시글이 저장되었습니다.', 'success');
+    showNotice('소식이 저장되었습니다.', 'success');
     resetBoardForm();
     closeEditor('board');
   } catch (error) {
     console.error(error);
     const message = /document.*too.*large|maximum document size|too many bytes/i.test(error?.message || '')
-      ? '게시판 이미지는 데이터베이스에 바로 저장되므로, 이미지 용량을 더 줄인 뒤 다시 시도해주세요.'
-      : adminErrorMessage(error, '게시글 저장에 실패했습니다.');
+      ? '소식 이미지는 데이터베이스에 바로 저장되므로, 이미지 용량을 더 줄인 뒤 다시 시도해주세요.'
+      : adminErrorMessage(error, '소식 저장에 실패했습니다.');
     showNotice(message, 'danger');
   }
 }
@@ -1553,11 +1694,13 @@ function memberItemMarkup(member) {
   `;
 }
 
+
 function renderMembersList() {
   if (!elements.memberList) return;
   renderMemberFilterTabs();
-  const enrolled = state.members.filter((item) => item.status !== 'alumni');
-  const alumni = state.members.filter((item) => item.status === 'alumni');
+  const matched = state.members.filter((item) => matchesSearch(state.memberQuery, ...memberProjectSearchValues(item)));
+  const enrolled = matched.filter((item) => item.status !== 'alumni');
+  const alumni = matched.filter((item) => item.status === 'alumni');
   let sections = [];
   elements.memberPagination.innerHTML = '';
 
@@ -1571,26 +1714,26 @@ function renderMembersList() {
     const undergradItems = enrolled.filter((item) => item.group === 'studentResearcher');
     const alumniGroups = Object.entries(groupBy(alumni, (item) => item.graduationYear || '이전')).sort((a, b) => numericYearSort(b[0]) - numericYearSort(a[0]));
     sections = [
-      adminSection(`지도교수 (${piItems.length})`, piItems.map(memberItemMarkup).join('') || emptyAdmin('없음')),
-      adminSection(`연구교수 · 박사후연구원 (${researchItems.length})`, researchItems.map(memberItemMarkup).join('') || emptyAdmin('없음')),
-      adminSection(`박사과정 · 풀타임 (${phdFull.length})`, phdFull.map(memberItemMarkup).join('') || emptyAdmin('없음')),
-      adminSection(`박사과정 · 파트타임 (${phdPart.length})`, phdPart.map(memberItemMarkup).join('') || emptyAdmin('없음')),
-      adminSection(`석사과정 · 풀타임 (${msFull.length})`, msFull.map(memberItemMarkup).join('') || emptyAdmin('없음')),
-      adminSection(`석사과정 · 파트타임 (${msPart.length})`, msPart.map(memberItemMarkup).join('') || emptyAdmin('없음')),
-      adminSection(`학부연구생 (${undergradItems.length})`, undergradItems.map(memberItemMarkup).join('') || emptyAdmin('없음')),
-      ...alumniGroups.map(([year, items]) => adminSection(`${year} (${items.length})`, items.map(memberItemMarkup).join('') || emptyAdmin('없음')))
+      adminMemberSection(`지도교수 (${piItems.length})`, piItems),
+      adminMemberSection(`연구교수 · 박사후연구원 (${researchItems.length})`, researchItems),
+      adminMemberSection(`박사과정 · 풀타임 (${phdFull.length})`, phdFull),
+      adminMemberSection(`박사과정 · 파트타임 (${phdPart.length})`, phdPart),
+      adminMemberSection(`석사과정 · 풀타임 (${msFull.length})`, msFull),
+      adminMemberSection(`석사과정 · 파트타임 (${msPart.length})`, msPart),
+      adminMemberSection(`학부연구생 (${undergradItems.length})`, undergradItems),
+      ...alumniGroups.map(([year, items]) => adminMemberSection(`${year} (${items.length})`, items))
     ];
   } else if (state.memberFilter === 'pi') {
     const all = enrolled.filter((item) => item.group === 'pi');
     const pageData = paginateItems(all, state.memberPage);
     state.memberPage = pageData.page;
-    sections.push(adminSection(`지도교수 (${all.length})`, pageData.items.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    sections.push(adminMemberSection(`지도교수 (${all.length})`, pageData.items));
     elements.memberPagination.innerHTML = paginationMarkup('member', pageData.page, pageData.pages);
   } else if (state.memberFilter === 'research') {
     const all = enrolled.filter((item) => item.group === 'researchProfessor');
     const pageData = paginateItems(all, state.memberPage);
     state.memberPage = pageData.page;
-    sections.push(adminSection(`연구교수 · 박사후연구원 (${all.length})`, pageData.items.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    sections.push(adminMemberSection(`연구교수 · 박사후연구원 (${all.length})`, pageData.items));
     elements.memberPagination.innerHTML = paginationMarkup('member', pageData.page, pageData.pages);
   } else if (state.memberFilter === 'phd') {
     const all = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'phd');
@@ -1598,8 +1741,8 @@ function renderMembersList() {
     state.memberPage = pageData.page;
     const full = pageData.items.filter((item) => item.track === 'fullTime');
     const part = pageData.items.filter((item) => item.track === 'partTime');
-    sections.push(adminSection(`박사과정 · 풀타임`, full.map(memberItemMarkup).join('') || emptyAdmin('없음')));
-    sections.push(adminSection(`박사과정 · 파트타임`, part.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    sections.push(adminMemberSection('박사과정 · 풀타임', full));
+    sections.push(adminMemberSection('박사과정 · 파트타임', part));
     elements.memberPagination.innerHTML = paginationMarkup('member', pageData.page, pageData.pages);
   } else if (state.memberFilter === 'ms') {
     const all = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'ms');
@@ -1607,20 +1750,20 @@ function renderMembersList() {
     state.memberPage = pageData.page;
     const full = pageData.items.filter((item) => item.track === 'fullTime');
     const part = pageData.items.filter((item) => item.track === 'partTime');
-    sections.push(adminSection(`석사과정 · 풀타임`, full.map(memberItemMarkup).join('') || emptyAdmin('없음')));
-    sections.push(adminSection(`석사과정 · 파트타임`, part.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    sections.push(adminMemberSection('석사과정 · 풀타임', full));
+    sections.push(adminMemberSection('석사과정 · 파트타임', part));
     elements.memberPagination.innerHTML = paginationMarkup('member', pageData.page, pageData.pages);
   } else if (state.memberFilter === 'undergrad') {
     const all = enrolled.filter((item) => item.group === 'studentResearcher');
     const pageData = paginateItems(all, state.memberPage);
     state.memberPage = pageData.page;
-    sections.push(adminSection(`학부연구생 (${all.length})`, pageData.items.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    sections.push(adminMemberSection(`학부연구생 (${all.length})`, pageData.items));
     elements.memberPagination.innerHTML = paginationMarkup('member', pageData.page, pageData.pages);
   } else if (state.memberFilter === 'alumni') {
     const pageData = paginateItems(alumni, state.memberPage);
     state.memberPage = pageData.page;
     const grouped = Object.entries(groupBy(pageData.items, (item) => item.graduationYear || '이전')).sort((a, b) => numericYearSort(b[0]) - numericYearSort(a[0]));
-    sections = grouped.map(([year, items]) => adminSection(`${year} (${items.length})`, items.map(memberItemMarkup).join('') || emptyAdmin('없음')));
+    sections = grouped.map(([year, items]) => adminMemberSection(`${year} (${items.length})`, items));
     elements.memberPagination.innerHTML = paginationMarkup('member', pageData.page, pageData.pages);
   }
   elements.memberList.innerHTML = sections.join('');
@@ -1660,8 +1803,9 @@ function projectItemMarkup(project) {
 function renderProjectsList() {
   if (!elements.projectList) return;
   renderProjectFilterTabs();
-  const ongoing = state.projects.filter((item) => item.status === 'ongoing');
-  const completed = state.projects.filter((item) => item.status === 'completed');
+  const filteredProjects = state.projects.filter((item) => matchesSearch(state.projectQuery, ...projectSearchValues(item)));
+  const ongoing = filteredProjects.filter((item) => item.status === 'ongoing');
+  const completed = filteredProjects.filter((item) => item.status === 'completed');
   let sections = [];
   if (state.projectFilter === 'all') {
     const all = [...ongoing, ...completed];
@@ -1698,11 +1842,12 @@ function renderPublicationFilterTabs() {
 function publicationItemMarkup(item) {
   const ym = publicationYearMonthLabel(item);
   const indexing = publicationIndexingLabel(item.indexing, 'kr');
+  const indexClass = indexing ? indexing.toLowerCase() : '';
   return `
     <article class="admin-item-card">
       <div class="admin-item-main admin-item-main--single">
         <div class="admin-item-content">
-          <div class="card-topline"><strong>${escapeHTML(item.title)}</strong>${indexing ? `<span class="status-badge">${escapeHTML(indexing)}</span>` : ''}</div>
+          <div class="card-topline"><strong>${escapeHTML(item.title)}</strong>${indexing ? `<span class="index-pill ${indexClass ? `index-pill--${escapeHTML(indexClass)}` : ''}">${escapeHTML(indexing)}</span>` : ''}</div>
           ${ym ? `<p class="muted">${escapeHTML(ym)}</p>` : ''}
           <p class="muted">${escapeHTML(item.authors)}</p>
           <p>${escapeHTML(item.journal)}${item.doi || item.url ? ` · ${escapeHTML(item.doi || item.url)}` : ''}</p>
@@ -1719,13 +1864,14 @@ function publicationItemMarkup(item) {
 function renderPublicationsList() {
   if (!elements.publicationList) return;
   renderPublicationFilterTabs();
+  const filteredPublications = state.publications.filter((item) => matchesSearch(state.publicationQuery, ...publicationSearchValues(item)));
   let groups;
   let pageData;
   if (state.publicationFilter === 'all') {
-    pageData = paginateItems(state.publications, state.publicationPage);
+    pageData = paginateItems(filteredPublications, state.publicationPage);
     groups = Object.entries(groupBy(pageData.items, (item) => item.year || '기타')).sort((a, b) => numericYearSort(b[0]) - numericYearSort(a[0]));
   } else {
-    const filtered = state.publications.filter((item) => String(item.year) === String(state.publicationFilter));
+    const filtered = filteredPublications.filter((item) => String(item.year) === String(state.publicationFilter));
     pageData = paginateItems(filtered, state.publicationPage);
     groups = [[state.publicationFilter, pageData.items]];
   }
@@ -1762,16 +1908,16 @@ function boardItemMarkup(item) {
 
 function boardCategoryLabel(category = '') {
   const map = { notice: '공지', poster: '포스터', oral: '구두', news: '소식' };
-  return map[category] || '게시판';
+  return map[category] || '소식';
 }
 
 function renderBoardList() {
   if (!elements.boardList) return;
   renderBoardFilterTabs();
-  const items = state.boardFilter === 'all' ? state.board : state.board.filter((item) => item.category === state.boardFilter);
+  const items = (state.boardFilter === 'all' ? state.board : state.board.filter((item) => item.category === state.boardFilter)).filter((item) => matchesSearch(state.boardQuery, ...boardSearchValues(item)));
   const pageData = paginateItems(items, state.boardPage);
   state.boardPage = pageData.page;
-  elements.boardList.innerHTML = adminSection(`게시글 (${items.length})`, pageData.items.map(boardItemMarkup).join('') || emptyAdmin('없음'));
+  elements.boardList.innerHTML = adminSection(`소식 (${items.length})`, pageData.items.map(boardItemMarkup).join('') || emptyAdmin('없음'));
   elements.boardPagination.innerHTML = paginationMarkup('board', pageData.page, pageData.pages);
   bindPagination(elements.boardPagination, 'boardPage');
 }
@@ -1783,7 +1929,7 @@ function renderTrashFilterTabs() {
     ['member', '멤버'],
     ['project', '과제'],
     ['publication', '논문'],
-    ['board', '게시글']
+    ['board', '소식']
   ];
   elements.trashFilterTabs.innerHTML = filters.map(([value, label]) => `
     <button type="button" class="admin-subtab${state.trashFilter === value ? ' is-active' : ''}" data-trash-filter="${escapeHTML(value)}">${escapeHTML(label)}</button>
@@ -1817,7 +1963,7 @@ function trashItemMarkup(item) {
 function renderTrashList() {
   if (!elements.trashList) return;
   renderTrashFilterTabs();
-  const items = state.trashFilter === 'all' ? state.trash : state.trash.filter((item) => item.itemType === state.trashFilter);
+  const items = (state.trashFilter === 'all' ? state.trash : state.trash.filter((item) => item.itemType === state.trashFilter)).filter((item) => matchesSearch(state.trashQuery, ...trashSearchValues(item)));
   const pageData = paginateItems(items, state.trashPage);
   state.trashPage = pageData.page;
   const groups = Object.entries(groupBy(pageData.items, (item) => trashTypeLabel(item.itemType))).map(([title, groupItems]) => adminSection(`${title} (${groupItems.length})`, groupItems.map(trashItemMarkup).join('') || emptyAdmin('없음')));
@@ -1892,7 +2038,6 @@ function loadMemberForm(member) {
     ['researchInterestKr', firstFilledValue(member.researchInterestKr, member.researchInterest)],
     ['researchInterestEn', firstFilledValue(member.researchInterestEn, member.researchInterest)],
     ['coursesInfo', member.coursesInfo || ''],
-    ['relatedProjects', member.relatedProjects || ''],
     ['currentPositionKr', firstFilledValue(member.currentPositionKr, member.currentPosition)],
     ['currentPositionEn', firstFilledValue(member.currentPositionEn, member.currentPosition)],
     ['status', member.status || 'enrolled'],
@@ -1918,6 +2063,7 @@ function loadMemberForm(member) {
   updateFileInputLabel(elements.memberPhotoInput, elements.memberPhotoFileName);
   renderMemberPhotoPreview();
   renderMemberPublicationPicker(member.publicationLinks || []);
+  renderMemberProjectPicker(member.projectLinks || []);
   updateMemberEducationVisibility();
   openEditor('member');
 }
@@ -1946,7 +2092,7 @@ function loadPublicationForm(item) {
 }
 function loadBoardForm(item) {
   state.editingBoard = item;
-  elements.boardTitle.textContent = '게시글 수정';
+  elements.boardTitle.textContent = '소식 수정';
   const form = elements.boardForm;
   setFormValue(form, 'category', item.category || 'notice');
   ['title','description','linkUrl','date'].forEach((field) => setFormValue(form, field, item[field] || ''));
@@ -2051,7 +2197,7 @@ async function removePublication(item) {
   }
 }
 async function removeBoard(item) {
-  const ok = await openDialog({ title: '게시글 삭제', message: `${item.title} 게시글을 휴지통으로 이동할까요?`, type: 'confirm' });
+  const ok = await openDialog({ title: '소식 삭제', message: `${item.title} 항목을 휴지통으로 이동할까요?`, type: 'confirm' });
   if (!ok) return;
   try {
     const trashEntry = await moveItemToTrash('board', COLLECTIONS.board, item, item.title);
@@ -2060,10 +2206,10 @@ async function removeBoard(item) {
     renderBoardList();
     renderTrashList();
     renderSummary();
-    showNotice('게시글이 휴지통으로 이동되었습니다.', 'success');
+    showNotice('소식이 휴지통으로 이동되었습니다.', 'success');
   } catch (error) {
     console.error(error);
-    showNotice(adminErrorMessage(error, '게시글 삭제에 실패했습니다.'), 'danger');
+    showNotice(adminErrorMessage(error, '소식 삭제에 실패했습니다.'), 'danger');
   }
 }
 

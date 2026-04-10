@@ -106,7 +106,7 @@ function projectInvestigatorName(project = {}, locale = lang) {
 function localizedMemberText(member = {}, key, locale = lang) {
   const primary = locale === 'en' ? `${key}En` : `${key}Kr`;
   const secondary = locale === 'en' ? `${key}Kr` : `${key}En`;
-  return firstFilled(member[primary], member[key], member[secondary]);
+  return firstFilled(member[primary], member[key], member[secondary], key === 'education' ? (locale === 'en' ? member.educationEn : member.educationKr) : '', key === 'education' ? (locale === 'en' ? member.educationKr : member.educationEn) : '');
 }
 
 function localizedExperienceDetail(entry = {}, locale = lang) {
@@ -183,7 +183,7 @@ function memberEducationLines(member = {}, locale = lang) {
     .filter(([, school, major]) => String(school || '').trim() || String(major || '').trim())
     .map(([key, school, major]) => [degreeLabels[key], school, major].filter(Boolean).join(' · '));
   if (lines.length) return lines;
-  return String(member.education || '')
+  return String((locale === 'en' ? (member.educationEn || member.education) : (member.educationKr || member.education)) || '')
     .split(/\n+/)
     .map((line) => line.trim())
     .filter(Boolean);
@@ -387,6 +387,7 @@ function openModal(title, html) {
   modalState.body.innerHTML = html;
   modalState.root.hidden = false;
   document.body.classList.add('modal-open');
+  bindInteractiveCards();
 }
 
 function closeModal() {
@@ -461,9 +462,7 @@ function openMemberModal(member) {
   const title = displayName;
   const photo = member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}">` : `<div class="modal-avatar__placeholder">${escapeHTML(getInitials(memberDisplayName(member, 'en') || memberDisplayName(member) || member.name))}</div>`;
   const currentLabel = copy.currentPosition;
-  const relatedProjectSection = member.group === 'researchProfessor'
-    ? detailSection(lang === 'en' ? 'Related projects' : '관련 과제', member.relatedProjects || (lang === 'en' ? 'To be updated by the administrator.' : '관리자에서 관련 과제 정보를 추가할 수 있습니다.'))
-    : '';
+  const relatedProjectSection = renderMemberProjectBlock(member);
   openModal(title, `
     <div class="detail-modal detail-modal--member">
       <div class="detail-modal__hero">
@@ -502,6 +501,7 @@ function openProjectModal(project) {
       <div class="detail-grid detail-grid--project">
         ${detailSection(lang === 'en' ? 'Project description' : '과제 설명', localizedProjectDescription(project) || (lang === 'en' ? 'No description provided.' : '설명이 아직 입력되지 않았습니다.'))}
         ${detailSection(leadLabel, projectInvestigatorName(project, lang) || (lang === 'en' ? 'Not set' : '미설정'))}
+        ${renderProjectParticipantBlock(project)}
         ${detailSection(lang === 'en' ? 'Keywords' : '키워드', localizedProjectTags(project).join(', '))}
       </div>
     </div>
@@ -534,6 +534,57 @@ function detailSection(title, value = '') {
   `;
 }
 
+
+
+function resolveMemberProjectItems(links = []) {
+  return (Array.isArray(links) ? links : []).map((link, index) => {
+    const projectId = link?.projectId || link?.id || '';
+    const matched = state.projects.find((project) => project.id === projectId)
+      || state.projects.find((project) => localizedProjectTitle(project, 'kr') && link?.titleKr && localizedProjectTitle(project, 'kr') === link.titleKr)
+      || state.projects.find((project) => localizedProjectTitle(project, 'en') && link?.titleEn && localizedProjectTitle(project, 'en') === link.titleEn);
+    return {
+      ...matched,
+      ...link,
+      id: matched?.id || projectId || `linked-project-${index}`,
+      titleKr: link?.titleKr || localizedProjectTitle(matched || {}, 'kr') || '',
+      titleEn: link?.titleEn || localizedProjectTitle(matched || {}, 'en') || '',
+      title: link?.title || localizedProjectTitle(matched || {}, lang) || '',
+      period: matched?.period || link?.period || '',
+      status: matched?.status || link?.status || 'ongoing',
+      descriptionKr: matched?.descriptionKr || '',
+      descriptionEn: matched?.descriptionEn || ''
+    };
+  }).filter((item) => item.id || item.title || item.titleKr || item.titleEn);
+}
+
+function renderMemberProjectBlock(member = {}) {
+  const sectionTitle = (member.group === 'graduateStudent' || member.group === 'studentResearcher')
+    ? (lang === 'en' ? 'Participating projects' : '참여연구원 과제')
+    : (lang === 'en' ? 'Related projects' : '관련 과제');
+  const linked = resolveMemberProjectItems(member.projectLinks || []);
+  if (!linked.length) {
+    const fallback = member.relatedProjects || (lang === 'en' ? 'No linked ongoing projects yet.' : '연결된 진행 중 과제가 아직 없습니다.');
+    return detailSection(sectionTitle, fallback);
+  }
+  const cards = linked.map((project) => {
+    const title = localizedProjectTitle(project, lang) || firstFilledValue(project.titleKr, project.titleEn, project.title);
+    const period = getProjectPeriodDisplay(project) || normalizeProjectPeriod(project.period || '');
+    const desc = localizedProjectDescription(project, lang);
+    return `<article class="linked-card interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(title)}"><strong>${escapeHTML(title)}</strong>${period ? `<span class="linked-card__meta">${escapeHTML(period)}</span>` : ''}${desc ? `<p>${escapeHTML(desc)}</p>` : ''}</article>`;
+  }).join('');
+  return detailHtmlSection(sectionTitle, `<div class="linked-card-grid">${cards}</div>`);
+}
+
+function projectParticipantMembers(project = {}) {
+  return state.members.filter((member) => ['graduateStudent', 'studentResearcher'].includes(member.group) && Array.isArray(member.projectLinks) && member.projectLinks.some((link) => String(link?.projectId || link?.id || '') === String(project.id)));
+}
+
+function renderProjectParticipantBlock(project = {}) {
+  const participants = projectParticipantMembers(project);
+  if (!participants.length) return detailSection(lang === 'en' ? 'Participants' : '참여연구원', lang === 'en' ? 'No linked participants yet.' : '연결된 참여연구원이 아직 없습니다.');
+  const cards = participants.map((member) => `<article class="linked-card interactive-card" data-member-id="${escapeHTML(member.id)}" tabindex="0" role="button" aria-label="${escapeHTML(memberDisplayName(member))}"><strong>${escapeHTML(memberDisplayName(member))}</strong><span class="linked-card__meta">${escapeHTML(member.group === 'studentResearcher' ? (lang === 'en' ? 'Undergraduate researcher' : '학부연구생') : (lang === 'en' ? 'Graduate student' : '대학원생'))}</span>${member.email ? `<p>${escapeHTML(member.email)}</p>` : ''}</article>`).join('');
+  return detailHtmlSection(lang === 'en' ? 'Participants' : '참여연구원', `<div class="linked-card-grid">${cards}</div>`);
+}
 
 function publicationRoleLabel(role, locale = lang) {
   const map = {
@@ -875,11 +926,16 @@ function renderPublications() {
 
   const statGrid = qs('#publication-stat-grid');
   if (statGrid) {
-    statGrid.innerHTML = [
+    const stats = [
       { value: state.publications.length, label: lang === 'en' ? 'Publications' : '논문' },
       { value: allSci, label: 'SCI' },
       { value: allKci, label: 'KCI' }
-    ].map((item) => `<article class="stat-card reveal"><strong class="count-up" data-target="${escapeHTML(item.value)}">0</strong><span>${escapeHTML(item.label)}</span></article>`).join('');
+    ];
+    const signature = stats.map((item) => `${item.label}:${item.value}`).join('|');
+    if (statGrid.dataset.signature !== signature) {
+      statGrid.dataset.signature = signature;
+      statGrid.innerHTML = stats.map((item) => `<article class="stat-card reveal"><strong class="count-up" data-target="${escapeHTML(item.value)}">0</strong><span>${escapeHTML(item.label)}</span></article>`).join('');
+    }
   }
 
   const publicationAccordion = qs('#publication-accordion');
@@ -894,7 +950,7 @@ function renderBoard() {
   const noticePosts = state.board.filter((item) => ['notice', 'news'].includes(item.category));
   const presentationPosts = state.board.filter((item) => ['poster', 'oral'].includes(item.category));
   const summary = qs('#board-summary');
-  if (summary) summary.textContent = lang === 'en' ? `${state.board.length} posts` : `게시글 ${state.board.length}건`;
+  if (summary) summary.textContent = lang === 'en' ? `${state.board.length} news items` : `소식 ${state.board.length}건`;
   const newsTab = qs('[data-board-tab="news"]');
   const presentationTab = qs('[data-board-tab="presentations"]');
   const grid = qs('#board-tab-grid');
@@ -907,7 +963,7 @@ function renderBoard() {
   const activePosts = isNews ? noticePosts : presentationPosts;
   if (tabCount) tabCount.textContent = lang === 'en' ? `${activePosts.length} items` : `${activePosts.length}건`;
   if (tabTitle) tabTitle.textContent = isNews ? (lang === 'en' ? 'Lab news · notices' : '연구실 공지 · 소식') : (lang === 'en' ? 'Conference presentations' : '학회 발표');
-  if (tabEyebrow) tabEyebrow.textContent = isNews ? 'NEWS' : 'PRESENTATIONS';
+  if (tabEyebrow) tabEyebrow.textContent = isNews ? (lang === 'en' ? 'NEWS' : '소식') : (lang === 'en' ? 'PRESENTATIONS' : '학회 발표');
   if (grid) grid.innerHTML = activePosts.length ? activePosts.map((post) => boardCard(post)).join('') : emptyState(isNews ? (lang === 'en' ? 'No notices or news yet.' : '공지와 소식이 아직 없습니다.') : (lang === 'en' ? 'No presentation items yet.' : '학회 발표 자료가 아직 없습니다.'));
   qsa('[data-board-tab]').forEach((button) => {
     if (button.dataset.bound === 'true') return;
@@ -1070,6 +1126,7 @@ function memberCard(member) {
 
 
 function alumniCard(member) {
+  const education = memberEducationMarkup(member, lang, 'compact');
   return `
     <article class="member-card member-card--alumni reveal interactive-card" data-member-id="${escapeHTML(member.id)}" tabindex="0" role="button" aria-label="${escapeHTML(memberDisplayName(member))}">
       <div class="member-thumb">
@@ -1078,7 +1135,7 @@ function alumniCard(member) {
       <div class="member-copy">
         <div class="member-chip-row"><span class="member-chip">${escapeHTML(member.graduationYear || '')}</span></div>
         <h3>${escapeHTML(memberDisplayName(member))}</h3>
-        ${localizedMemberText(member, 'bio') ? `<p>${escapeHTML(localizedMemberText(member, 'bio'))}</p>` : ''}
+        ${education || (localizedMemberText(member, 'bio') ? `<p>${escapeHTML(localizedMemberText(member, 'bio'))}</p>` : '')}
         ${localizedMemberText(member, 'currentPosition') ? `<p class="muted"><strong>${escapeHTML(copy.currentPosition)}:</strong> ${escapeHTML(localizedMemberText(member, 'currentPosition'))}</p>` : ''}
       </div>
     </article>
@@ -1088,6 +1145,8 @@ function alumniCard(member) {
 function projectCard(project, { compact = false } = {}) {
   const period = getProjectPeriodDisplay(project);
   const investigatorName = projectInvestigatorName(project, lang);
+  const participants = projectParticipantMembers(project);
+  const participantMeta = participants.length ? `<strong>${escapeHTML(lang === 'en' ? 'Participants' : '참여연구원')}</strong> ${escapeHTML(participants.map((member) => memberDisplayName(member)).join(', '))}` : '';
   const leadMeta = investigatorName
     ? `<strong>${escapeHTML(projectLeadRoleLabel(project, lang))}</strong> ${escapeHTML(investigatorName)}`
     : '';
@@ -1100,6 +1159,7 @@ function projectCard(project, { compact = false } = {}) {
       <h3>${escapeHTML(localizedProjectTitle(project))}</h3>
       <p>${escapeHTML(localizedProjectDescription(project) || '')}</p>
       ${leadMeta ? `<p class="project-meta-inline">${leadMeta}</p>` : ''}
+      ${!compact && participantMeta ? `<p class="project-meta-inline">${participantMeta}</p>` : ''}
       ${!compact && localizedProjectTags(project).length ? `<div class="tag-row">${localizedProjectTags(project).map((tag) => `<span>${escapeHTML(tag)}</span>`).join('')}</div>` : ''}
     </article>
   `;
@@ -1108,6 +1168,8 @@ function projectCard(project, { compact = false } = {}) {
 function archiveProjectItem(project) {
   const period = getProjectPeriodDisplay(project) || project.year || '';
   const investigatorName = projectInvestigatorName(project, lang);
+  const participants = projectParticipantMembers(project);
+  const participantMeta = participants.length ? `<strong>${escapeHTML(lang === 'en' ? 'Participants' : '참여연구원')}</strong> ${escapeHTML(participants.map((member) => memberDisplayName(member)).join(', '))}` : '';
   const leadMeta = investigatorName
     ? `<strong>${escapeHTML(projectLeadRoleLabel(project, lang))}</strong> ${escapeHTML(investigatorName)}`
     : '';
@@ -1117,6 +1179,7 @@ function archiveProjectItem(project) {
         <h3>${escapeHTML(localizedProjectTitle(project))}</h3>
         ${localizedProjectDescription(project) ? `<p>${escapeHTML(localizedProjectDescription(project))}</p>` : ''}
         ${leadMeta ? `<p class="muted">${leadMeta}</p>` : ''}
+        ${participantMeta ? `<p class="muted">${participantMeta}</p>` : ''}
       </div>
       <div class="archive-meta">
         ${period ? `<span class="meta-pill">${escapeHTML(period)}</span>` : ''}

@@ -339,6 +339,30 @@ function normalizeExperienceEntries(entries = []) {
   }).filter((entry) => entry.period || entry.detailKr || entry.detailEn || entry.detail);
 }
 
+
+function normalizeProjectLinks(items = []) {
+  return (Array.isArray(items) ? items : []).map((entry) => {
+    if (typeof entry === 'string') {
+      return {
+        projectId: String(entry).trim(),
+        title: '',
+        titleKr: '',
+        titleEn: '',
+        period: '',
+        status: 'ongoing'
+      };
+    }
+    return {
+      projectId: String(entry?.projectId || entry?.id || '').trim(),
+      title: String(entry?.title || entry?.titleKr || entry?.titleEn || '').trim(),
+      titleKr: String(entry?.titleKr || entry?.title || '').trim(),
+      titleEn: String(entry?.titleEn || entry?.title || '').trim(),
+      period: String(entry?.period || '').trim(),
+      status: String(entry?.status || 'ongoing').trim() || 'ongoing'
+    };
+  }).filter((entry) => entry.projectId || entry.title || entry.titleKr || entry.titleEn);
+}
+
 function inferPublicationIndexing(journal = '') {
   const name = normalizeString(journal);
   if (!name) return '';
@@ -418,6 +442,7 @@ export function normalizeMember(item = {}, options = {}) {
     doctoralMajor: item.doctoralMajor || item.doctoralMajorEn || item.doctoralMajorKr || '',
     coursesInfo: item.coursesInfo || item.courseInfo || '',
     relatedProjects: item.relatedProjects || '',
+    projectLinks: Array.isArray(item.projectLinks) ? normalizeProjectLinks(item.projectLinks) : (preserveMissing ? undefined : []),
     authorshipNote: item.authorshipNote || '',
     publicationLinks: Array.isArray(item.publicationLinks) ? item.publicationLinks : (preserveMissing ? undefined : []),
     courseSchedule: Array.isArray(item.courseSchedule) ? item.courseSchedule.map((entry) => ({
@@ -528,7 +553,7 @@ export function normalizePublication(item = {}, options = {}) {
     doi,
     url: item.url || '',
     abstract: item.abstract || '',
-    indexing: inferredIndexing || item.indexing || '',
+    indexing: item.indexing || inferredIndexing || '',
     sortOrder,
     deleted: item.deleted === true,
     deletedAt: item.deletedAt || '',

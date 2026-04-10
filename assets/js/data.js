@@ -1,4 +1,4 @@
-export const BUILD_DATE = "2026-04-08";
+export const BUILD_DATE = "2026-04-10";
 
 export const SITE_COPY = {
   "kr": {
@@ -11,40 +11,41 @@ export const SITE_COPY = {
       "members": "멤버",
       "projects": "과제",
       "publications": "논문",
-      "board": "게시판"
+      "board": "소식"
     },
     "switch": "Ko | En",
-    "heroEyebrow": "CHUNGNAM NATIONAL UNIVERSITY",
+    "heroEyebrow": "충남대학교",
     "heroTitle": "원예 환경의 다음 기준을 설계합니다.",
     "heroSubtitle": "식물공장, 스마트팜, 기능성 작물, 지속가능한 수분 관리, 그리고 데이터 기반 재배 제어.",
     "heroDesc": "충남대학교 환경원예학연구실은 생육 환경 제어와 작물 생리, 기능성 성분 축적, 인공지능 기반 재배 기술을 연구합니다.",
     "heroButtons": {
       "members": "멤버 보기",
-      "projects": "연구 과제 보기"
+      "projects": "연구 과제 보기",
+      "publications": "논문 보기"
     },
     "stats": {
       "current": "재학 구성원",
       "alumni": "졸업생",
       "ongoing": "진행 중 과제",
       "publications": "논문",
-      "board": "게시판"
+      "board": "소식"
     },
-    "focusEyebrow": "RESEARCH LINEUP",
-    "focusTitle": "Indoor Farm · Hemp · Artificial Intelligence.",
+    "focusEyebrow": "핵심 연구 분야",
+    "focusTitle": "식물공장 · 대마 · 인공지능.",
     "focusDesc": "핵심 연구 주제를 세 개의 카드로 정리했습니다.",
     "focusCards": [
       {
-        "label": "INDOOR FARM",
+        "label": "식물공장",
         "title": "정밀 환경 제어",
         "desc": "식물공장, 스마트팜, 생육 환경 최적화, 지속 가능한 재배 시스템."
       },
       {
-        "label": "HEMP",
+        "label": "대마",
         "title": "기능성 작물 연구",
         "desc": "대마와 기능성 작물의 품질 제어, 대사물질 축적, 실내 정밀 생산."
       },
       {
-        "label": "ARTIFICIAL INTELLIGENCE",
+        "label": "인공지능",
         "title": "데이터 기반 제어",
         "desc": "AI, 디지털 트윈, 관수·광환경 예측 및 자동화 플랫폼."
       }
@@ -88,10 +89,10 @@ export const SITE_COPY = {
     "open": "열기",
     "countItems": "건",
     "footerNote": "Greenhouse & Environmental Horticulture Lab",
-    "boardHeroTitle": "게시판",
+    "boardHeroTitle": "소식",
     "boardHeroDesc": "",
-    "boardNav": "게시판",
-    "boardCount": "게시글"
+    "boardNav": "소식",
+    "boardCount": "소식"
   },
   "en": {
     "siteName": "CNU GEH Lab",
@@ -103,26 +104,27 @@ export const SITE_COPY = {
       "members": "Members",
       "projects": "Projects",
       "publications": "Publications",
-      "board": "Board"
+      "board": "News"
     },
     "switch": "Ko | En",
-    "heroEyebrow": "CHUNGNAM NATIONAL UNIVERSITY",
+    "heroEyebrow": "충남대학교",
     "heroTitle": "Grow the next environment for horticulture.",
     "heroSubtitle": "Plant factory, smart farm, medicinal crops, sustainable water management, and data-driven cultivation control.",
     "heroDesc": "The CNU Greenhouse & Environmental Horticulture Lab studies crop physiology, bioactive compounds, and AI-enabled cultivation systems.",
     "heroButtons": {
       "members": "View members",
-      "projects": "View projects"
+      "projects": "View projects",
+      "publications": "View publications"
     },
     "stats": {
       "current": "Current members",
       "alumni": "Alumni",
       "ongoing": "Ongoing projects",
       "publications": "Publications",
-      "board": "Board"
+      "board": "News"
     },
-    "focusEyebrow": "RESEARCH LINEUP",
-    "focusTitle": "Indoor Farm · Hemp · Artificial Intelligence.",
+    "focusEyebrow": "핵심 연구 분야",
+    "focusTitle": "식물공장 · 대마 · 인공지능.",
     "focusDesc": "Our core research directions are organized in three cards.",
     "focusCards": [
       {
@@ -180,10 +182,10 @@ export const SITE_COPY = {
     "open": "Open",
     "countItems": "items",
     "footerNote": "Greenhouse & Environmental Horticulture Lab",
-    "boardHeroTitle": "Board",
+    "boardHeroTitle": "News",
     "boardHeroDesc": "",
-    "boardNav": "Board",
-    "boardCount": "Posts"
+    "boardNav": "News",
+    "boardCount": "News"
   }
 };
 
@@ -867,11 +869,25 @@ export const FALLBACK_PROJECTS = [
   {
     "id": "indoor-medicinal-cannabis-standard-model",
     "title": "Indoor Medicinal Cannabis Standard Model",
+    "titleKr": "의료용 대마의 시설내 정밀생산 및 품질관리 표준 모델 구축",
+    "titleEn": "Indoor Medicinal Cannabis Standard Model",
     "description": "Establishment of the standard model for indoor precision production and quality control in medicinal cannabis.",
+    "descriptionKr": "의료용 대마의 시설내 정밀 환경 제어기술을 통한 생산표준화 및 수확 후 고품질 유지를 위한 관리기술 개발",
+    "descriptionEn": "Establishment of the standard model for indoor precision production and quality control in medicinal cannabis.",
     "status": "ongoing",
     "period": "",
     "year": "",
     "tags": [
+      "Cannabis",
+      "Indoor Farm",
+      "Quality Control"
+    ],
+    "tagsKr": [
+      "대마",
+      "식물공장",
+      "품질관리"
+    ],
+    "tagsEn": [
       "Cannabis",
       "Indoor Farm",
       "Quality Control"
@@ -885,11 +901,25 @@ export const FALLBACK_PROJECTS = [
   {
     "id": "rooftop-greenhouse-system",
     "title": "Rooftop Greenhouse System",
+    "titleKr": "다중 분산발전 기반의 옥상온실형 스마트 그린빌딩 융복합 시스템 개발 및 실증",
+    "titleEn": "Rooftop Greenhouse System",
     "description": "Development and demonstration of building-integrated rooftop greenhouse systems using distributed polygeneration.",
+    "descriptionKr": "건물 일체형 옥상온실을 이용한 분산자원의 에너지 활용 극대화를 통해 건물 냉난방에너지 절감 및 온실가스 감축이 가능한 미래 도시형 스마트 그린빌딩 융복합시스템 개발 및 건물 실증",
+    "descriptionEn": "Development and demonstration of building-integrated rooftop greenhouse systems using distributed polygeneration.",
     "status": "ongoing",
     "period": "",
     "year": "",
     "tags": [
+      "Greenhouse",
+      "Energy",
+      "Urban Agriculture"
+    ],
+    "tagsKr": [
+      "온실",
+      "에너지",
+      "도시농업"
+    ],
+    "tagsEn": [
       "Greenhouse",
       "Energy",
       "Urban Agriculture"
@@ -903,11 +933,25 @@ export const FALLBACK_PROJECTS = [
   {
     "id": "precision-water-and-nutrient-supply-system",
     "title": "Precision Water and Nutrient Supply System",
+    "titleKr": "원예작물 생산성 및 품질 제고를 위한 정밀 양수분 공급시스템 개발",
+    "titleEn": "Precision Water and Nutrient Supply System",
     "description": "Development of a precision water and nutrient supply system to enhance productivity and quality of horticultural crops.",
+    "descriptionKr": "기후변화와 이상기후에 대응한 최적의 작물 양수분 관리 시스템을 개발하고, 일반 밭 조건 및 코이어 폐배지를 활용한 재배 환경에서 정밀 양수분 관리 시스템 기반 원예작물 생산 기술을 확보하며, 자원 이용 효율 및 농업 생산성을 극대화하여 지속 가능한 농업을 실현하는 동시에, 이를 기반으로 농업과학의 기초역량을 강화하고 미래 농업을 선도할 전문 인재양성을 목표로 함",
+    "descriptionEn": "Development of a precision water and nutrient supply system to enhance productivity and quality of horticultural crops.",
     "status": "ongoing",
     "period": "",
     "year": "",
     "tags": [
+      "Irrigation",
+      "Nutrient Supply",
+      "Horticulture"
+    ],
+    "tagsKr": [
+      "관수",
+      "비료",
+      "원예"
+    ],
+    "tagsEn": [
       "Irrigation",
       "Nutrient Supply",
       "Horticulture"
@@ -921,11 +965,25 @@ export const FALLBACK_PROJECTS = [
   {
     "id": "ai-based-agricultural-water-management-platform",
     "title": "AI-based Agricultural Water Management Platform",
+    "titleKr": "AI 기반 농업용수 관리 플랫폼 개발",
+    "titleEn": "AI-based Agricultural Water Management Platform",
     "description": "Development of an AI-driven platform for optimizing agricultural water management and improving sustainability.",
+    "descriptionKr": "AI 기반 예측과 제어를 통해 농업용수 관리를 최적화하고 지속가능성을 높이는 플랫폼 개발",
+    "descriptionEn": "Development of an AI-driven platform for optimizing agricultural water management and improving sustainability.",
     "status": "ongoing",
     "period": "",
     "year": "",
     "tags": [
+      "AI",
+      "Water Management",
+      "Sustainability"
+    ],
+    "tagsKr": [
+      "AI",
+      "농업용수",
+      "지속가능성"
+    ],
+    "tagsEn": [
       "AI",
       "Water Management",
       "Sustainability"
@@ -939,11 +997,25 @@ export const FALLBACK_PROJECTS = [
   {
     "id": "ai-based-artificial-light-control-platform",
     "title": "AI-based Artificial Light Control Platform",
+    "titleKr": "AI 기반 인공광 제어 플랫폼 개발",
+    "titleEn": "AI-based Artificial Light Control Platform",
     "description": "Development of an AI-based artificial lighting control platform for smart farms to optimize light intensity and spectrum.",
+    "descriptionKr": "스마트팜에서 광량과 스펙트럼을 최적화하기 위한 AI 기반 인공광 제어 플랫폼 개발",
+    "descriptionEn": "Development of an AI-based artificial lighting control platform for smart farms to optimize light intensity and spectrum.",
     "status": "ongoing",
     "period": "",
     "year": "",
     "tags": [
+      "AI",
+      "Lighting",
+      "Smart Farm"
+    ],
+    "tagsKr": [
+      "AI",
+      "광환경",
+      "스마트팜"
+    ],
+    "tagsEn": [
       "AI",
       "Lighting",
       "Smart Farm"
@@ -957,11 +1029,25 @@ export const FALLBACK_PROJECTS = [
   {
     "id": "greenhouse-waste-recycling-technology",
     "title": "Greenhouse Waste Recycling Technology",
+    "titleKr": "시설원예 부산물 재활용 기술 개발",
+    "titleEn": "Greenhouse Waste Recycling Technology",
     "description": "Establishment of greenhouse cultivation waste recycling technology and assessment of its environmental and economic impact.",
+    "descriptionKr": "시설원예 재배 폐기물의 재활용 기술을 확립하고 환경적·경제적 효과를 평가하는 연구",
+    "descriptionEn": "Establishment of greenhouse cultivation waste recycling technology and assessment of its environmental and economic impact.",
     "status": "ongoing",
     "period": "",
     "year": "",
     "tags": [
+      "Recycling",
+      "Greenhouse",
+      "Sustainability"
+    ],
+    "tagsKr": [
+      "재활용",
+      "온실",
+      "지속가능성"
+    ],
+    "tagsEn": [
       "Recycling",
       "Greenhouse",
       "Sustainability"
