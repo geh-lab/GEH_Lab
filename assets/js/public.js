@@ -510,7 +510,10 @@ function openProjectModal(project) {
 
 function openBoardModal(post) {
   const tag = boardCategoryLabel(post.category);
-  const media = post.imageUrl ? `<div class="detail-figure detail-figure--16-9"><img src="${escapeHTML(rootAsset(post.imageUrl, root))}" alt="${escapeHTML(post.title)}"></div>` : '';
+  const youtube = youtubeEmbedUrl(post.youtubeUrl || '');
+  const media = youtube
+    ? `<div class="detail-figure detail-figure--16-9 detail-figure--video"><iframe src="${escapeHTML(youtube)}" title="${escapeHTML(post.title)}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>`
+    : (post.imageUrl ? `<div class="detail-figure detail-figure--16-9"><img src="${escapeHTML(rootAsset(post.imageUrl, root))}" alt="${escapeHTML(post.title)}"></div>` : '');
   openModal(post.title, `
     <div class="detail-modal detail-modal--board">
       <div class="member-chip-row">
@@ -519,7 +522,10 @@ function openBoardModal(post) {
       </div>
       ${media}
       <p class="detail-lead">${escapeHTML(post.description || '')}</p>
-      ${post.linkUrl ? `<p><a class="button primary" href="${escapeHTML(post.linkUrl)}" target="_blank" rel="noreferrer">${lang === 'en' ? 'Open link' : '링크 열기'}</a></p>` : ''}
+      <div class="member-chip-row">
+        ${post.linkUrl ? `<a class="button primary" href="${escapeHTML(post.linkUrl)}" target="_blank" rel="noreferrer">${lang === 'en' ? 'Open link' : '링크 열기'}</a>` : ''}
+        ${youtube ? `<a class="button secondary" href="${escapeHTML(post.youtubeUrl)}" target="_blank" rel="noreferrer">YouTube</a>` : ''}
+      </div>
     </div>
   `);
 }
@@ -570,9 +576,9 @@ function renderMemberProjectBlock(member = {}) {
     const title = localizedProjectTitle(project, lang) || firstFilledValue(project.titleKr, project.titleEn, project.title);
     const period = getProjectPeriodDisplay(project) || normalizeProjectPeriod(project.period || '');
     const desc = localizedProjectDescription(project, lang);
-    return `<article class="linked-card interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(title)}"><strong>${escapeHTML(title)}</strong>${period ? `<span class="linked-card__meta">${escapeHTML(period)}</span>` : ''}${desc ? `<p>${escapeHTML(desc)}</p>` : ''}</article>`;
+    return `<article class="linked-card linked-card--project interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(title)}"><strong>${escapeHTML(title)}</strong>${period ? `<span class="linked-card__meta">${escapeHTML(period)}</span>` : ''}${desc ? `<p>${escapeHTML(desc)}</p>` : ''}</article>`;
   }).join('');
-  return detailHtmlSection(sectionTitle, `<div class="linked-card-grid">${cards}</div>`);
+  return detailHtmlSection(sectionTitle, `<div class="linked-card-grid linked-card-grid--projects">${cards}</div>`);
 }
 
 function projectParticipantMembers(project = {}) {
@@ -778,9 +784,10 @@ function renderHome() {
     `).join('');
   }
 
-  const ongoingPreview = state.projects.filter((item) => item.status === 'ongoing').slice(0, 3);
+  const ongoingPreview = state.projects.filter((item) => item.status === 'ongoing').slice(0, 4);
   const previewGrid = qs('#ongoing-preview-grid');
   if (previewGrid) {
+    previewGrid.dataset.count = String(ongoingPreview.length || 0);
     previewGrid.innerHTML = ongoingPreview.map((project) => projectCard(project, { compact: true })).join('');
     stretchProjectGrid(previewGrid);
   }
@@ -918,7 +925,7 @@ function renderPublications() {
     return haystack.includes(query);
   });
 
-  const allSci = state.publications.filter((item) => publicationIndexingLabel(item.indexing, lang).toUpperCase() === 'SCI').length;
+  const allSci = state.publications.filter((item) => ['SCI', 'SCIE', 'SCI(E)'].includes(publicationIndexingLabel(item.indexing, lang).toUpperCase())).length;
   const allKci = state.publications.filter((item) => publicationIndexingLabel(item.indexing, lang).toUpperCase() === 'KCI').length;
 
   const summary = qs('#publication-summary');
@@ -928,7 +935,7 @@ function renderPublications() {
   if (statGrid) {
     const stats = [
       { value: state.publications.length, label: lang === 'en' ? 'Publications' : '논문' },
-      { value: allSci, label: 'SCI' },
+      { value: allSci, label: 'SCI(E)' },
       { value: allKci, label: 'KCI' }
     ];
     const signature = stats.map((item) => `${item.label}:${item.value}`).join('|');
@@ -963,7 +970,7 @@ function renderBoard() {
   const activePosts = isNews ? noticePosts : presentationPosts;
   if (tabCount) tabCount.textContent = lang === 'en' ? `${activePosts.length} items` : `${activePosts.length}건`;
   if (tabTitle) tabTitle.textContent = isNews ? (lang === 'en' ? 'Lab news · notices' : '연구실 공지 · 소식') : (lang === 'en' ? 'Conference presentations' : '학회 발표');
-  if (tabEyebrow) tabEyebrow.textContent = isNews ? (lang === 'en' ? 'NEWS' : '소식') : (lang === 'en' ? 'PRESENTATIONS' : '학회 발표');
+  if (tabEyebrow) tabEyebrow.textContent = lang === 'en' ? '' : (isNews ? '소식' : '학회 발표');
   if (grid) grid.innerHTML = activePosts.length ? activePosts.map((post) => boardCard(post)).join('') : emptyState(isNews ? (lang === 'en' ? 'No notices or news yet.' : '공지와 소식이 아직 없습니다.') : (lang === 'en' ? 'No presentation items yet.' : '학회 발표 자료가 아직 없습니다.'));
   qsa('[data-board-tab]').forEach((button) => {
     if (button.dataset.bound === 'true') return;
@@ -1170,19 +1177,15 @@ function archiveProjectItem(project) {
   const investigatorName = projectInvestigatorName(project, lang);
   const participants = projectParticipantMembers(project);
   const participantMeta = participants.length ? `<strong>${escapeHTML(lang === 'en' ? 'Participants' : '참여연구원')}</strong> ${escapeHTML(participants.map((member) => memberDisplayName(member)).join(', '))}` : '';
-  const leadMeta = investigatorName
-    ? `<strong>${escapeHTML(projectLeadRoleLabel(project, lang))}</strong> ${escapeHTML(investigatorName)}`
-    : '';
+  const leadText = investigatorName ? `<strong>${escapeHTML(projectLeadRoleLabel(project, lang))}</strong> ${escapeHTML(investigatorName)}` : '';
+  const metaRow = (leadText || period) ? `<p class="project-meta-inline project-meta-inline--archive">${leadText ? `<span class="project-meta-inline__label">${leadText}</span>` : ''}${period ? `<span class="meta-pill meta-pill--inline">${escapeHTML(period)}</span>` : ''}</p>` : '';
   return `
     <article class="archive-item reveal interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(localizedProjectTitle(project))}">
       <div>
         <h3>${escapeHTML(localizedProjectTitle(project))}</h3>
         ${localizedProjectDescription(project) ? `<p>${escapeHTML(localizedProjectDescription(project))}</p>` : ''}
-        ${leadMeta ? `<p class="muted">${leadMeta}</p>` : ''}
+        ${metaRow}
         ${participantMeta ? `<p class="muted">${participantMeta}</p>` : ''}
-      </div>
-      <div class="archive-meta">
-        ${period ? `<span class="meta-pill">${escapeHTML(period)}</span>` : ''}
       </div>
     </article>
   `;
@@ -1191,7 +1194,7 @@ function archiveProjectItem(project) {
 function publicationCard(item) {
   const link = resolvePublicationLink(item);
   const indexLabel = publicationIndexingLabel(item.indexing, lang);
-  const indexClass = indexLabel ? indexLabel.toLowerCase() : '';
+  const indexClass = indexLabel ? indexLabel.toLowerCase().replace(/[^a-z]+/g, '') : '';
   const journalTone = journalToneClass(item.journal);
   const yearPill = publicationYearMonthLabel(item);
   return `
@@ -1199,8 +1202,10 @@ function publicationCard(item) {
       <div class="publication-head-row">
         <div class="publication-topline">
           ${yearPill ? `<span class="year-pill">${escapeHTML(yearPill)}</span>` : ''}
-          ${item.journal ? `<span class="journal-pill ${journalTone}">${escapeHTML(item.journal)}</span>` : ''}
-          ${indexLabel ? `<span class="index-pill ${indexClass ? `index-pill--${escapeHTML(indexClass)}` : ''}">${escapeHTML(indexLabel)}</span>` : ''}
+          <div class="publication-source-group">
+            ${item.journal ? `<span class="journal-pill ${journalTone}">${escapeHTML(item.journal)}</span>` : ''}
+            ${indexLabel ? `<span class="index-pill ${indexClass ? `index-pill--${escapeHTML(indexClass)}` : ''}">${escapeHTML(indexLabel)}</span>` : ''}
+          </div>
         </div>
       </div>
       <h3>${escapeHTML(item.title)}</h3>
@@ -1211,6 +1216,27 @@ function publicationCard(item) {
       ${item.abstract ? `<p class="muted">${escapeHTML(item.abstract)}</p>` : ''}
     </article>
   `;
+}
+
+
+function youtubeEmbedUrl(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    if (url.hostname.includes('youtu.be')) {
+      const id = url.pathname.split('/').filter(Boolean)[0];
+      return id ? `https://www.youtube.com/embed/${id}` : '';
+    }
+    if (url.searchParams.get('v')) return `https://www.youtube.com/embed/${url.searchParams.get('v')}`;
+    const parts = url.pathname.split('/').filter(Boolean);
+    const embedIndex = parts.findIndex((item) => item === 'embed' || item === 'shorts');
+    if (embedIndex >= 0 && parts[embedIndex + 1]) return `https://www.youtube.com/embed/${parts[embedIndex + 1]}`;
+  } catch (error) {
+    const match = raw.match(/(?:youtu\.be\/|v=|embed\/|shorts\/)([A-Za-z0-9_-]{6,})/);
+    if (match) return `https://www.youtube.com/embed/${match[1]}`;
+  }
+  return '';
 }
 
 function boardCategoryLabel(category = '') {
@@ -1224,9 +1250,13 @@ function boardCategoryLabel(category = '') {
 }
 
 function boardCard(post) {
+  const youtube = youtubeEmbedUrl(post.youtubeUrl || '');
+  const media = youtube
+    ? `<div class="board-card__media board-card__media--video"><iframe src="${escapeHTML(youtube)}" title="${escapeHTML(post.title)}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>`
+    : (post.imageUrl ? `<div class="board-card__media"><img src="${escapeHTML(rootAsset(post.imageUrl, root))}" alt="${escapeHTML(post.title)}"></div>` : '');
   return `
     <article class="board-card reveal interactive-card" data-board-id="${escapeHTML(post.id)}">
-      ${post.imageUrl ? `<div class="board-card__media"><img src="${escapeHTML(rootAsset(post.imageUrl, root))}" alt="${escapeHTML(post.title)}"></div>` : ''}
+      ${media}
       <div class="board-card__copy">
         <div class="member-chip-row">
           <span class="member-chip member-chip--soft">${escapeHTML(boardCategoryLabel(post.category))}</span>

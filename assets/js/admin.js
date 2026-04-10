@@ -293,7 +293,7 @@ function publicationSearchValues(item = {}) {
 }
 
 function boardSearchValues(item = {}) {
-  return [item.title, item.description, item.linkUrl, item.category, item.date];
+  return [item.title, item.description, item.linkUrl, item.youtubeUrl, item.category, item.date];
 }
 
 function trashSearchValues(item = {}) {
@@ -1574,7 +1574,7 @@ async function handlePublicationSubmit(event) {
     doi: normalizeDoiInput(String(formData.get('doi') || '').trim()),
     url: '',
     abstract: String(formData.get('abstract') || '').trim(),
-    indexing: String(formData.get('indexing') || '').trim(),
+    indexing: publicationIndexingLabel(String(formData.get('indexing') || '').trim(), 'kr'),
     sortOrder: state.editingPublication?.sortOrder ?? 999
   };
   if (!payload.title) return showNotice('논문 제목을 입력해주세요.', 'warning');
@@ -1600,6 +1600,7 @@ async function handleBoardSubmit(event) {
     title: String(formData.get('title') || '').trim(),
     description: String(formData.get('description') || '').trim(),
     linkUrl: String(formData.get('linkUrl') || '').trim(),
+    youtubeUrl: String(formData.get('youtubeUrl') || '').trim(),
     imageUrl: state.editingBoard?.imageUrl || '',
     imagePath: state.editingBoard?.imagePath || '',
     date: String(formData.get('date') || '').trim()
@@ -1842,7 +1843,7 @@ function renderPublicationFilterTabs() {
 function publicationItemMarkup(item) {
   const ym = publicationYearMonthLabel(item);
   const indexing = publicationIndexingLabel(item.indexing, 'kr');
-  const indexClass = indexing ? indexing.toLowerCase() : '';
+  const indexClass = indexing ? indexing.toLowerCase().replace(/[^a-z]+/g, '') : '';
   return `
     <article class="admin-item-card">
       <div class="admin-item-main admin-item-main--single">
@@ -1896,6 +1897,7 @@ function boardItemMarkup(item) {
           ${item.date ? `<p class="muted">${escapeHTML(item.date)}</p>` : ''}
           ${item.description ? `<p>${escapeHTML(item.description)}</p>` : ''}
           ${item.linkUrl ? `<p class="muted">${escapeHTML(item.linkUrl)}</p>` : ''}
+          ${item.youtubeUrl ? `<p class="muted">${escapeHTML(item.youtubeUrl)}</p>` : ''}
         </div>
       </div>
       <div class="admin-item-actions">
@@ -2095,7 +2097,7 @@ function loadBoardForm(item) {
   elements.boardTitle.textContent = '소식 수정';
   const form = elements.boardForm;
   setFormValue(form, 'category', item.category || 'notice');
-  ['title','description','linkUrl','date'].forEach((field) => setFormValue(form, field, item[field] || ''));
+  ['title','description','linkUrl','youtubeUrl','date'].forEach((field) => setFormValue(form, field, item[field] || ''));
   state.boardImageRemoved = false;
   updateFileInputLabel(elements.boardImageInput, elements.boardImageFileName);
   renderBoardImagePreview();

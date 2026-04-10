@@ -366,7 +366,7 @@ function normalizeProjectLinks(items = []) {
 function inferPublicationIndexing(journal = '') {
   const name = normalizeString(journal);
   if (!name) return '';
-  const sciKeywords = [
+  const scieKeywords = [
     'horticultural science and technology'
   ];
   const kciKeywords = [
@@ -374,9 +374,9 @@ function inferPublicationIndexing(journal = '') {
     'the korean society for bio-environment control',
     'horticulture journal'
   ];
-  if (sciKeywords.some((keyword) => name.includes(keyword))) return 'SCI';
+  if (scieKeywords.some((keyword) => name.includes(keyword))) return 'SCI(E)';
   if (kciKeywords.some((keyword) => name.includes(keyword))) return 'KCI';
-  return 'SCI';
+  return 'SCI(E)';
 }
 
 export function normalizeMember(item = {}, options = {}) {
@@ -553,7 +553,7 @@ export function normalizePublication(item = {}, options = {}) {
     doi,
     url: item.url || '',
     abstract: item.abstract || '',
-    indexing: item.indexing || inferredIndexing || '',
+    indexing: publicationIndexingLabel(item.indexing || inferredIndexing || '', 'kr') || '',
     sortOrder,
     deleted: item.deleted === true,
     deletedAt: item.deletedAt || '',
@@ -572,6 +572,7 @@ export function normalizeBoardPost(item = {}, options = {}) {
     title: item.title || '',
     description: item.description || item.body || '',
     linkUrl: item.linkUrl || item.url || '',
+    youtubeUrl: item.youtubeUrl || item.videoUrl || '',
     imageUrl: item.imageUrl || '',
     imagePath: item.imagePath || '',
     date: item.date || '',
@@ -780,8 +781,11 @@ export function projectStatusLabel(status, lang = 'kr') {
 }
 
 export function publicationIndexingLabel(indexing = '', lang = 'kr') {
-  const normalized = normalizeString(indexing).toUpperCase();
+  const normalized = normalizeString(indexing).toUpperCase().replace(/\s+/g, '');
   if (!normalized) return '';
+  if (['SCI', 'SCIE', 'SCI(E)', 'SCI(E'].includes(normalized)) return 'SCI(E)';
+  if (normalized === 'ESCI') return 'ESCI';
+  if (normalized === 'KCI') return 'KCI';
   return normalized;
 }
 
