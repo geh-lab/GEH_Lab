@@ -925,7 +925,8 @@ function renderPublications() {
     return haystack.includes(query);
   });
 
-  const allSci = state.publications.filter((item) => ['SCI', 'SCIE', 'SCI(E)'].includes(publicationIndexingLabel(item.indexing, lang).toUpperCase())).length;
+  const allSci = state.publications.filter((item) => publicationIndexingLabel(item.indexing, lang).toUpperCase() === 'SCI(E)').length;
+  const allEsci = state.publications.filter((item) => publicationIndexingLabel(item.indexing, lang).toUpperCase() === 'ESCI').length;
   const allKci = state.publications.filter((item) => publicationIndexingLabel(item.indexing, lang).toUpperCase() === 'KCI').length;
 
   const summary = qs('#publication-summary');
@@ -936,6 +937,7 @@ function renderPublications() {
     const stats = [
       { value: state.publications.length, label: lang === 'en' ? 'Publications' : '논문' },
       { value: allSci, label: 'SCI(E)' },
+      { value: allEsci, label: 'ESCI' },
       { value: allKci, label: 'KCI' }
     ];
     const signature = stats.map((item) => `${item.label}:${item.value}`).join('|');

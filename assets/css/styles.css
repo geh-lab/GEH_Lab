@@ -3759,7 +3759,7 @@ article#member-editor-card::before,
     grid-template-columns: repeat(2, minmax(0,1fr)) !important;
   }
   .public-body[data-page="publications"] .page-hero-card--overview .page-stat-grid {
-    grid-template-columns: repeat(3, minmax(0,1fr)) !important;
+    grid-template-columns: repeat(2, minmax(0,1fr)) !important;
   }
   .public-body[data-page="members"] .page-hero-card--overview .stat-card,
   .public-body[data-page="projects"] .page-hero-card--overview .stat-card,
@@ -4084,7 +4084,7 @@ article#member-editor-card::before,
 /* publications hero stats mobile 1x3 */
 @media (max-width: 720px) {
   .public-body[data-page="publications"] .page-hero-card--overview .page-stat-grid {
-    grid-template-columns: repeat(3, minmax(0,1fr)) !important;
+    grid-template-columns: repeat(2, minmax(0,1fr)) !important;
   }
   .public-body[data-page="projects"] .page-hero-card--overview .page-stat-grid {
     grid-template-columns: repeat(2, minmax(0,1fr)) !important;
@@ -4268,7 +4268,7 @@ article#member-editor-card::before,
     grid-template-columns:repeat(2,minmax(0,1fr)) !important;
   }
   .public-body[data-page="projects"] .page-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
-  .public-body[data-page="publications"] .page-stat-grid { grid-template-columns:repeat(3,minmax(0,1fr)) !important; }
+  .public-body[data-page="publications"] .page-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
   .publication-topline {
     grid-template-columns: auto minmax(0,1fr) !important;
     align-items:flex-start !important;
@@ -4385,5 +4385,29 @@ article#member-editor-card::before,
   }
   .publication-source-group .journal-pill {
     font-size: .98rem !important;
+  }
+}
+
+
+/* v45 publications stats include ESCI */
+.public-body[data-page="publications"] .page-stat-grid { grid-template-columns: repeat(4, minmax(0,1fr)) !important; }
+@media (max-width: 720px) {
+  .public-body[data-page="publications"] .page-stat-grid { grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
+}
+
+
+/* v46 publications hero stats fixed: desktop 1x4, mobile 2x2 */
+.public-body[data-page="publications"] .page-hero-card--overview .page-stat-grid,
+.public-body[data-page="publications"] .page-stat-grid {
+  width: 100% !important;
+  max-width: 100% !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+@media (max-width: 720px) {
+  .public-body[data-page="publications"] .page-hero-card--overview .page-stat-grid,
+  .public-body[data-page="publications"] .page-stat-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 }
