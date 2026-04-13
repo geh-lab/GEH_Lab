@@ -4598,3 +4598,83 @@ article#member-editor-card::before,
     display: none !important;
   }
 }
+
+
+/* ===== v48 publication/member/admin refinements ===== */
+.publication-abstract {
+  margin-top: .95rem;
+  border-top: 1px solid var(--line);
+  padding-top: .8rem;
+}
+.publication-abstract summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 700;
+}
+.publication-abstract__label {
+  letter-spacing: -.01em;
+}
+.publication-abstract summary::-webkit-details-marker { display: none; }
+.publication-abstract__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  line-height: 1;
+  transition: transform .18s ease;
+}
+.publication-abstract[open] .publication-abstract__icon {
+  transform: rotate(180deg);
+}
+.publication-abstract__content {
+  padding-top: .7rem;
+}
+.publication-abstract__content p {
+  margin: 0;
+  line-height: 1.75;
+}
+.member-publication-role--first {
+  background: rgba(37, 99, 235, .10);
+  color: #1d4ed8;
+}
+.member-publication-role--co {
+  background: rgba(16, 185, 129, .12);
+  color: #0f9f6e;
+}
+.member-publication-role--corresponding {
+  background: rgba(245, 158, 11, .14);
+  color: #b45309;
+}
+.publication-picker__search-row {
+  display: block;
+}
+.publication-picker__search-input {
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 0 1rem;
+  background: #fff;
+  color: var(--text);
+}
+.publication-picker__search-input::placeholder {
+  color: var(--muted);
+}
+.publication-member-picker .publication-picker__table {
+  min-width: 760px;
+}
+.detail-modal--member .linked-card-grid--projects {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+.detail-modal--member .linked-card-grid--projects > .linked-card--project:only-child {
+  grid-column: 1 / -1;
+}
+@media (max-width: 960px) {
+  .detail-modal--member .linked-card-grid--projects {
+    grid-template-columns: 1fr !important;
+  }
+}

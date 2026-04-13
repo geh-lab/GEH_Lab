@@ -674,7 +674,7 @@ function renderMemberPublicationBlock(member = {}) {
                   <strong>${escapeHTML(item.title)}</strong>
                   ${meta ? `<div class="member-publication-meta">${escapeHTML(meta)}</div>` : ''}
                 </div>
-                ${roles.length ? `<div class="member-publication-roles">${roles.map((role) => `<span class="member-publication-role">${escapeHTML(publicationRoleLabel(role, lang))}</span>`).join('')}</div>` : ''}
+                ${roles.length ? `<div class="member-publication-roles">${roles.map((role) => `<span class="member-publication-role member-publication-role--${escapeHTML(role)}">${escapeHTML(publicationRoleLabel(role, lang))}</span>`).join('')}</div>` : ''}
                 ${item.url ? `<a class="member-publication-link" href="${escapeHTML(item.url)}" target="_blank" rel="noreferrer">${escapeHTML(linkLabel)}</a>` : ''}
               </article>
             `;
@@ -1217,6 +1217,7 @@ function publicationCard(item) {
   const indexClass = indexLabel ? indexLabel.toLowerCase().replace(/[^a-z]+/g, '') : '';
   const journalTone = journalToneClass(item.journal);
   const yearPill = publicationYearMonthLabel(item);
+  const abstractLabel = 'Abstract';
   return `
     <article class="publication-card reveal">
       <div class="publication-head-row">
@@ -1233,7 +1234,12 @@ function publicationCard(item) {
         ${item.authors ? `<p class="publication-authors">${escapeHTML(item.authors)}</p>` : '<span></span>'}
         ${link ? `<a class="publication-doi-link" href="${escapeHTML(link)}" target="_blank" rel="noreferrer">${escapeHTML(copy.doi)}</a>` : ''}
       </div>
-      ${item.abstract ? `<p class="muted">${escapeHTML(item.abstract)}</p>` : ''}
+      ${item.abstract ? `
+        <details class="publication-abstract">
+          <summary><span class="publication-abstract__label">${escapeHTML(abstractLabel)}</span><span class="publication-abstract__icon" aria-hidden="true">▾</span></summary>
+          <div class="publication-abstract__content"><p class="muted">${escapeHTML(item.abstract)}</p></div>
+        </details>
+      ` : ''}
     </article>
   `;
 }

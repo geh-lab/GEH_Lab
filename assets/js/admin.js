@@ -90,7 +90,9 @@ const state = {
   projectQuery: '',
   publicationQuery: '',
   boardQuery: '',
-  trashQuery: ''
+  trashQuery: '',
+  memberPublicationQuery: '',
+  publicationMemberQuery: ''
 };
 
 const qs = (selector) => document.querySelector(selector);
@@ -149,6 +151,7 @@ const elements = {
   publicationPagination: qs('#publication-pagination'),
   publicationFilterTabs: qs('#publication-filter-tabs'),
   publicationSearchInput: qs('#publication-search-admin'),
+  publicationMemberPicker: qs('#publication-member-picker'),
   boardForm: qs('#board-form'),
   boardList: qs('#board-list'),
   boardTitle: qs('#board-form-title'),
@@ -581,6 +584,163 @@ function publicationRoleLabel(role) {
   return map[role] || role;
 }
 
+
+function publicationLinkMatchesPublication(link = {}, publication = {}) {
+  const linkId = String(link?.publicationId || link?.id || '').trim();
+  const publicationId = String(publication?.id || '').trim();
+  if (linkId && publicationId) return linkId === publicationId;
+  const linkTitle = String(link?.title || '').trim();
+  const publicationTitle = String(publication?.title || '').trim();
+  return Boolean(linkTitle && publicationTitle && linkTitle === publicationTitle);
+}
+
+function publicationSearchableText(publication = {}) {
+  return normalizeSearchText([
+    publication.title,
+    publication.authors,
+    publication.journal,
+    publication.year,
+    publication.month,
+    publication.doi
+  ].filter(Boolean).join(' '));
+}
+
+function memberSearchableText(member = {}) {
+  return normalizeSearchText([
+    member.nameKr,
+    member.nameEn,
+    member.name,
+    member.email,
+    member.currentPositionKr,
+    member.currentPositionEn,
+    member.currentPosition
+  ].filter(Boolean).join(' '));
+}
+
+function updatePublicationPickerGroupVisibility(container) {
+  if (!container) return;
+  qsa('.publication-picker__group', container).forEach?.(() => {});
+}
+
+function filterPublicationPicker(container, query = '') {
+  if (!container) return;
+  const keyword = normalizeSearchText(query);
+  Array.from(container.querySelectorAll('.publication-picker__item')).forEach((row) => {
+    const matched = !keyword || String(row.dataset.search || '').includes(keyword);
+    row.hidden = !matched;
+  });
+  Array.from(container.querySelectorAll('.publication-picker__group')).forEach((group) => {
+    const hasVisibleItems = Array.from(group.querySelectorAll('.publication-picker__item')).some((row) => !row.hidden);
+    group.hidden = !hasVisibleItems;
+  });
+}
+
+function onPublicationPickerInput(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) return;
+  if (target.matches('[data-publication-picker-search]')) {
+    state.memberPublicationQuery = target.value || '';
+    filterPublicationPicker(target.closest('.publication-picker'), state.memberPublicationQuery);
+    return;
+  }
+  if (target.matches('[data-publication-member-search]')) {
+    state.publicationMemberQuery = target.value || '';
+    filterPublicationPicker(target.closest('.publication-picker'), state.publicationMemberQuery);
+  }
+}
+
+function resolvePublicationMemberLinks(publication = {}) {
+  const derived = state.members.map((member) => {
+    const link = (Array.isArray(member.publicationLinks) ? member.publicationLinks : []).find((item) => publicationLinkMatchesPublication(item, publication));
+    if (!link) return null;
+    return {
+      memberId: member.id,
+      memberName: memberDisplayName(member),
+      email: member.email || '',
+      roles: Array.isArray(link.roles) ? link.roles.filter(Boolean) : []
+    };
+  }).filter(Boolean);
+  if (derived.length) return derived;
+  return Array.isArray(publication.memberLinks) ? publication.memberLinks.map((item) => ({
+    memberId: item.memberId || item.id || '',
+    memberName: item.memberName || '',
+    email: item.email || '',
+    roles: Array.isArray(item.roles) ? item.roles.filter(Boolean) : []
+  })) : [];
+}
+
+function renderPublicationMemberPicker(selected = []) {
+  const container = elements.publicationMemberPicker;
+  if (!container) return;
+  const selectedMap = new Map();
+  (Array.isArray(selected) ? selected : []).forEach((item) => {
+    const key = item.memberId || item.id;
+    if (key) selectedMap.set(String(key), item);
+  });
+  const items = sortMembers(state.members.slice());
+  if (!items.length) {
+    container.innerHTML = '<p class="muted">등록된 멤버가 없습니다.</p>';
+    return;
+  }
+  const searchMarkup = `<label class="publication-picker__search-row"><input type="search" class="publication-picker__search-input" data-publication-member-search placeholder="멤버 이름, 영문 이름, 이메일 검색" value="${escapeHTML(state.publicationMemberQuery)}"></label>`;
+  container.innerHTML = `${searchMarkup}<section class="publication-picker__group"><div class="publication-picker__group-title">멤버</div><div class="publication-picker__table"><div class="publication-picker__row publication-picker__row--head"><span class="publication-picker__cell publication-picker__cell--info">멤버</span><span class="publication-picker__cell publication-picker__cell--role">제1저자</span><span class="publication-picker__cell publication-picker__cell--role">공동저자</span><span class="publication-picker__cell publication-picker__cell--role">교신저자</span></div>${items.map((member) => {
+    const picked = selectedMap.get(member.id) || {};
+    const roles = Array.isArray(picked.roles) ? picked.roles : [];
+    const detail = [memberDisplayName(member, 'en'), member.email].filter(Boolean).join(' · ');
+    return `<article class="publication-picker__row publication-picker__item" data-search="${escapeHTML(memberSearchableText(member))}"><div class="publication-picker__cell publication-picker__cell--info"><strong>${escapeHTML(memberDisplayName(member))}</strong>${detail ? `<small class="muted">${escapeHTML(detail)}</small>` : ''}</div><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="first" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member))} 제1저자" ${roles.includes('first') ? 'checked' : ''}></label><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="co" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member))} 공동저자" ${roles.includes('co') ? 'checked' : ''}></label><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="corresponding" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member))} 교신저자" ${roles.includes('corresponding') ? 'checked' : ''}></label></article>`;
+  }).join('')}</div></section>`;
+  filterPublicationPicker(container, state.publicationMemberQuery);
+}
+
+function collectPublicationMemberLinks() {
+  const picker = elements.publicationMemberPicker;
+  if (!picker) return [];
+  const roleMap = new Map();
+  Array.from(picker.querySelectorAll('[data-publication-member-role]:checked')).forEach((el) => {
+    const id = el.dataset.memberId;
+    if (!id) return;
+    if (!roleMap.has(id)) roleMap.set(id, []);
+    roleMap.get(id).push(el.dataset.publicationMemberRole);
+  });
+  return Array.from(roleMap.entries()).map(([memberId, roles]) => {
+    const member = state.members.find((item) => item.id === memberId);
+    return {
+      memberId,
+      memberName: memberDisplayName(member || {}),
+      email: member?.email || '',
+      roles
+    };
+  });
+}
+
+async function syncPublicationLinksToMembers(publication = {}, memberLinks = []) {
+  const linkMap = new Map((Array.isArray(memberLinks) ? memberLinks : []).map((item) => [String(item.memberId), item]));
+  const nextMembers = state.members.map((member) => {
+    const existingLinks = Array.isArray(member.publicationLinks) ? member.publicationLinks : [];
+    const retained = existingLinks.filter((link) => !publicationLinkMatchesPublication(link, publication));
+    const selected = linkMap.get(String(member.id));
+    const nextLinks = selected
+      ? [...retained, {
+          publicationId: publication.id,
+          title: publication.title || '',
+          year: publication.year || '',
+          month: publication.month || '',
+          journal: publication.journal || '',
+          doi: publication.doi || '',
+          roles: Array.isArray(selected.roles) ? selected.roles.filter(Boolean) : []
+        }]
+      : retained;
+    return {
+      ...member,
+      publicationLinks: nextLinks,
+      authorshipNote: publicationLinksSummary(nextLinks)
+    };
+  });
+  const changed = nextMembers.filter((member, index) => JSON.stringify(member.publicationLinks || []) !== JSON.stringify(state.members[index]?.publicationLinks || []));
+  await Promise.all(changed.map((member) => saveDocument(COLLECTIONS.members, member.id, member)));
+  state.members = activeItems(sortMembers(nextMembers));
+}
+
 function ensureEditorPseudoHidden() {
   if (document.getElementById('debug-hide-pseudo')) return;
   const el = document.querySelector('article#member-editor-card');
@@ -674,6 +834,8 @@ function bindEvents() {
     renderMemberExperienceRows(current);
   });
   qs('#member-publication-picker')?.addEventListener('click', onPublicationPickerClick);
+  qs('#member-publication-picker')?.addEventListener('input', onPublicationPickerInput);
+  elements.publicationMemberPicker?.addEventListener('input', onPublicationPickerInput);
   elements.memberProjectPicker?.addEventListener('change', () => { qsa('#member-project-picker .project-picker__item').forEach((label) => label.classList.toggle('is-selected', Boolean(label.querySelector('input[data-project-id]')?.checked))); });
   document.addEventListener('pointerdown', (event) => {
     if (!state.openEditorKind) return;
@@ -795,7 +957,9 @@ function renderMemberPublicationPicker(selected = []) {
   }
   const groups = Object.entries(groupBy(items, (pub) => pub.year || '미정'))
     .sort((a, b) => numericYearSort(b[0]) - numericYearSort(a[0]));
+  const searchMarkup = `<label class="publication-picker__search-row"><input type="search" class="publication-picker__search-input" data-publication-picker-search placeholder="논문 제목, 저자, 저널, DOI 검색" value="${escapeHTML(state.memberPublicationQuery)}"></label>`;
   const toolbar = `
+    ${searchMarkup}
     <div class="publication-picker__toolbar">
       <button type="button" class="small-button" data-publication-bulk="all">모두 선택</button>
       <button type="button" class="small-button" data-publication-bulk="first">제1저자 전체</button>
@@ -819,7 +983,7 @@ function renderMemberPublicationPicker(selected = []) {
           const roles = Array.isArray(picked.roles) ? picked.roles : [];
           const meta = [publicationYearMonthLabel(pub), pub.journal].filter(Boolean).join(' · ');
           return `
-            <article class="publication-picker__row publication-picker__item">
+            <article class="publication-picker__row publication-picker__item" data-search="${escapeHTML(publicationSearchableText(pub))}">
               <div class="publication-picker__cell publication-picker__cell--info">
                 <strong>${escapeHTML(pub.title)}</strong>
                 ${meta ? `<small class="muted">${escapeHTML(meta)}</small>` : ''}
@@ -833,6 +997,7 @@ function renderMemberPublicationPicker(selected = []) {
       </div>
     </section>
   `).join('');
+  filterPublicationPicker(container, state.memberPublicationQuery);
 }
 
 function onPublicationPickerClick(event) {
@@ -1328,6 +1493,7 @@ function renderBoardImagePreview() {
 }
 
 function resetMemberForm() {
+  state.memberPublicationQuery = '';
   elements.memberForm?.reset();
   state.editingMember = null;
   state.pendingMemberFile = null;
@@ -1358,7 +1524,9 @@ function resetProjectForm() {
 function resetPublicationForm() {
   elements.publicationForm?.reset();
   state.editingPublication = null;
+  state.publicationMemberQuery = '';
   if (elements.publicationTitle) elements.publicationTitle.textContent = '논문 추가';
+  renderPublicationMemberPicker([]);
 }
 function resetBoardForm() {
   elements.boardForm?.reset();
@@ -1577,10 +1745,14 @@ async function handlePublicationSubmit(event) {
     indexing: publicationIndexingLabel(String(formData.get('indexing') || '').trim(), 'kr'),
     sortOrder: state.editingPublication?.sortOrder ?? 999
   };
+  const linkedMembers = collectPublicationMemberLinks();
   if (!payload.title) return showNotice('논문 제목을 입력해주세요.', 'warning');
   try {
     const id = await saveDocument(COLLECTIONS.publications, state.editingPublication?.id || null, payload);
-    state.publications = activeItems(sortPublications(mergePublications(state.publications, [{ ...payload, id, updatedAt: new Date().toISOString() }])));
+    const savedPublication = { ...payload, id, updatedAt: new Date().toISOString() };
+    await syncPublicationLinksToMembers(savedPublication, linkedMembers);
+    state.publications = activeItems(sortPublications(mergePublications(state.publications, [savedPublication])));
+    renderMembersList();
     renderPublicationsList();
     renderSummary();
     showNotice('논문 정보가 저장되었습니다.', 'success');
@@ -2064,6 +2236,7 @@ function loadMemberForm(member) {
   renderMemberExperienceRows(member.experienceEntries || []);
   updateFileInputLabel(elements.memberPhotoInput, elements.memberPhotoFileName);
   renderMemberPhotoPreview();
+  state.memberPublicationQuery = '';
   renderMemberPublicationPicker(member.publicationLinks || []);
   renderMemberProjectPicker(member.projectLinks || []);
   updateMemberEducationVisibility();
@@ -2087,9 +2260,11 @@ function loadProjectForm(project) {
 }
 function loadPublicationForm(item) {
   state.editingPublication = item;
+  state.publicationMemberQuery = '';
   elements.publicationTitle.textContent = '논문 수정';
   const form = elements.publicationForm;
   ['title','authors','journal','year','month','doi','abstract','indexing'].forEach((field) => setFormValue(form, field, field === 'doi' ? (item.doi || item.url || '') : (item[field] || '')));
+  renderPublicationMemberPicker(resolvePublicationMemberLinks(item));
   openEditor('publication');
 }
 function loadBoardForm(item) {
