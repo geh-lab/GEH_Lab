@@ -596,7 +596,12 @@ function renderMemberProjectBlock(member = {}) {
     const desc = localizedProjectDescription(project, lang);
     return `<article class="linked-card linked-card--project interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(title)}"><strong>${escapeHTML(title)}</strong>${period ? `<span class="linked-card__meta">${escapeHTML(period)}</span>` : ''}${desc ? `<p>${escapeHTML(desc)}</p>` : ''}</article>`;
   }).join('');
-  return detailHtmlSection(sectionTitle, `<div class="linked-card-grid linked-card-grid--projects">${cards}</div>`);
+  return `
+    <article class="detail-block detail-block--projects">
+      <h4>${escapeHTML(sectionTitle)}</h4>
+      <div class="detail-block__body"><div class="linked-card-grid linked-card-grid--projects">${cards}</div></div>
+    </article>
+  `;
 }
 
 function projectParticipantMembers(project = {}) {
@@ -667,7 +672,7 @@ function renderMemberPublicationBlock(member = {}) {
           ${items.map((item) => {
             const meta = [publicationYearMonthLabel(item), item.journal].filter(Boolean).join(' · ');
             const roles = Array.isArray(item.roles) ? item.roles : [];
-            const linkLabel = item.doi ? copy.doi : copy.open;
+            const linkLabel = copy.doi;
             return `
               <article class="member-publication-item">
                 <div class="member-publication-main">

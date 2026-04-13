@@ -1,4 +1,17 @@
 {
   "trailingSlash": false,
-  "cleanUrls": false
+  "cleanUrls": false,
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/board.html",
+      "destination": "/news.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/board.html",
+      "destination": "/en/news.html",
+      "permanent": true
+    }
+  ]
 }

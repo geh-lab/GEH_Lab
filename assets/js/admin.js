@@ -625,14 +625,29 @@ function updatePublicationPickerGroupVisibility(container) {
 function filterPublicationPicker(container, query = '') {
   if (!container) return;
   const keyword = normalizeSearchText(query);
-  Array.from(container.querySelectorAll('.publication-picker__item')).forEach((row) => {
+  const items = Array.from(container.querySelectorAll('.publication-picker__item'));
+  items.forEach((row) => {
     const matched = !keyword || String(row.dataset.search || '').includes(keyword);
     row.hidden = !matched;
+    row.style.display = matched ? '' : 'none';
   });
   Array.from(container.querySelectorAll('.publication-picker__group')).forEach((group) => {
     const hasVisibleItems = Array.from(group.querySelectorAll('.publication-picker__item')).some((row) => !row.hidden);
     group.hidden = !hasVisibleItems;
+    group.style.display = hasVisibleItems ? '' : 'none';
   });
+  let empty = container.querySelector('.publication-picker__empty');
+  const anyVisible = items.some((row) => !row.hidden);
+  if (!anyVisible) {
+    if (!empty) {
+      empty = document.createElement('p');
+      empty.className = 'muted publication-picker__empty';
+      empty.textContent = '검색 결과가 없습니다.';
+      container.appendChild(empty);
+    }
+  } else if (empty) {
+    empty.remove();
+  }
 }
 
 function onPublicationPickerInput(event) {
@@ -647,6 +662,22 @@ function onPublicationPickerInput(event) {
     state.publicationMemberQuery = target.value || '';
     filterPublicationPicker(target.closest('.publication-picker'), state.publicationMemberQuery);
   }
+}
+
+function bindPublicationSearchInput(container, selector, onUpdate) {
+  if (!container) return;
+  const input = container.querySelector(selector);
+  if (!input || input.dataset.searchBound === 'true') return;
+  const apply = () => {
+    const query = input.value || '';
+    onUpdate(query);
+    filterPublicationPicker(container, query);
+  };
+  ['input', 'keyup', 'change', 'search'].forEach((eventName) => {
+    input.addEventListener(eventName, apply);
+  });
+  input.dataset.searchBound = 'true';
+  apply();
 }
 
 function resolvePublicationMemberLinks(publication = {}) {
@@ -689,6 +720,7 @@ function renderPublicationMemberPicker(selected = []) {
     const detail = [memberDisplayName(member, 'en'), member.email].filter(Boolean).join(' · ');
     return `<article class="publication-picker__row publication-picker__item" data-search="${escapeHTML(memberSearchableText(member))}"><div class="publication-picker__cell publication-picker__cell--info"><strong>${escapeHTML(memberDisplayName(member))}</strong>${detail ? `<small class="muted">${escapeHTML(detail)}</small>` : ''}</div><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="first" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member))} 제1저자" ${roles.includes('first') ? 'checked' : ''}></label><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="co" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member))} 공동저자" ${roles.includes('co') ? 'checked' : ''}></label><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="corresponding" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member))} 교신저자" ${roles.includes('corresponding') ? 'checked' : ''}></label></article>`;
   }).join('')}</div></section>`;
+  bindPublicationSearchInput(container, '[data-publication-member-search]', (query) => { state.publicationMemberQuery = query; });
   filterPublicationPicker(container, state.publicationMemberQuery);
 }
 
@@ -997,6 +1029,7 @@ function renderMemberPublicationPicker(selected = []) {
       </div>
     </section>
   `).join('');
+  bindPublicationSearchInput(container, '[data-publication-picker-search]', (query) => { state.memberPublicationQuery = query; });
   filterPublicationPicker(container, state.memberPublicationQuery);
 }
 

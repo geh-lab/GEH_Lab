@@ -2396,6 +2396,17 @@ input[type="checkbox"], input[type="radio"] { width:auto; padding:0; border:0; b
   grid-column: 1 / -1;
 }
 
+.detail-block--projects {
+  grid-column: 1 / -1;
+}
+
+.detail-block--projects .detail-block__body {
+  display: grid;
+  gap: 1rem;
+  margin-top: .8rem;
+}
+
+
 .detail-block--publications .detail-block__body {
   display: grid;
   gap: 1rem;
@@ -4668,10 +4679,14 @@ article#member-editor-card::before,
   min-width: 760px;
 }
 .detail-modal--member .linked-card-grid--projects {
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-template-columns: repeat(2, minmax(320px, 1fr)) !important;
+  align-items: stretch;
 }
 .detail-modal--member .linked-card-grid--projects > .linked-card--project:only-child {
   grid-column: 1 / -1;
+}
+.detail-modal--member .linked-card--project {
+  min-height: 100%;
 }
 @media (max-width: 960px) {
   .detail-modal--member .linked-card-grid--projects {
