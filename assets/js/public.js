@@ -329,7 +329,16 @@ function setupHeader() {
   const toggle = qs('[data-menu-toggle]');
   const panel = qs('[data-nav-panel]');
   const header = qs('.site-header');
+  const adminButton = qs('.site-header .icon-button[href]');
   qs(`.site-nav a[data-nav-page="${page}"]`)?.classList.add('is-active');
+
+  if (panel && adminButton && !panel.querySelector('.nav-admin-link')) {
+    const adminLink = document.createElement('a');
+    adminLink.href = adminButton.getAttribute('href');
+    adminLink.className = 'nav-admin-link';
+    adminLink.textContent = lang === 'en' ? 'Admin' : '관리자';
+    panel.appendChild(adminLink);
+  }
 
   toggle?.addEventListener('click', () => {
     const isOpen = panel?.classList.toggle('is-open');
@@ -343,6 +352,15 @@ function setupHeader() {
       toggle?.classList.remove('is-open');
       toggle?.setAttribute('aria-expanded', 'false');
     });
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!panel?.classList.contains('is-open')) return;
+    const target = event.target;
+    if (header?.contains(target)) return;
+    panel.classList.remove('is-open');
+    toggle?.classList.remove('is-open');
+    toggle?.setAttribute('aria-expanded', 'false');
   });
 
   const onScroll = () => header?.classList.toggle('is-scrolled', window.scrollY > 16);
