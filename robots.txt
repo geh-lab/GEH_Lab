@@ -1,3 +1,4 @@
 User-agent: *
 Allow: /
+
 Sitemap: https://geh-lab.vercel.app/sitemap.xml

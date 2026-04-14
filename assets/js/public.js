@@ -596,12 +596,7 @@ function renderMemberProjectBlock(member = {}) {
     const desc = localizedProjectDescription(project, lang);
     return `<article class="linked-card linked-card--project interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(title)}"><strong>${escapeHTML(title)}</strong>${period ? `<span class="linked-card__meta">${escapeHTML(period)}</span>` : ''}${desc ? `<p>${escapeHTML(desc)}</p>` : ''}</article>`;
   }).join('');
-  return `
-    <article class="detail-block detail-block--projects">
-      <h4>${escapeHTML(sectionTitle)}</h4>
-      <div class="detail-block__body"><div class="linked-card-grid linked-card-grid--projects">${cards}</div></div>
-    </article>
-  `;
+  return detailHtmlSection(sectionTitle, `<div class="linked-card-grid linked-card-grid--projects">${cards}</div>`);
 }
 
 function projectParticipantMembers(project = {}) {
@@ -672,7 +667,7 @@ function renderMemberPublicationBlock(member = {}) {
           ${items.map((item) => {
             const meta = [publicationYearMonthLabel(item), item.journal].filter(Boolean).join(' · ');
             const roles = Array.isArray(item.roles) ? item.roles : [];
-            const linkLabel = copy.doi;
+            const linkLabel = item.doi ? copy.doi : copy.open;
             return `
               <article class="member-publication-item">
                 <div class="member-publication-main">
@@ -1222,7 +1217,7 @@ function publicationCard(item) {
   const indexClass = indexLabel ? indexLabel.toLowerCase().replace(/[^a-z]+/g, '') : '';
   const journalTone = journalToneClass(item.journal);
   const yearPill = publicationYearMonthLabel(item);
-  const abstractLabel = 'Abstract';
+  const abstractLabel = lang === 'en' ? 'Abstract' : '초록';
   return `
     <article class="publication-card reveal">
       <div class="publication-head-row">
@@ -1241,7 +1236,7 @@ function publicationCard(item) {
       </div>
       ${item.abstract ? `
         <details class="publication-abstract">
-          <summary><span class="publication-abstract__label">${escapeHTML(abstractLabel)}</span><span class="publication-abstract__icon" aria-hidden="true">▾</span></summary>
+          <summary><span>${escapeHTML(abstractLabel)}</span><span class="publication-abstract__icon" aria-hidden="true">⌄</span></summary>
           <div class="publication-abstract__content"><p class="muted">${escapeHTML(item.abstract)}</p></div>
         </details>
       ` : ''}

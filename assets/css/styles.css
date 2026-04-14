@@ -2396,17 +2396,6 @@ input[type="checkbox"], input[type="radio"] { width:auto; padding:0; border:0; b
   grid-column: 1 / -1;
 }
 
-.detail-block--projects {
-  grid-column: 1 / -1;
-}
-
-.detail-block--projects .detail-block__body {
-  display: grid;
-  gap: 1rem;
-  margin-top: .8rem;
-}
-
-
 .detail-block--publications .detail-block__body {
   display: grid;
   gap: 1rem;
@@ -4626,16 +4615,9 @@ article#member-editor-card::before,
   color: var(--accent);
   font-weight: 700;
 }
-.publication-abstract__label {
-  letter-spacing: -.01em;
-}
 .publication-abstract summary::-webkit-details-marker { display: none; }
 .publication-abstract__icon {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  line-height: 1;
   transition: transform .18s ease;
 }
 .publication-abstract[open] .publication-abstract__icon {
@@ -4679,14 +4661,10 @@ article#member-editor-card::before,
   min-width: 760px;
 }
 .detail-modal--member .linked-card-grid--projects {
-  grid-template-columns: repeat(2, minmax(320px, 1fr)) !important;
-  align-items: stretch;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
 }
 .detail-modal--member .linked-card-grid--projects > .linked-card--project:only-child {
   grid-column: 1 / -1;
-}
-.detail-modal--member .linked-card--project {
-  min-height: 100%;
 }
 @media (max-width: 960px) {
   .detail-modal--member .linked-card-grid--projects {
