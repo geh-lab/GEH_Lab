@@ -246,14 +246,17 @@ function memberCourseSectionMarkup(member = {}, locale = lang) {
   return html ? detailHtmlSection(title, html) : '';
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
   setupHeader();
   ensureModal();
   setupRevealAnimations();
   setupSearch();
   if (page === 'home') setupHeroSlider();
-  await hydrate();
+
+  // 먼저 fallback 데이터로 즉시 렌더링해 체감 속도를 확보하고,
+  // Firebase 동기화는 뒤에서 비동기로 갱신합니다.
   renderPage();
+  hydrate().catch((error) => console.warn('초기 데이터 동기화 실패', error));
 });
 
 async function hydrate() {
@@ -267,15 +270,29 @@ async function hydrate() {
     }
   };
 
-  const members = await readSafely(COLLECTIONS.members);
-  const projects = await readSafely(COLLECTIONS.projects);
-  const publications = await readSafely(COLLECTIONS.publications);
-  const board = COLLECTIONS.board ? await readSafely(COLLECTIONS.board) : [];
+  const collectionNames = [COLLECTIONS.members, COLLECTIONS.projects, COLLECTIONS.publications];
+  if (COLLECTIONS.board && page === 'board') collectionNames.push(COLLECTIONS.board);
+
+  const resultMap = new Map();
+  const settled = await Promise.allSettled(collectionNames.map((collectionName) => readSafely(collectionName)));
+  settled.forEach((result, index) => {
+    const collectionName = collectionNames[index];
+    resultMap.set(collectionName, result.status === 'fulfilled' ? result.value : []);
+  });
+
+  const members = resultMap.get(COLLECTIONS.members) || [];
+  const projects = resultMap.get(COLLECTIONS.projects) || [];
+  const publications = resultMap.get(COLLECTIONS.publications) || [];
+  const board = COLLECTIONS.board ? (resultMap.get(COLLECTIONS.board) || []) : [];
 
   state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, members)).filter(isActiveItem);
   state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, projects)).filter(isActiveItem);
   state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, publications)).filter(isActiveItem);
-  state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, board)).filter(isActiveItem);
+  if (COLLECTIONS.board && page === 'board') {
+    state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, board)).filter(isActiveItem);
+  }
+
+  renderPage();
 
   state.unsubs.forEach((unsub) => { try { unsub(); } catch {} });
   state.unsubs = [];
@@ -596,7 +613,12 @@ function renderMemberProjectBlock(member = {}) {
     const desc = localizedProjectDescription(project, lang);
     return `<article class="linked-card linked-card--project interactive-card" data-project-id="${escapeHTML(project.id)}" tabindex="0" role="button" aria-label="${escapeHTML(title)}"><strong>${escapeHTML(title)}</strong>${period ? `<span class="linked-card__meta">${escapeHTML(period)}</span>` : ''}${desc ? `<p>${escapeHTML(desc)}</p>` : ''}</article>`;
   }).join('');
-  return detailHtmlSection(sectionTitle, `<div class="linked-card-grid linked-card-grid--projects">${cards}</div>`);
+  return `
+    <article class="detail-block detail-block--projects">
+      <h4>${escapeHTML(sectionTitle)}</h4>
+      <div class="detail-block__body"><div class="linked-card-grid linked-card-grid--projects">${cards}</div></div>
+    </article>
+  `;
 }
 
 function projectParticipantMembers(project = {}) {
@@ -667,7 +689,7 @@ function renderMemberPublicationBlock(member = {}) {
           ${items.map((item) => {
             const meta = [publicationYearMonthLabel(item), item.journal].filter(Boolean).join(' · ');
             const roles = Array.isArray(item.roles) ? item.roles : [];
-            const linkLabel = item.doi ? copy.doi : copy.open;
+            const linkLabel = copy.doi;
             return `
               <article class="member-publication-item">
                 <div class="member-publication-main">
@@ -1217,7 +1239,7 @@ function publicationCard(item) {
   const indexClass = indexLabel ? indexLabel.toLowerCase().replace(/[^a-z]+/g, '') : '';
   const journalTone = journalToneClass(item.journal);
   const yearPill = publicationYearMonthLabel(item);
-  const abstractLabel = lang === 'en' ? 'Abstract' : '초록';
+  const abstractLabel = 'Abstract';
   return `
     <article class="publication-card reveal">
       <div class="publication-head-row">
@@ -1236,7 +1258,7 @@ function publicationCard(item) {
       </div>
       ${item.abstract ? `
         <details class="publication-abstract">
-          <summary><span>${escapeHTML(abstractLabel)}</span><span class="publication-abstract__icon" aria-hidden="true">⌄</span></summary>
+          <summary><span class="publication-abstract__label">${escapeHTML(abstractLabel)}</span><span class="publication-abstract__icon" aria-hidden="true">▾</span></summary>
           <div class="publication-abstract__content"><p class="muted">${escapeHTML(item.abstract)}</p></div>
         </details>
       ` : ''}
