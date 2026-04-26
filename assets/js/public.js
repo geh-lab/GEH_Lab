@@ -62,7 +62,8 @@ const state = {
   board: hasFirebaseConfig ? [] : sortBoardPosts(FALLBACK_BOARD_POSTS).filter(isActiveItem),
   publicationQuery: '',
   boardTab: 'news',
-  unsubs: []
+  unsubs: [],
+  loadingProjects: hasFirebaseConfig && page === 'projects'
 };
 
 const modalState = {
@@ -114,7 +115,8 @@ function applyCachedState() {
     applied = true;
   }
   if (Array.isArray(cache.projects) && cache.projects.length) {
-    state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, cache.projects)).filter(isActiveItem);
+    state.projects = mergedProjectsForPage(cache.projects);
+    state.loadingProjects = false;
     applied = true;
   }
   if (Array.isArray(cache.publications) && cache.publications.length) {
@@ -126,6 +128,41 @@ function applyCachedState() {
     applied = true;
   }
   return applied;
+}
+
+
+function useLiveProjectsOnly() {
+  return hasFirebaseConfig && page === 'projects';
+}
+
+function normalizeProjectsForPage(items = []) {
+  return sortProjects((Array.isArray(items) ? items : []).filter(isActiveItem));
+}
+
+function mergedProjectsForPage(items = []) {
+  if (useLiveProjectsOnly()) return normalizeProjectsForPage(items);
+  return sortProjects(mergeProjects(FALLBACK_PROJECTS, items)).filter(isActiveItem);
+}
+
+function projectStatSkeleton(label) {
+  return `<article class="stat-card stat-card--skeleton reveal"><strong class="skeleton-line skeleton-line--number"></strong><span>${escapeHTML(label)}</span></article>`;
+}
+
+function projectSkeletonCard() {
+  return `
+    <article class="project-card project-card--skeleton compact-card reveal">
+      <div class="card-head"><span class="status-pill status-pill--ghost"></span><span class="period-pill period-pill--ghost"></span></div>
+      <div class="skeleton-line skeleton-line--title"></div>
+      <div class="skeleton-line skeleton-line--text"></div>
+      <div class="skeleton-line skeleton-line--text short"></div>
+      <div class="skeleton-line skeleton-line--meta"></div>
+      <div class="tag-row">
+        <span class="keyword-tag keyword-tag--ghost"></span>
+        <span class="keyword-tag keyword-tag--ghost"></span>
+        <span class="keyword-tag keyword-tag--ghost"></span>
+      </div>
+    </article>
+  `;
 }
 
 function memberDisplayName(member, locale = lang) {
@@ -343,7 +380,8 @@ async function hydrate() {
   const board = COLLECTIONS.board ? (resultMap.get(COLLECTIONS.board) || []) : [];
 
   state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, members)).filter(isActiveItem);
-  state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, projects)).filter(isActiveItem);
+  state.projects = mergedProjectsForPage(projects);
+  state.loadingProjects = false;
   state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, publications)).filter(isActiveItem);
   if (COLLECTIONS.board && page === 'board') {
     state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, board)).filter(isActiveItem);
@@ -368,7 +406,8 @@ async function hydrate() {
     if (page === 'home' || page === 'members') renderPage();
   });
   addListener(COLLECTIONS.projects, (items) => {
-    state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, items)).filter(isActiveItem);
+    state.projects = mergedProjectsForPage(items);
+    state.loadingProjects = false;
     writePublicCache();
     if (page === 'home' || page === 'projects') renderPage();
   });
@@ -1000,23 +1039,36 @@ function renderProjects() {
 
   const statGrid = qs('#project-stat-grid');
   if (statGrid) {
-    statGrid.innerHTML = [
+    const stats = [
       { value: ongoing.length, label: lang === 'en' ? 'Ongoing projects' : '진행 중 과제' },
       { value: completed.length, label: lang === 'en' ? 'Archived projects' : '종료 과제' }
-    ].map((item) => `<article class="stat-card reveal"><strong class="count-up" data-target="${escapeHTML(item.value)}">0</strong><span>${escapeHTML(item.label)}</span></article>`).join('');
+    ];
+    if (state.loadingProjects && useLiveProjectsOnly() && !state.projects.length) {
+      statGrid.innerHTML = stats.map((item) => projectStatSkeleton(item.label)).join('');
+    } else {
+      statGrid.innerHTML = stats.map((item) => `<article class="stat-card reveal"><strong class="count-up" data-target="${escapeHTML(item.value)}">0</strong><span>${escapeHTML(item.label)}</span></article>`).join('');
+    }
   }
 
   const ongoingGrid = qs('#ongoing-project-grid');
   if (ongoingGrid) {
-    ongoingGrid.innerHTML = ongoing.map((project) => projectCard(project)).join('');
+    if (state.loadingProjects && useLiveProjectsOnly() && !state.projects.length) {
+      ongoingGrid.innerHTML = Array.from({ length: 4 }, () => projectSkeletonCard()).join('');
+    } else {
+      ongoingGrid.innerHTML = ongoing.map((project) => projectCard(project)).join('');
+    }
     stretchProjectGrid(ongoingGrid);
   }
 
   const completedAccordion = qs('#completed-project-accordion');
   if (completedAccordion) {
-    const completedByYear = Object.entries(groupBy(completed, (item) => item.year || extractYearFromText(item.period) || (lang === 'en' ? 'Unspecified' : '미정')))
-      .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
-    completedAccordion.innerHTML = completedByYear.map(([year, items], index) => accordionMarkup(year, items.length, `<div class="archive-list">${items.map((item) => archiveProjectItem(item)).join('')}</div>`, index === 0)).join('');
+    if (state.loadingProjects && useLiveProjectsOnly() && !state.projects.length) {
+      completedAccordion.innerHTML = '';
+    } else {
+      const completedByYear = Object.entries(groupBy(completed, (item) => item.year || extractYearFromText(item.period) || (lang === 'en' ? 'Unspecified' : '미정')))
+        .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
+      completedAccordion.innerHTML = completedByYear.map(([year, items], index) => accordionMarkup(year, items.length, `<div class="archive-list">${items.map((item) => archiveProjectItem(item)).join('')}</div>`, index === 0)).join('');
+    }
   }
 }
 
