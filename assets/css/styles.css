@@ -2396,6 +2396,17 @@ input[type="checkbox"], input[type="radio"] { width:auto; padding:0; border:0; b
   grid-column: 1 / -1;
 }
 
+.detail-block--projects {
+  grid-column: 1 / -1;
+}
+
+.detail-block--projects .detail-block__body {
+  display: grid;
+  gap: 1rem;
+  margin-top: .8rem;
+}
+
+
 .detail-block--publications .detail-block__body {
   display: grid;
   gap: 1rem;
@@ -4615,9 +4626,16 @@ article#member-editor-card::before,
   color: var(--accent);
   font-weight: 700;
 }
+.publication-abstract__label {
+  letter-spacing: -.01em;
+}
 .publication-abstract summary::-webkit-details-marker { display: none; }
 .publication-abstract__icon {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  line-height: 1;
   transition: transform .18s ease;
 }
 .publication-abstract[open] .publication-abstract__icon {
@@ -4661,13 +4679,92 @@ article#member-editor-card::before,
   min-width: 760px;
 }
 .detail-modal--member .linked-card-grid--projects {
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-template-columns: repeat(2, minmax(320px, 1fr)) !important;
+  align-items: stretch;
 }
 .detail-modal--member .linked-card-grid--projects > .linked-card--project:only-child {
   grid-column: 1 / -1;
+}
+.detail-modal--member .linked-card--project {
+  min-height: 100%;
 }
 @media (max-width: 960px) {
   .detail-modal--member .linked-card-grid--projects {
     grid-template-columns: 1fr !important;
   }
+}
+
+
+.stat-card--skeleton strong,
+.project-card--skeleton .skeleton-line,
+.project-card--skeleton .keyword-tag--ghost,
+.status-pill--ghost,
+.period-pill--ghost {
+  background: linear-gradient(90deg, rgba(15,23,42,0.06) 25%, rgba(15,23,42,0.12) 37%, rgba(15,23,42,0.06) 63%);
+  background-size: 400% 100%;
+  animation: geh-skeleton 1.35s ease infinite;
+  color: transparent !important;
+}
+
+@keyframes geh-skeleton {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+.stat-card--skeleton .skeleton-line--number {
+  display:block;
+  width:4.5rem;
+  height:3.2rem;
+  border-radius: 1rem;
+  margin-bottom: .65rem;
+}
+
+.project-card--skeleton {
+  pointer-events: none;
+}
+
+.project-card--skeleton .status-pill--ghost {
+  width:4.25rem;
+  height:2rem;
+  border-radius: 999px;
+  display:inline-block;
+}
+
+.project-card--skeleton .period-pill--ghost {
+  width:5.75rem;
+  height:2rem;
+  border-radius: 999px;
+  display:inline-block;
+}
+
+.project-card--skeleton .skeleton-line--title {
+  width: 78%;
+  height: 2.25rem;
+  border-radius: .9rem;
+  margin: .5rem 0 1rem;
+}
+
+.project-card--skeleton .skeleton-line--text {
+  width: 100%;
+  height: 1.05rem;
+  border-radius: .65rem;
+  margin-bottom: .65rem;
+}
+
+.project-card--skeleton .skeleton-line--text.short {
+  width: 72%;
+}
+
+.project-card--skeleton .skeleton-line--meta {
+  width: 48%;
+  height: 1rem;
+  border-radius: .65rem;
+  margin: .9rem 0 1.1rem;
+}
+
+.project-card--skeleton .keyword-tag--ghost {
+  display:inline-block;
+  width:5rem;
+  height:1.8rem;
+  border-radius:999px;
 }
