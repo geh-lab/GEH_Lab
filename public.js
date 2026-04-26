@@ -56,14 +56,13 @@ const focusImages = [
 ].map((path) => rootAsset(path, root));
 
 const state = {
-  members: hasFirebaseConfig ? [] : sortMembers(FALLBACK_MEMBERS).filter(isActiveItem),
-  projects: hasFirebaseConfig ? [] : sortProjects(FALLBACK_PROJECTS).filter(isActiveItem),
-  publications: hasFirebaseConfig ? [] : sortPublications(FALLBACK_PUBLICATIONS).filter(isActiveItem),
-  board: hasFirebaseConfig ? [] : sortBoardPosts(FALLBACK_BOARD_POSTS).filter(isActiveItem),
+  members: sortMembers(FALLBACK_MEMBERS).filter(isActiveItem),
+  projects: sortProjects(FALLBACK_PROJECTS).filter(isActiveItem),
+  publications: sortPublications(FALLBACK_PUBLICATIONS).filter(isActiveItem),
+  board: sortBoardPosts(FALLBACK_BOARD_POSTS).filter(isActiveItem),
   publicationQuery: '',
   boardTab: 'news',
-  unsubs: [],
-  loadingProjects: hasFirebaseConfig && page === 'projects'
+  unsubs: []
 };
 
 const modalState = {
@@ -72,98 +71,6 @@ const modalState = {
   body: null,
   closeButtons: []
 };
-
-const PUBLIC_CACHE_KEY = 'geh-public-cache-v1';
-
-function snapshotSerializableState() {
-  return {
-    members: Array.isArray(state.members) ? state.members : [],
-    projects: Array.isArray(state.projects) ? state.projects : [],
-    publications: Array.isArray(state.publications) ? state.publications : [],
-    board: Array.isArray(state.board) ? state.board : [],
-    savedAt: Date.now()
-  };
-}
-
-function readPublicCache() {
-  try {
-    const raw = localStorage.getItem(PUBLIC_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return null;
-    return parsed;
-  } catch (error) {
-    console.warn('공개 캐시를 읽지 못했습니다.', error);
-    return null;
-  }
-}
-
-function writePublicCache() {
-  try {
-    localStorage.setItem(PUBLIC_CACHE_KEY, JSON.stringify(snapshotSerializableState()));
-  } catch (error) {
-    console.warn('공개 캐시를 저장하지 못했습니다.', error);
-  }
-}
-
-function applyCachedState() {
-  const cache = readPublicCache();
-  if (!cache) return false;
-  let applied = false;
-  if (Array.isArray(cache.members) && cache.members.length) {
-    state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, cache.members)).filter(isActiveItem);
-    applied = true;
-  }
-  if (Array.isArray(cache.projects) && cache.projects.length) {
-    state.projects = mergedProjectsForPage(cache.projects);
-    state.loadingProjects = false;
-    applied = true;
-  }
-  if (Array.isArray(cache.publications) && cache.publications.length) {
-    state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, cache.publications)).filter(isActiveItem);
-    applied = true;
-  }
-  if (Array.isArray(cache.board) && cache.board.length) {
-    state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, cache.board)).filter(isActiveItem);
-    applied = true;
-  }
-  return applied;
-}
-
-
-function useLiveProjectsOnly() {
-  return hasFirebaseConfig && page === 'projects';
-}
-
-function normalizeProjectsForPage(items = []) {
-  return sortProjects((Array.isArray(items) ? items : []).filter(isActiveItem));
-}
-
-function mergedProjectsForPage(items = []) {
-  if (useLiveProjectsOnly()) return normalizeProjectsForPage(items);
-  return sortProjects(mergeProjects(FALLBACK_PROJECTS, items)).filter(isActiveItem);
-}
-
-function projectStatSkeleton(label) {
-  return `<article class="stat-card stat-card--skeleton reveal"><strong class="skeleton-line skeleton-line--number"></strong><span>${escapeHTML(label)}</span></article>`;
-}
-
-function projectSkeletonCard() {
-  return `
-    <article class="project-card project-card--skeleton compact-card reveal">
-      <div class="card-head"><span class="status-pill status-pill--ghost"></span><span class="period-pill period-pill--ghost"></span></div>
-      <div class="skeleton-line skeleton-line--title"></div>
-      <div class="skeleton-line skeleton-line--text"></div>
-      <div class="skeleton-line skeleton-line--text short"></div>
-      <div class="skeleton-line skeleton-line--meta"></div>
-      <div class="tag-row">
-        <span class="keyword-tag keyword-tag--ghost"></span>
-        <span class="keyword-tag keyword-tag--ghost"></span>
-        <span class="keyword-tag keyword-tag--ghost"></span>
-      </div>
-    </article>
-  `;
-}
 
 function memberDisplayName(member, locale = lang) {
   if (!member) return '';
@@ -346,9 +253,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setupSearch();
   if (page === 'home') setupHeroSlider();
 
-  // 최근 동기화된 실제 데이터를 먼저 보여주고,
-  // 캐시가 없을 때만 fallback 데이터를 사용합니다.
-  applyCachedState();
+  // 먼저 fallback 데이터로 즉시 렌더링해 체감 속도를 확보하고,
+  // Firebase 동기화는 뒤에서 비동기로 갱신합니다.
   renderPage();
   hydrate().catch((error) => console.warn('초기 데이터 동기화 실패', error));
 });
@@ -380,14 +286,12 @@ async function hydrate() {
   const board = COLLECTIONS.board ? (resultMap.get(COLLECTIONS.board) || []) : [];
 
   state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, members)).filter(isActiveItem);
-  state.projects = mergedProjectsForPage(projects);
-  state.loadingProjects = false;
+  state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, projects)).filter(isActiveItem);
   state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, publications)).filter(isActiveItem);
   if (COLLECTIONS.board && page === 'board') {
     state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, board)).filter(isActiveItem);
   }
 
-  writePublicCache();
   renderPage();
 
   state.unsubs.forEach((unsub) => { try { unsub(); } catch {} });
@@ -402,24 +306,19 @@ async function hydrate() {
 
   addListener(COLLECTIONS.members, (items) => {
     state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, items)).filter(isActiveItem);
-    writePublicCache();
     if (page === 'home' || page === 'members') renderPage();
   });
   addListener(COLLECTIONS.projects, (items) => {
-    state.projects = mergedProjectsForPage(items);
-    state.loadingProjects = false;
-    writePublicCache();
+    state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, items)).filter(isActiveItem);
     if (page === 'home' || page === 'projects') renderPage();
   });
   addListener(COLLECTIONS.publications, (items) => {
     state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items)).filter(isActiveItem);
-    writePublicCache();
     if (page === 'home' || page === 'publications') renderPage();
   });
   if (COLLECTIONS.board) {
     addListener(COLLECTIONS.board, (items) => {
       state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items)).filter(isActiveItem);
-      writePublicCache();
       if (page === 'board') renderPage();
     });
   }
@@ -647,17 +546,16 @@ function openProjectModal(project) {
 function openBoardModal(post) {
   const tag = boardCategoryLabel(post.category);
   const youtube = youtubeEmbedUrl(post.youtubeUrl || '');
-  const images = boardMediaUrls(post);
-  const leadMedia = youtube ? `<div class="detail-figure detail-figure--16-9 detail-figure--video"><iframe src="${escapeHTML(youtube)}" title="${escapeHTML(post.title)}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>` : (images.length ? renderBoardGallery([images[0]], post.title) : '');
-  const gallery = images.length > 1 ? `<div class="detail-gallery-section"><h4>${lang === 'en' ? 'Gallery' : '갤러리'}</h4>${renderBoardGallery(images, post.title)}</div>` : '';
+  const media = youtube
+    ? `<div class="detail-figure detail-figure--16-9 detail-figure--video"><iframe src="${escapeHTML(youtube)}" title="${escapeHTML(post.title)}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>`
+    : (post.imageUrl ? `<div class="detail-figure detail-figure--16-9"><img src="${escapeHTML(rootAsset(post.imageUrl, root))}" alt="${escapeHTML(post.title)}"></div>` : '');
   openModal(post.title, `
     <div class="detail-modal detail-modal--board">
       <div class="member-chip-row">
         <span class="member-chip member-chip--soft">${escapeHTML(tag)}</span>
         ${post.date ? `<span class="member-chip member-chip--soft">${escapeHTML(post.date)}</span>` : ''}
       </div>
-      ${leadMedia}
-      ${gallery}
+      ${media}
       <p class="detail-lead">${escapeHTML(post.description || '')}</p>
       <div class="member-chip-row">
         ${post.linkUrl ? `<a class="button primary" href="${escapeHTML(post.linkUrl)}" target="_blank" rel="noreferrer">${lang === 'en' ? 'Open link' : '링크 열기'}</a>` : ''}
@@ -1040,36 +938,23 @@ function renderProjects() {
 
   const statGrid = qs('#project-stat-grid');
   if (statGrid) {
-    const stats = [
+    statGrid.innerHTML = [
       { value: ongoing.length, label: lang === 'en' ? 'Ongoing projects' : '진행 중 과제' },
       { value: completed.length, label: lang === 'en' ? 'Archived projects' : '종료 과제' }
-    ];
-    if (state.loadingProjects && useLiveProjectsOnly() && !state.projects.length) {
-      statGrid.innerHTML = stats.map((item) => projectStatSkeleton(item.label)).join('');
-    } else {
-      statGrid.innerHTML = stats.map((item) => `<article class="stat-card reveal"><strong class="count-up" data-target="${escapeHTML(item.value)}">0</strong><span>${escapeHTML(item.label)}</span></article>`).join('');
-    }
+    ].map((item) => `<article class="stat-card reveal"><strong class="count-up" data-target="${escapeHTML(item.value)}">0</strong><span>${escapeHTML(item.label)}</span></article>`).join('');
   }
 
   const ongoingGrid = qs('#ongoing-project-grid');
   if (ongoingGrid) {
-    if (state.loadingProjects && useLiveProjectsOnly() && !state.projects.length) {
-      ongoingGrid.innerHTML = Array.from({ length: 4 }, () => projectSkeletonCard()).join('');
-    } else {
-      ongoingGrid.innerHTML = ongoing.map((project) => projectCard(project)).join('');
-    }
+    ongoingGrid.innerHTML = ongoing.map((project) => projectCard(project)).join('');
     stretchProjectGrid(ongoingGrid);
   }
 
   const completedAccordion = qs('#completed-project-accordion');
   if (completedAccordion) {
-    if (state.loadingProjects && useLiveProjectsOnly() && !state.projects.length) {
-      completedAccordion.innerHTML = '';
-    } else {
-      const completedByYear = Object.entries(groupBy(completed, (item) => item.year || extractYearFromText(item.period) || (lang === 'en' ? 'Unspecified' : '미정')))
-        .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
-      completedAccordion.innerHTML = completedByYear.map(([year, items], index) => accordionMarkup(year, items.length, `<div class="archive-list">${items.map((item) => archiveProjectItem(item)).join('')}</div>`, index === 0)).join('');
-    }
+    const completedByYear = Object.entries(groupBy(completed, (item) => item.year || extractYearFromText(item.period) || (lang === 'en' ? 'Unspecified' : '미정')))
+      .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
+    completedAccordion.innerHTML = completedByYear.map(([year, items], index) => accordionMarkup(year, items.length, `<div class="archive-list">${items.map((item) => archiveProjectItem(item)).join('')}</div>`, index === 0)).join('');
   }
 }
 
@@ -1111,8 +996,8 @@ function renderPublications() {
 }
 
 function renderBoard() {
-  const noticePosts = state.board.filter((item) => ['notice', 'equipment', 'news'].includes(item.category));
-  const presentationPosts = state.board.filter((item) => ['conference', 'poster', 'oral'].includes(item.category));
+  const noticePosts = state.board.filter((item) => ['notice', 'news'].includes(item.category));
+  const presentationPosts = state.board.filter((item) => ['poster', 'oral'].includes(item.category));
   const summary = qs('#board-summary');
   if (summary) summary.textContent = lang === 'en' ? `${state.board.length} news items` : `소식 ${state.board.length}건`;
   const newsTab = qs('[data-board-tab="news"]');
@@ -1126,9 +1011,9 @@ function renderBoard() {
   presentationTab?.classList.toggle('is-active', !isNews);
   const activePosts = isNews ? noticePosts : presentationPosts;
   if (tabCount) tabCount.textContent = lang === 'en' ? `${activePosts.length} items` : `${activePosts.length}건`;
-  if (tabTitle) tabTitle.textContent = isNews ? (lang === 'en' ? 'Notices · Equipment' : '공지 · 실험실 장비 소개') : (lang === 'en' ? 'Conference' : '학회');
-  if (tabEyebrow) tabEyebrow.textContent = lang === 'en' ? '' : (isNews ? '공지' : '학회');
-  if (grid) grid.innerHTML = activePosts.length ? activePosts.map((post) => boardCard(post)).join('') : emptyState(isNews ? (lang === 'en' ? 'No notices or equipment posts yet.' : '공지와 실험실 장비 소개가 아직 없습니다.') : (lang === 'en' ? 'No conference items yet.' : '학회 자료가 아직 없습니다.'));
+  if (tabTitle) tabTitle.textContent = isNews ? (lang === 'en' ? 'Lab news · notices' : '연구실 공지 · 소식') : (lang === 'en' ? 'Conference presentations' : '학회 발표');
+  if (tabEyebrow) tabEyebrow.textContent = lang === 'en' ? '' : (isNews ? '소식' : '학회 발표');
+  if (grid) grid.innerHTML = activePosts.length ? activePosts.map((post) => boardCard(post)).join('') : emptyState(isNews ? (lang === 'en' ? 'No notices or news yet.' : '공지와 소식이 아직 없습니다.') : (lang === 'en' ? 'No presentation items yet.' : '학회 발표 자료가 아직 없습니다.'));
   qsa('[data-board-tab]').forEach((button) => {
     if (button.dataset.bound === 'true') return;
     button.dataset.bound = 'true';
@@ -1402,39 +1287,21 @@ function youtubeEmbedUrl(value = '') {
   return '';
 }
 
-function boardMediaUrls(post = {}) {
-  return (Array.isArray(post.imageUrls) ? post.imageUrls : [post.imageUrl || ''])
-    .filter(Boolean)
-    .map((value) => String(value));
-}
-
-function renderBoardGallery(urls = [], alt = '') {
-  if (!urls.length) return '';
-  if (urls.length === 1) {
-    return `<div class="detail-figure detail-figure--16-9"><img src="${escapeHTML(rootAsset(urls[0], root))}" alt="${escapeHTML(alt)}"></div>`;
-  }
-  return `<div class="detail-gallery detail-gallery--grid">${urls.map((url, index) => `<figure class="detail-gallery__item"><img src="${escapeHTML(rootAsset(url, root))}" alt="${escapeHTML(alt)} ${index + 1}"></figure>`).join('')}</div>`;
-}
-
 function boardCategoryLabel(category = '') {
   const map = {
     notice: lang === 'en' ? 'Notice' : '공지',
-    equipment: lang === 'en' ? 'Lab equipment' : '실험실 장비 소개',
-    conference: lang === 'en' ? 'Conference' : '학회',
-    poster: lang === 'en' ? 'Conference' : '학회',
-    oral: lang === 'en' ? 'Conference' : '학회',
-    news: lang === 'en' ? 'Lab equipment' : '실험실 장비 소개'
+    poster: lang === 'en' ? 'Poster' : '포스터 발표',
+    oral: lang === 'en' ? 'Oral' : '구두 발표',
+    news: lang === 'en' ? 'News' : '소식'
   };
-  return map[category] || (lang === 'en' ? 'Notice' : '공지');
+  return map[category] || (lang === 'en' ? 'Board' : '게시판');
 }
 
 function boardCard(post) {
   const youtube = youtubeEmbedUrl(post.youtubeUrl || '');
-  const images = boardMediaUrls(post);
-  const cover = images[0] || '';
   const media = youtube
     ? `<div class="board-card__media board-card__media--video"><iframe src="${escapeHTML(youtube)}" title="${escapeHTML(post.title)}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>`
-    : (cover ? `<div class="board-card__media"><img src="${escapeHTML(rootAsset(cover, root))}" alt="${escapeHTML(post.title)}"></div>` : '');
+    : (post.imageUrl ? `<div class="board-card__media"><img src="${escapeHTML(rootAsset(post.imageUrl, root))}" alt="${escapeHTML(post.title)}"></div>` : '');
   return `
     <article class="board-card reveal interactive-card" data-board-id="${escapeHTML(post.id)}">
       ${media}
@@ -1442,7 +1309,6 @@ function boardCard(post) {
         <div class="member-chip-row">
           <span class="member-chip member-chip--soft">${escapeHTML(boardCategoryLabel(post.category))}</span>
           ${post.date ? `<span class="member-chip member-chip--soft">${escapeHTML(post.date)}</span>` : ''}
-          ${images.length > 1 ? `<span class="member-chip member-chip--soft">${escapeHTML(lang === 'en' ? `${images.length} photos` : `사진 ${images.length}장`)}</span>` : ''}
         </div>
         <h3>${escapeHTML(post.title)}</h3>
         ${post.description ? `<p>${escapeHTML(post.description)}</p>` : ''}

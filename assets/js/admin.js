@@ -67,8 +67,8 @@ const state = {
   memberPhotoRemoved: false,
   pendingProjectFile: null,
   pendingProjectPreview: '',
-  pendingBoardFile: null,
-  pendingBoardPreview: '',
+  pendingBoardFiles: [],
+  pendingBoardPreviews: [],
   boardImageRemoved: false,
   seeded: false,
   unsubs: [],
@@ -625,14 +625,29 @@ function updatePublicationPickerGroupVisibility(container) {
 function filterPublicationPicker(container, query = '') {
   if (!container) return;
   const keyword = normalizeSearchText(query);
-  Array.from(container.querySelectorAll('.publication-picker__item')).forEach((row) => {
+  const items = Array.from(container.querySelectorAll('.publication-picker__item'));
+  items.forEach((row) => {
     const matched = !keyword || String(row.dataset.search || '').includes(keyword);
     row.hidden = !matched;
+    row.style.display = matched ? '' : 'none';
   });
   Array.from(container.querySelectorAll('.publication-picker__group')).forEach((group) => {
     const hasVisibleItems = Array.from(group.querySelectorAll('.publication-picker__item')).some((row) => !row.hidden);
     group.hidden = !hasVisibleItems;
+    group.style.display = hasVisibleItems ? '' : 'none';
   });
+  let empty = container.querySelector('.publication-picker__empty');
+  const anyVisible = items.some((row) => !row.hidden);
+  if (!anyVisible) {
+    if (!empty) {
+      empty = document.createElement('p');
+      empty.className = 'muted publication-picker__empty';
+      empty.textContent = '검색 결과가 없습니다.';
+      container.appendChild(empty);
+    }
+  } else if (empty) {
+    empty.remove();
+  }
 }
 
 function onPublicationPickerInput(event) {
@@ -647,6 +662,22 @@ function onPublicationPickerInput(event) {
     state.publicationMemberQuery = target.value || '';
     filterPublicationPicker(target.closest('.publication-picker'), state.publicationMemberQuery);
   }
+}
+
+function bindPublicationSearchInput(container, selector, onUpdate) {
+  if (!container) return;
+  const input = container.querySelector(selector);
+  if (!input || input.dataset.searchBound === 'true') return;
+  const apply = () => {
+    const query = input.value || '';
+    onUpdate(query);
+    filterPublicationPicker(container, query);
+  };
+  ['input', 'keyup', 'change', 'search'].forEach((eventName) => {
+    input.addEventListener(eventName, apply);
+  });
+  input.dataset.searchBound = 'true';
+  apply();
 }
 
 function resolvePublicationMemberLinks(publication = {}) {
@@ -689,6 +720,7 @@ function renderPublicationMemberPicker(selected = []) {
     const detail = [memberDisplayName(member, 'en'), member.email].filter(Boolean).join(' · ');
     return `<article class="publication-picker__row publication-picker__item" data-search="${escapeHTML(memberSearchableText(member))}"><div class="publication-picker__cell publication-picker__cell--info"><strong>${escapeHTML(memberDisplayName(member))}</strong>${detail ? `<small class="muted">${escapeHTML(detail)}</small>` : ''}</div><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="first" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member))} 제1저자" ${roles.includes('first') ? 'checked' : ''}></label><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="co" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member))} 공동저자" ${roles.includes('co') ? 'checked' : ''}></label><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="corresponding" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member))} 교신저자" ${roles.includes('corresponding') ? 'checked' : ''}></label></article>`;
   }).join('')}</div></section>`;
+  bindPublicationSearchInput(container, '[data-publication-member-search]', (query) => { state.publicationMemberQuery = query; });
   filterPublicationPicker(container, state.publicationMemberQuery);
 }
 
@@ -997,6 +1029,7 @@ function renderMemberPublicationPicker(selected = []) {
       </div>
     </section>
   `).join('');
+  bindPublicationSearchInput(container, '[data-publication-picker-search]', (query) => { state.memberPublicationQuery = query; });
   filterPublicationPicker(container, state.memberPublicationQuery);
 }
 
@@ -1464,32 +1497,45 @@ function renderProjectFigurePreview() {
   elements.projectFigurePreview.innerHTML = url ? `<img src="${escapeHTML(rootAsset(url, root))}" alt="preview">` : `<span>16:9</span>`;
 }
 
+function revokeBoardPreviewUrls() {
+  if (!Array.isArray(state.pendingBoardPreviews)) return;
+  state.pendingBoardPreviews.forEach((url) => { try { URL.revokeObjectURL(url); } catch {} });
+}
+
 function onBoardImageChange(event) {
   updateFileInputLabel(event.currentTarget, elements.boardImageFileName);
-  const [file] = event.currentTarget.files || [];
-  state.pendingBoardFile = file || null;
+  const files = Array.from(event.currentTarget.files || []);
+  state.pendingBoardFiles = files;
   state.boardImageRemoved = false;
-  if (state.pendingBoardPreview) URL.revokeObjectURL(state.pendingBoardPreview);
-  state.pendingBoardPreview = file ? URL.createObjectURL(file) : '';
+  revokeBoardPreviewUrls();
+  state.pendingBoardPreviews = files.map((file) => URL.createObjectURL(file));
   renderBoardImagePreview();
 }
 function clearBoardImage() {
-  state.pendingBoardFile = null;
+  state.pendingBoardFiles = [];
   state.boardImageRemoved = true;
-  if (state.pendingBoardPreview) URL.revokeObjectURL(state.pendingBoardPreview);
-  state.pendingBoardPreview = '';
+  revokeBoardPreviewUrls();
+  state.pendingBoardPreviews = [];
   if (elements.boardImageInput) elements.boardImageInput.value = '';
   updateFileInputLabel(elements.boardImageInput, elements.boardImageFileName);
   if (state.editingBoard) {
     state.editingBoard.imageUrl = '';
+    state.editingBoard.imageUrls = [];
     state.editingBoard.imagePath = '';
   }
   renderBoardImagePreview();
 }
 function renderBoardImagePreview() {
-  const url = state.pendingBoardPreview || state.editingBoard?.imageUrl || '';
   if (!elements.boardImagePreview) return;
-  elements.boardImagePreview.innerHTML = url ? `<img src="${escapeHTML(rootAsset(url, root))}" alt="preview">` : `<span>News</span>`;
+  const previewUrls = Array.isArray(state.pendingBoardPreviews) && state.pendingBoardPreviews.length
+    ? state.pendingBoardPreviews
+    : (Array.isArray(state.editingBoard?.imageUrls) && state.editingBoard.imageUrls.length ? state.editingBoard.imageUrls : (state.editingBoard?.imageUrl ? [state.editingBoard.imageUrl] : []));
+  if (!previewUrls.length) {
+    elements.boardImagePreview.innerHTML = `<span>News</span>`;
+    return;
+  }
+  const gridClass = previewUrls.length > 1 ? ' is-multi' : '';
+  elements.boardImagePreview.innerHTML = `<div class="photo-preview-grid${gridClass}">` + previewUrls.map((url, index) => `<figure class="photo-preview-grid__item"><img src="${escapeHTML(rootAsset(url, root))}" alt="preview ${index + 1}"></figure>`).join('') + `</div>`;
 }
 
 function resetMemberForm() {
@@ -1532,9 +1578,9 @@ function resetBoardForm() {
   elements.boardForm?.reset();
   state.editingBoard = null;
   updateFileInputLabel(elements.boardImageInput, elements.boardImageFileName);
-  state.pendingBoardFile = null;
-  if (state.pendingBoardPreview) URL.revokeObjectURL(state.pendingBoardPreview);
-  state.pendingBoardPreview = '';
+  state.pendingBoardFiles = [];
+  revokeBoardPreviewUrls();
+  state.pendingBoardPreviews = [];
   state.boardImageRemoved = false;
   if (elements.boardTitle) elements.boardTitle.textContent = '소식 추가';
   renderBoardImagePreview();
@@ -1774,37 +1820,37 @@ async function handleBoardSubmit(event) {
     linkUrl: String(formData.get('linkUrl') || '').trim(),
     youtubeUrl: String(formData.get('youtubeUrl') || '').trim(),
     imageUrl: state.editingBoard?.imageUrl || '',
+    imageUrls: Array.isArray(state.editingBoard?.imageUrls) ? [...state.editingBoard.imageUrls] : (state.editingBoard?.imageUrl ? [state.editingBoard.imageUrl] : []),
     imagePath: state.editingBoard?.imagePath || '',
     date: String(formData.get('date') || '').trim()
   };
   if (!payload.title) return showNotice('소식 제목을 입력해주세요.', 'warning');
   try {
     showNotice('소식을 저장하는 중입니다. 이미지가 있으면 잠시 더 걸릴 수 있습니다.', 'info');
-    if (state.pendingBoardFile) {
-      const upload = await uploadBoardImage(state.pendingBoardFile);
-      if (state.editingBoard?.imagePath && state.editingBoard.imagePath !== upload.imagePath) {
-        try { await deleteStoragePath(state.editingBoard.imagePath); } catch {}
-      }
-      payload.imageUrl = upload.imageUrl;
-      payload.imagePath = upload.imagePath;
+    if (Array.isArray(state.pendingBoardFiles) && state.pendingBoardFiles.length) {
+      const uploads = await Promise.all(state.pendingBoardFiles.map((file) => uploadBoardImage(file)));
+      const urls = uploads.map((upload) => upload.imageUrl).filter(Boolean);
+      payload.imageUrls = urls;
+      payload.imageUrl = urls[0] || '';
+      payload.imagePath = '';
     } else if (state.boardImageRemoved) {
-      if (state.editingBoard?.imagePath) {
-        try { await deleteStoragePath(state.editingBoard.imagePath); } catch {}
-      }
       payload.imageUrl = '';
+      payload.imageUrls = [];
       payload.imagePath = '';
     }
     const id = await saveDocument(COLLECTIONS.board, state.editingBoard?.id || null, payload);
-    state.board = activeItems(sortBoardPosts(mergeBoardPosts(state.board, [{ ...payload, id, updatedAt: new Date().toISOString() }])));
+    const saved = { ...payload, id, updatedAt: new Date().toISOString() };
+    state.board = activeItems(sortBoardPosts(mergeBoardPosts(state.board, [saved])));
+    resetBoardForm();
+    closeEditor('board');
+    document.body.classList.remove('modal-open');
     renderBoardList();
     renderSummary();
     showNotice('소식이 저장되었습니다.', 'success');
-    resetBoardForm();
-    closeEditor('board');
   } catch (error) {
     console.error(error);
     const message = /document.*too.*large|maximum document size|too many bytes/i.test(error?.message || '')
-      ? '소식 이미지는 데이터베이스에 바로 저장되므로, 이미지 용량을 더 줄인 뒤 다시 시도해주세요.'
+      ? '소식 이미지는 데이터베이스에 바로 저장되므로, 이미지 용량을 더 줄이거나 이미지 수를 줄인 뒤 다시 시도해주세요.'
       : adminErrorMessage(error, '소식 저장에 실패했습니다.');
     showNotice(message, 'danger');
   }
@@ -2055,7 +2101,7 @@ function renderPublicationsList() {
 }
 
 function renderBoardFilterTabs() {
-  const filters = [['all', '전체'], ['notice', '공지'], ['poster', '포스터'], ['oral', '구두'], ['news', '소식']];
+  const filters = [['all', '전체'], ['notice', '공지'], ['equipment', '실험실 장비 소개'], ['conference', '학회']];
   elements.boardFilterTabs.innerHTML = filters.map(([value, label]) => `<button type="button" class="admin-subtab${state.boardFilter === value ? ' is-active' : ''}" data-board-filter="${escapeHTML(value)}">${escapeHTML(label)}</button>`).join('');
 }
 
@@ -2063,7 +2109,7 @@ function boardItemMarkup(item) {
   return `
     <article class="admin-item-card">
       <div class="admin-item-main">
-        <div class="admin-item-thumb">${item.imageUrl ? `<img src="${escapeHTML(rootAsset(item.imageUrl, root))}" alt="${escapeHTML(item.title)}">` : `<span>${escapeHTML(item.category?.slice(0,1).toUpperCase() || 'B')}</span>`}</div>
+        <div class="admin-item-thumb">${(Array.isArray(item.imageUrls) && item.imageUrls[0]) || item.imageUrl ? `<img src="${escapeHTML(rootAsset((Array.isArray(item.imageUrls) && item.imageUrls[0]) || item.imageUrl, root))}" alt="${escapeHTML(item.title)}">` : `<span>${escapeHTML(boardCategoryLabel(item.category).slice(0,1) || '소')}</span>`}</div>
         <div class="admin-item-content">
           <div class="card-topline"><strong>${escapeHTML(item.title)}</strong><span class="status-badge">${escapeHTML(boardCategoryLabel(item.category))}</span></div>
           ${item.date ? `<p class="muted">${escapeHTML(item.date)}</p>` : ''}
@@ -2081,8 +2127,8 @@ function boardItemMarkup(item) {
 }
 
 function boardCategoryLabel(category = '') {
-  const map = { notice: '공지', poster: '포스터', oral: '구두', news: '소식' };
-  return map[category] || '소식';
+  const map = { notice: '공지', equipment: '실험실 장비 소개', conference: '학회', poster: '학회', oral: '학회', news: '실험실 장비 소개' };
+  return map[category] || '공지';
 }
 
 function renderBoardList() {
@@ -2274,6 +2320,9 @@ function loadBoardForm(item) {
   setFormValue(form, 'category', item.category || 'notice');
   ['title','description','linkUrl','youtubeUrl','date'].forEach((field) => setFormValue(form, field, item[field] || ''));
   state.boardImageRemoved = false;
+  state.pendingBoardFiles = [];
+  revokeBoardPreviewUrls();
+  state.pendingBoardPreviews = [];
   updateFileInputLabel(elements.boardImageInput, elements.boardImageFileName);
   renderBoardImagePreview();
   openEditor('board');

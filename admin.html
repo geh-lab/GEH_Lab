@@ -6,7 +6,7 @@
   <title>GEH Lab 관리자</title>
   <meta name="description" content="GEH Lab Firebase 관리자 페이지">
   <meta name="robots" content="noindex,nofollow,noarchive">
-  <link rel="stylesheet" href="assets/css/styles.css?v=48">
+  <link rel="stylesheet" href="assets/css/styles.css?v=55">
 </head>
 <body class="admin-body" data-root=".">
   <div class="admin-shell">
@@ -210,14 +210,14 @@
           <div class="editor-title-row"><h2 id="board-form-title">소식 추가</h2><button type="button" class="small-button editor-close-button" data-editor-close="board">닫기</button></div>
           <form id="board-form" class="editor-form">
             <div class="form-grid form-grid--double">
-              <label class="field"><span>분류</span><select name="category"><option value="notice" selected>공지</option><option value="poster">포스터</option><option value="oral">구두</option><option value="news">소식</option></select></label>
+              <label class="field"><span>분류</span><select name="category"><option value="notice" selected>공지</option><option value="equipment">실험실 장비 소개</option><option value="conference">학회</option></select></label>
               <label class="field"><span>날짜</span><input name="date" type="date"></label>
             </div>
             <label class="field"><span>제목 *</span><input name="title" type="text" required></label>
             <label class="field"><span>설명</span><textarea name="description"></textarea></label>
             <label class="field"><span>링크</span><input name="linkUrl" type="url" placeholder="발표 자료, 포스터 파일, 외부 링크"></label>
             <label class="field"><span>YouTube 링크</span><input name="youtubeUrl" type="url" placeholder="https://www.youtube.com/watch?v=..."></label>
-            <div class="member-photo-box"><span class="field-label">첨부 이미지</span><div class="photo-preview photo-preview--wide" id="board-image-preview"></div><div class="form-actions form-actions--upload"><label class="file-picker"><input id="board-image-input" type="file" accept="image/*"><span class="file-picker__button">파일 선택</span><span class="file-picker__name" id="board-image-file-name">선택된 파일 없음</span></label><button type="button" class="small-button" id="board-image-remove">이미지 제거</button></div></div>
+            <div class="member-photo-box"><span class="field-label">첨부 이미지</span><div class="photo-preview photo-preview--wide photo-preview--gallery" id="board-image-preview"></div><div class="form-actions form-actions--upload"><label class="file-picker"><input id="board-image-input" type="file" accept="image/*" multiple><span class="file-picker__button">파일 선택</span><span class="file-picker__name" id="board-image-file-name">선택된 파일 없음</span></label><button type="button" class="small-button" id="board-image-remove">이미지 제거</button></div><p class="field-hint">여러 장 업로드 가능 · 목록에서는 첫 번째 이미지만 대표 썸네일로 표시됩니다.</p></div>
             <div class="form-actions"><button class="button primary" type="submit">저장</button><button class="button secondary" type="button" id="board-reset">초기화</button></div>
           </form>
         </article>
@@ -259,6 +259,6 @@
   </div>
 
 <script src="firebase-config.js"></script>
-  <script type="module" src="assets/js/admin.js?v=48"></script>
+  <script type="module" src="assets/js/admin.js?v=55"></script>
 </body>
 </html>
