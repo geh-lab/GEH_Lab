@@ -56,10 +56,10 @@ const focusImages = [
 ].map((path) => rootAsset(path, root));
 
 const state = {
-  members: sortMembers(FALLBACK_MEMBERS).filter(isActiveItem),
-  projects: sortProjects(FALLBACK_PROJECTS).filter(isActiveItem),
-  publications: sortPublications(FALLBACK_PUBLICATIONS).filter(isActiveItem),
-  board: sortBoardPosts(FALLBACK_BOARD_POSTS).filter(isActiveItem),
+  members: hasFirebaseConfig ? [] : sortMembers(FALLBACK_MEMBERS).filter(isActiveItem),
+  projects: hasFirebaseConfig ? [] : sortProjects(FALLBACK_PROJECTS).filter(isActiveItem),
+  publications: hasFirebaseConfig ? [] : sortPublications(FALLBACK_PUBLICATIONS).filter(isActiveItem),
+  board: hasFirebaseConfig ? [] : sortBoardPosts(FALLBACK_BOARD_POSTS).filter(isActiveItem),
   publicationQuery: '',
   boardTab: 'news',
   unsubs: []
@@ -71,6 +71,62 @@ const modalState = {
   body: null,
   closeButtons: []
 };
+
+const PUBLIC_CACHE_KEY = 'geh-public-cache-v1';
+
+function snapshotSerializableState() {
+  return {
+    members: Array.isArray(state.members) ? state.members : [],
+    projects: Array.isArray(state.projects) ? state.projects : [],
+    publications: Array.isArray(state.publications) ? state.publications : [],
+    board: Array.isArray(state.board) ? state.board : [],
+    savedAt: Date.now()
+  };
+}
+
+function readPublicCache() {
+  try {
+    const raw = localStorage.getItem(PUBLIC_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed;
+  } catch (error) {
+    console.warn('공개 캐시를 읽지 못했습니다.', error);
+    return null;
+  }
+}
+
+function writePublicCache() {
+  try {
+    localStorage.setItem(PUBLIC_CACHE_KEY, JSON.stringify(snapshotSerializableState()));
+  } catch (error) {
+    console.warn('공개 캐시를 저장하지 못했습니다.', error);
+  }
+}
+
+function applyCachedState() {
+  const cache = readPublicCache();
+  if (!cache) return false;
+  let applied = false;
+  if (Array.isArray(cache.members) && cache.members.length) {
+    state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, cache.members)).filter(isActiveItem);
+    applied = true;
+  }
+  if (Array.isArray(cache.projects) && cache.projects.length) {
+    state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, cache.projects)).filter(isActiveItem);
+    applied = true;
+  }
+  if (Array.isArray(cache.publications) && cache.publications.length) {
+    state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, cache.publications)).filter(isActiveItem);
+    applied = true;
+  }
+  if (Array.isArray(cache.board) && cache.board.length) {
+    state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, cache.board)).filter(isActiveItem);
+    applied = true;
+  }
+  return applied;
+}
 
 function memberDisplayName(member, locale = lang) {
   if (!member) return '';
@@ -253,8 +309,9 @@ document.addEventListener('DOMContentLoaded', () => {
   setupSearch();
   if (page === 'home') setupHeroSlider();
 
-  // 먼저 fallback 데이터로 즉시 렌더링해 체감 속도를 확보하고,
-  // Firebase 동기화는 뒤에서 비동기로 갱신합니다.
+  // 최근 동기화된 실제 데이터를 먼저 보여주고,
+  // 캐시가 없을 때만 fallback 데이터를 사용합니다.
+  applyCachedState();
   renderPage();
   hydrate().catch((error) => console.warn('초기 데이터 동기화 실패', error));
 });
@@ -292,6 +349,7 @@ async function hydrate() {
     state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, board)).filter(isActiveItem);
   }
 
+  writePublicCache();
   renderPage();
 
   state.unsubs.forEach((unsub) => { try { unsub(); } catch {} });
@@ -306,19 +364,23 @@ async function hydrate() {
 
   addListener(COLLECTIONS.members, (items) => {
     state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, items)).filter(isActiveItem);
+    writePublicCache();
     if (page === 'home' || page === 'members') renderPage();
   });
   addListener(COLLECTIONS.projects, (items) => {
     state.projects = sortProjects(mergeProjects(FALLBACK_PROJECTS, items)).filter(isActiveItem);
+    writePublicCache();
     if (page === 'home' || page === 'projects') renderPage();
   });
   addListener(COLLECTIONS.publications, (items) => {
     state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items)).filter(isActiveItem);
+    writePublicCache();
     if (page === 'home' || page === 'publications') renderPage();
   });
   if (COLLECTIONS.board) {
     addListener(COLLECTIONS.board, (items) => {
       state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items)).filter(isActiveItem);
+      writePublicCache();
       if (page === 'board') renderPage();
     });
   }
