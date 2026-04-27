@@ -1,4 +1,4 @@
-import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=68';
+import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=69';
 import {
   escapeHTML,
   getInitials,
@@ -31,7 +31,7 @@ import {
   normalizeProjectPeriod,
   groupBy,
   isActiveItem
-} from './utils.js?v=68';
+} from './utils.js?v=69';
 import {
   auth,
   hasFirebaseConfig,
@@ -49,7 +49,7 @@ import {
   uploadProjectFigure,
   uploadBoardImage,
   deleteStoragePath
-} from './firebase.js?v=68';
+} from './firebase.js?v=69';
 
 const state = {
   user: null,
@@ -1856,7 +1856,7 @@ async function handleBoardSubmit(event) {
   } catch (error) {
     console.error(error);
     const message = /document.*too.*large|maximum document size|too many bytes/i.test(error?.message || '')
-      ? 'Firestore 문서 용량 제한을 초과했습니다. v68부터 게시판 이미지는 Storage에 저장되도록 수정했습니다. 새로고침 후 이미지를 다시 선택해 저장해주세요.'
+      ? 'Firestore 문서 용량 제한을 초과했습니다. v69부터 게시판 이미지는 Storage에 저장되도록 수정했습니다. 새로고침 후 이미지를 다시 선택해 저장해주세요.'
       : adminErrorMessage(error, '게시글 저장에 실패했습니다.');
     showNotice(message, 'danger');
   }
