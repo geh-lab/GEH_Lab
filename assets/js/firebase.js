@@ -425,8 +425,11 @@ export async function uploadProjectFigure(file) {
 }
 
 export async function uploadBoardImage(file) {
-  const imageUrl = await compressImageForFirestore(file);
-  return { imageUrl, imagePath: '' };
+  // 게시판 이미지는 Firestore 문서에 base64로 직접 넣지 않고
+  // Firebase Storage에 업로드한 뒤 Firestore에는 짧은 URL/path만 저장합니다.
+  // Firestore 문서 최대 크기(1 MiB) 초과 오류를 방지하기 위한 처리입니다.
+  const asset = await uploadAsset(file, 'board-media');
+  return { imageUrl: asset.url, imagePath: asset.path };
 }
 
 export async function deleteStoragePath(path) {
