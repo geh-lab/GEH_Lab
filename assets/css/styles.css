@@ -4929,3 +4929,67 @@ article#member-editor-card::before,
 @media (max-width: 720px) {
   .board-grid--skeleton { grid-template-columns:repeat(2, minmax(0,1fr)); }
 }
+
+
+/* v57 board preview, picker search, publication member cards */
+.photo-preview-grid.is-single {
+  grid-template-columns: 1fr;
+}
+.photo-preview-grid__item--single {
+  aspect-ratio: auto;
+  min-height: 240px;
+  max-height: 520px;
+}
+.photo-preview-grid__item--single img {
+  width: 100%;
+  height: auto;
+  max-height: 520px;
+  object-fit: contain;
+}
+.detail-figure--natural {
+  min-height: 260px;
+  max-height: min(72vh, 900px);
+  overflow: hidden;
+}
+.detail-figure--natural img {
+  width: 100%;
+  height: auto;
+  max-height: min(68vh, 860px);
+  object-fit: contain;
+}
+.publication-members__list {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+.publication-members__item {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: .75rem 1rem;
+}
+.publication-members__main {
+  display: grid;
+  gap: .25rem;
+  min-width: 0;
+}
+.publication-members__main .muted {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.publication-members__item .member-publication-roles {
+  justify-content: flex-end;
+  align-self: center;
+}
+@media (max-width: 720px) {
+  .publication-members__list {
+    grid-template-columns: 1fr;
+  }
+  .publication-members__item {
+    grid-template-columns: 1fr;
+  }
+  .publication-members__item .member-publication-roles {
+    justify-content: flex-start;
+  }
+}
+.publication-picker__search-input {
+  ime-mode: active;
+}

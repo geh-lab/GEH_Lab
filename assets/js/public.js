@@ -124,7 +124,7 @@ function applyCachedState() {
     state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, cache.publications)).filter(isActiveItem);
     applied = true;
   }
-  if (Array.isArray(cache.board) && cache.board.length && (!useLiveBoardOnly() || boardCacheFresh(cache))) {
+  if (Array.isArray(cache.board) && cache.board.length && page !== 'board' && (!useLiveBoardOnly() || boardCacheFresh(cache))) {
     state.board = mergedBoardForPage(cache.board);
     state.loadingBoard = false;
     applied = true;
@@ -153,7 +153,7 @@ function mergedBoardForPage(items = []) {
 function boardCacheFresh(cache = {}) {
   const savedAt = Number(cache?.savedAt || 0);
   if (!savedAt) return false;
-  return (Date.now() - savedAt) <= 10 * 60 * 1000;
+  return (Date.now() - savedAt) <= 60 * 1000;
 }
 
 function normalizeProjectsForPage(items = []) {
@@ -786,8 +786,10 @@ function renderPublicationMemberDetails(publication = {}) {
       <div class="publication-abstract__content">
         <div class="publication-members__list">${items.map((item) => `
           <article class="publication-members__item">
-            <strong>${escapeHTML(item.memberName || '')}</strong>
-            ${item.email ? `<span class="muted">${escapeHTML(item.email)}</span>` : ''}
+            <div class="publication-members__main">
+              <strong>${escapeHTML(item.memberName || '')}</strong>
+              ${item.email ? `<span class="muted">${escapeHTML(item.email)}</span>` : ''}
+            </div>
             ${Array.isArray(item.roles) && item.roles.length ? `<div class="member-publication-roles">${item.roles.map((role) => `<span class="member-publication-role member-publication-role--${escapeHTML(role)}">${escapeHTML(publicationRoleLabel(role, lang))}</span>`).join('')}</div>` : ''}
           </article>`).join('')}</div>
       </div>
@@ -1505,7 +1507,7 @@ function boardMediaUrls(post = {}) {
 function renderBoardGallery(urls = [], alt = '') {
   if (!urls.length) return '';
   if (urls.length === 1) {
-    return `<div class="detail-figure detail-figure--16-9 detail-figure--contain"><img src="${escapeHTML(rootAsset(urls[0], root))}" alt="${escapeHTML(alt)}"></div>`;
+    return `<div class="detail-figure detail-figure--natural detail-figure--contain"><img src="${escapeHTML(rootAsset(urls[0], root))}" alt="${escapeHTML(alt)}"></div>`;
   }
   return `<div class="detail-gallery detail-gallery--grid">${urls.map((url, index) => `<figure class="detail-gallery__item"><img src="${escapeHTML(rootAsset(url, root))}" alt="${escapeHTML(alt)} ${index + 1}"></figure>`).join('')}</div>`;
 }

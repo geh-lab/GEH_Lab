@@ -655,12 +655,12 @@ function onPublicationPickerInput(event) {
   if (!(target instanceof HTMLInputElement)) return;
   if (target.matches('[data-publication-picker-search]')) {
     state.memberPublicationQuery = target.value || '';
-    renderMemberPublicationPicker(collectMemberPublicationLinks());
+    filterPublicationPicker(qs('#member-publication-picker'), state.memberPublicationQuery);
     return;
   }
   if (target.matches('[data-publication-member-search]')) {
     state.publicationMemberQuery = target.value || '';
-    renderPublicationMemberPicker(collectPublicationMemberLinks());
+    filterPublicationPicker(elements.publicationMemberPicker, state.publicationMemberQuery);
   }
 }
 
@@ -668,10 +668,14 @@ function bindPublicationSearchInput(container, selector, onUpdate) {
   if (!container) return;
   const input = container.querySelector(selector);
   if (!input || input.dataset.searchBound === 'true') return;
+  let composing = false;
   const apply = () => {
+    if (composing) return;
     const query = input.value || '';
     onUpdate(query);
   };
+  input.addEventListener('compositionstart', () => { composing = true; });
+  input.addEventListener('compositionend', () => { composing = false; apply(); });
   ['input', 'keyup', 'change', 'search'].forEach((eventName) => {
     input.addEventListener(eventName, apply);
   });
@@ -706,26 +710,21 @@ function renderPublicationMemberPicker(selected = []) {
     const key = item.memberId || item.id;
     if (key) selectedMap.set(String(key), item);
   });
-  const searchMarkup = `<label class="publication-picker__search-row"><input type="search" class="publication-picker__search-input" data-publication-member-search placeholder="멤버 이름, 영문 이름, 이메일 검색" value="${escapeHTML(state.publicationMemberQuery)}"></label>`;
+  const searchMarkup = `<label class="publication-picker__search-row"><input type="search" class="publication-picker__search-input" data-publication-member-search autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="멤버 이름, 영문 이름, 이메일 검색" value="${escapeHTML(state.publicationMemberQuery)}"></label>`;
   const allMembers = sortMembers(state.members.slice());
   if (!allMembers.length) {
     container.innerHTML = '<p class="muted">등록된 멤버가 없습니다.</p>';
     return;
   }
-  const keyword = normalizeSearchText(state.publicationMemberQuery);
-  const items = allMembers.filter((member) => !keyword || memberSearchableText(member).includes(keyword));
-  if (!items.length) {
-    container.innerHTML = `${searchMarkup}<p class="muted publication-picker__empty">검색 결과가 없습니다.</p>`;
-    bindPublicationSearchInput(container, '[data-publication-member-search]', (query) => { state.publicationMemberQuery = query; });
-    return;
-  }
+  const items = allMembers;
   container.innerHTML = `${searchMarkup}<section class="publication-picker__group"><div class="publication-picker__group-title">멤버</div><div class="publication-picker__table"><div class="publication-picker__row publication-picker__row--head"><span class="publication-picker__cell publication-picker__cell--info">멤버</span><span class="publication-picker__cell publication-picker__cell--role">제1저자</span><span class="publication-picker__cell publication-picker__cell--role">공동저자</span><span class="publication-picker__cell publication-picker__cell--role">교신저자</span></div>${items.map((member) => {
     const picked = selectedMap.get(member.id) || {};
     const roles = Array.isArray(picked.roles) ? picked.roles : [];
     const detail = [formatEnglishName(member.nameEn), member.email].filter(Boolean).join(' · ');
     return `<article class="publication-picker__row publication-picker__item" data-search="${escapeHTML(memberSearchableText(member))}"><div class="publication-picker__cell publication-picker__cell--info"><strong>${escapeHTML(memberDisplayName(member))}</strong>${detail ? `<small class="muted">${escapeHTML(detail)}</small>` : ''}</div><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="first" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member))} 제1저자" ${roles.includes('first') ? 'checked' : ''}></label><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="co" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member))} 공동저자" ${roles.includes('co') ? 'checked' : ''}></label><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="corresponding" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member))} 교신저자" ${roles.includes('corresponding') ? 'checked' : ''}></label></article>`;
   }).join('')}</div></section>`;
-  bindPublicationSearchInput(container, '[data-publication-member-search]', (query) => { state.publicationMemberQuery = query; });
+  bindPublicationSearchInput(container, '[data-publication-member-search]', (query) => { state.publicationMemberQuery = query; filterPublicationPicker(container, query); });
+  filterPublicationPicker(container, state.publicationMemberQuery);
 }
 
 function collectPublicationMemberLinks() {
@@ -986,18 +985,12 @@ function renderMemberPublicationPicker(selected = []) {
     const key = item.publicationId || item.id || item.title;
     if (key) selectedMap.set(String(key), item);
   });
-  const searchMarkup = `<label class="publication-picker__search-row"><input type="search" class="publication-picker__search-input" data-publication-picker-search placeholder="논문 제목, 저자, 저널, DOI 검색" value="${escapeHTML(state.memberPublicationQuery)}"></label>`;
+  const searchMarkup = `<label class="publication-picker__search-row"><input type="search" class="publication-picker__search-input" data-publication-picker-search autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="논문 제목, 저자, 저널, DOI 검색" value="${escapeHTML(state.memberPublicationQuery)}"></label>`;
   if (!state.publications.length) {
     container.innerHTML = `<p class="muted">등록된 논문이 없습니다. 논문 관리에서 먼저 논문을 추가해주세요.</p>`;
     return;
   }
-  const keyword = normalizeSearchText(state.memberPublicationQuery);
-  const items = state.publications.slice().filter((pub) => !keyword || publicationSearchableText(pub).includes(keyword));
-  if (!items.length) {
-    container.innerHTML = `${searchMarkup}<p class="muted publication-picker__empty">검색 결과가 없습니다.</p>`;
-    bindPublicationSearchInput(container, '[data-publication-picker-search]', (query) => { state.memberPublicationQuery = query; });
-    return;
-  }
+  const items = state.publications.slice();
   const groups = Object.entries(groupBy(items, (pub) => pub.year || '미정'))
     .sort((a, b) => numericYearSort(b[0]) - numericYearSort(a[0]));
   const toolbar = `
@@ -1039,7 +1032,8 @@ function renderMemberPublicationPicker(selected = []) {
       </div>
     </section>
   `).join('');
-  bindPublicationSearchInput(container, '[data-publication-picker-search]', (query) => { state.memberPublicationQuery = query; });
+  bindPublicationSearchInput(container, '[data-publication-picker-search]', (query) => { state.memberPublicationQuery = query; filterPublicationPicker(container, query); });
+  filterPublicationPicker(container, state.memberPublicationQuery);
 }
 
 function onPublicationPickerClick(event) {
@@ -1543,8 +1537,8 @@ function renderBoardImagePreview() {
     elements.boardImagePreview.innerHTML = `<span>News</span>`;
     return;
   }
-  const gridClass = previewUrls.length > 1 ? ' is-multi' : '';
-  elements.boardImagePreview.innerHTML = `<div class="photo-preview-grid${gridClass}">` + previewUrls.map((url, index) => `<figure class="photo-preview-grid__item"><img src="${escapeHTML(rootAsset(url, root))}" alt="preview ${index + 1}"></figure>`).join('') + `</div>`;
+  const gridClass = previewUrls.length > 1 ? ' is-multi' : ' is-single';
+  elements.boardImagePreview.innerHTML = `<div class="photo-preview-grid${gridClass}">` + previewUrls.map((url, index) => `<figure class="photo-preview-grid__item${previewUrls.length === 1 ? ' photo-preview-grid__item--single' : ''}"><img src="${escapeHTML(rootAsset(url, root))}" alt="preview ${index + 1}"></figure>`).join('') + `</div>`;
 }
 
 function resetMemberForm() {
@@ -1857,6 +1851,7 @@ async function handleBoardSubmit(event) {
     document.body.classList.remove('modal-open');
     renderBoardList();
     renderSummary();
+    requestAnimationFrame(() => { closeEditor('board'); if (elements.boardEditorCard) { elements.boardEditorCard.hidden = true; elements.boardEditorCard.classList.remove('is-open'); } document.body.classList.remove('modal-open'); });
     showNotice('소식이 저장되었습니다.', 'success');
   } catch (error) {
     console.error(error);
