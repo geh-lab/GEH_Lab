@@ -60,6 +60,7 @@ const state = {
   projects: hasFirebaseConfig ? [] : sortProjects(FALLBACK_PROJECTS).filter(isActiveItem),
   publications: hasFirebaseConfig ? [] : sortPublications(FALLBACK_PUBLICATIONS).filter(isActiveItem),
   board: hasFirebaseConfig ? [] : sortBoardPosts(FALLBACK_BOARD_POSTS).filter(isActiveItem),
+  loadingBoard: hasFirebaseConfig && page === 'board',
   publicationQuery: '',
   boardTab: 'news',
   unsubs: [],
@@ -123,8 +124,9 @@ function applyCachedState() {
     state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, cache.publications)).filter(isActiveItem);
     applied = true;
   }
-  if (Array.isArray(cache.board) && cache.board.length) {
-    state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, cache.board)).filter(isActiveItem);
+  if (Array.isArray(cache.board) && cache.board.length && (!useLiveBoardOnly() || boardCacheFresh(cache))) {
+    state.board = mergedBoardForPage(cache.board);
+    state.loadingBoard = false;
     applied = true;
   }
   return applied;
@@ -133,6 +135,25 @@ function applyCachedState() {
 
 function useLiveProjectsOnly() {
   return hasFirebaseConfig && page === 'projects';
+}
+
+function useLiveBoardOnly() {
+  return hasFirebaseConfig && page === 'board';
+}
+
+function normalizeBoardForPage(items = []) {
+  return sortBoardPosts((Array.isArray(items) ? items : []).filter(isActiveItem));
+}
+
+function mergedBoardForPage(items = []) {
+  if (useLiveBoardOnly()) return normalizeBoardForPage(items);
+  return sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items)).filter(isActiveItem);
+}
+
+function boardCacheFresh(cache = {}) {
+  const savedAt = Number(cache?.savedAt || 0);
+  if (!savedAt) return false;
+  return (Date.now() - savedAt) <= 10 * 60 * 1000;
 }
 
 function normalizeProjectsForPage(items = []) {
@@ -384,7 +405,8 @@ async function hydrate() {
   state.loadingProjects = false;
   state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, publications)).filter(isActiveItem);
   if (COLLECTIONS.board && page === 'board') {
-    state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, board)).filter(isActiveItem);
+    state.board = mergedBoardForPage(board);
+    state.loadingBoard = false;
   }
 
   writePublicCache();
@@ -734,6 +756,44 @@ function renderProjectParticipantBlock(project = {}) {
   return detailHtmlSection(lang === 'en' ? 'Participants' : '참여연구원', `<div class="linked-card-grid">${cards}</div>`);
 }
 
+function resolvePublicationMemberItems(publication = {}) {
+  const direct = Array.isArray(publication.memberLinks) ? publication.memberLinks : [];
+  if (direct.length) {
+    return direct.map((item) => {
+      const member = state.members.find((entry) => String(entry.id) === String(item.memberId || item.id || ''));
+      return {
+        memberId: item.memberId || item.id || member?.id || '',
+        memberName: memberDisplayName(member || { nameKr: item.memberName, nameEn: item.memberName, name: item.memberName }),
+        email: member?.email || item.email || '',
+        roles: Array.isArray(item.roles) ? item.roles : []
+      };
+    });
+  }
+  const derived = state.members.map((member) => {
+    const link = (Array.isArray(member.publicationLinks) ? member.publicationLinks : []).find((entry) => String(entry.publicationId || entry.id || '') === String(publication.id || ''));
+    if (!link) return null;
+    return { memberId: member.id, memberName: memberDisplayName(member), email: member.email || '', roles: Array.isArray(link.roles) ? link.roles : [] };
+  }).filter(Boolean);
+  return derived;
+}
+
+function renderPublicationMemberDetails(publication = {}) {
+  const items = resolvePublicationMemberItems(publication);
+  if (!items.length) return '';
+  return `
+    <details class="publication-abstract publication-members">
+      <summary><span class="publication-abstract__label">Members</span><span class="publication-abstract__icon" aria-hidden="true">▾</span></summary>
+      <div class="publication-abstract__content">
+        <div class="publication-members__list">${items.map((item) => `
+          <article class="publication-members__item">
+            <strong>${escapeHTML(item.memberName || '')}</strong>
+            ${item.email ? `<span class="muted">${escapeHTML(item.email)}</span>` : ''}
+            ${Array.isArray(item.roles) && item.roles.length ? `<div class="member-publication-roles">${item.roles.map((role) => `<span class="member-publication-role member-publication-role--${escapeHTML(role)}">${escapeHTML(publicationRoleLabel(role, lang))}</span>`).join('')}</div>` : ''}
+          </article>`).join('')}</div>
+      </div>
+    </details>`;
+}
+
 function publicationRoleLabel(role, locale = lang) {
   const map = {
     first: { kr: '제1저자', en: 'First author' },
@@ -782,6 +842,15 @@ function renderMemberPublicationBlock(member = {}) {
     if (byTitle) return byTitle;
     return (a._index || 0) - (b._index || 0);
   });
+  const roleCounts = { first: 0, co: 0, corresponding: 0 };
+  sorted.forEach((item) => {
+    (Array.isArray(item.roles) ? item.roles : []).forEach((role) => { if (roleCounts[role] !== undefined) roleCounts[role] += 1; });
+  });
+  const summaryChips = [
+    roleCounts.first ? `<span class="member-publication-summary-chip member-publication-role--first">${escapeHTML(lang === 'en' ? `First author ${roleCounts.first}` : `제1저자 ${roleCounts.first}개`)}</span>` : '',
+    roleCounts.co ? `<span class="member-publication-summary-chip member-publication-role--co">${escapeHTML(lang === 'en' ? `Co-author ${roleCounts.co}` : `공동저자 ${roleCounts.co}개`)}</span>` : '',
+    roleCounts.corresponding ? `<span class="member-publication-summary-chip member-publication-role--corresponding">${escapeHTML(lang === 'en' ? `Corresponding author ${roleCounts.corresponding}` : `교신저자 ${roleCounts.corresponding}개`)}</span>` : ''
+  ].filter(Boolean).join('');
   const groups = Object.entries(groupBy(sorted, (item) => item.year || (lang === 'en' ? 'Unspecified' : '미정')))
     .sort((a, b) => yearSort(b[0]) - yearSort(a[0]) || String(a[0]).localeCompare(String(b[0]), 'en', { sensitivity: 'base' }))
     .map(([year, items]) => `
@@ -809,7 +878,7 @@ function renderMemberPublicationBlock(member = {}) {
   return `
     <article class="detail-block detail-block--publications">
       <h4>${escapeHTML(sectionTitle)}</h4>
-      <div class="detail-block__body">${groups}</div>
+      <div class="detail-block__body">${summaryChips ? `<div class="member-publication-summary">${summaryChips}</div>` : ''}${groups}</div>
     </article>
   `;
 }
@@ -1110,11 +1179,35 @@ function renderPublications() {
   }
 }
 
+function boardSkeletonMarkup() {
+  const cards = Array.from({ length: 4 }).map(() => `
+    <article class="board-card board-card--skeleton">
+      <div class="board-card__media"></div>
+      <div class="board-card__copy">
+        <div class="skeleton-line skeleton-line--meta"></div>
+        <div class="skeleton-line skeleton-line--title"></div>
+        <div class="skeleton-line skeleton-line--text"></div>
+      </div>
+    </article>`).join('');
+  return `<div class="board-grid board-grid--skeleton">${cards}</div>`;
+}
+
 function renderBoard() {
   const noticePosts = state.board.filter((item) => ['notice', 'equipment', 'news'].includes(item.category));
   const presentationPosts = state.board.filter((item) => ['conference', 'poster', 'oral'].includes(item.category));
   const summary = qs('#board-summary');
   if (summary) summary.textContent = lang === 'en' ? `${state.board.length} news items` : `소식 ${state.board.length}건`;
+  if (state.loadingBoard && !state.board.length) {
+    const grid = qs('#board-tab-grid');
+    const tabCount = qs('#board-tab-count');
+    const tabTitle = qs('#board-tab-title');
+    const tabEyebrow = qs('#board-tab-eyebrow');
+    if (tabCount) tabCount.textContent = lang === 'en' ? 'Loading…' : '불러오는 중…';
+    if (tabTitle) tabTitle.textContent = lang === 'en' ? 'Latest updates' : '최신 소식';
+    if (tabEyebrow) tabEyebrow.textContent = '';
+    if (grid) grid.innerHTML = boardSkeletonMarkup();
+    return;
+  }
   const newsTab = qs('[data-board-tab="news"]');
   const presentationTab = qs('[data-board-tab="presentations"]');
   const grid = qs('#board-tab-grid');
@@ -1377,6 +1470,7 @@ function publicationCard(item) {
           <div class="publication-abstract__content"><p class="muted">${escapeHTML(item.abstract)}</p></div>
         </details>
       ` : ''}
+      ${renderPublicationMemberDetails(item)}
     </article>
   `;
 }
@@ -1411,7 +1505,7 @@ function boardMediaUrls(post = {}) {
 function renderBoardGallery(urls = [], alt = '') {
   if (!urls.length) return '';
   if (urls.length === 1) {
-    return `<div class="detail-figure detail-figure--16-9"><img src="${escapeHTML(rootAsset(urls[0], root))}" alt="${escapeHTML(alt)}"></div>`;
+    return `<div class="detail-figure detail-figure--16-9 detail-figure--contain"><img src="${escapeHTML(rootAsset(urls[0], root))}" alt="${escapeHTML(alt)}"></div>`;
   }
   return `<div class="detail-gallery detail-gallery--grid">${urls.map((url, index) => `<figure class="detail-gallery__item"><img src="${escapeHTML(rootAsset(url, root))}" alt="${escapeHTML(alt)} ${index + 1}"></figure>`).join('')}</div>`;
 }
@@ -1434,7 +1528,7 @@ function boardCard(post) {
   const cover = images[0] || '';
   const media = youtube
     ? `<div class="board-card__media board-card__media--video"><iframe src="${escapeHTML(youtube)}" title="${escapeHTML(post.title)}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>`
-    : (cover ? `<div class="board-card__media"><img src="${escapeHTML(rootAsset(cover, root))}" alt="${escapeHTML(post.title)}"></div>` : '');
+    : (cover ? `<div class="board-card__media board-card__media--contain"><img src="${escapeHTML(rootAsset(cover, root))}" alt="${escapeHTML(post.title)}"></div>` : '');
   return `
     <article class="board-card reveal interactive-card" data-board-id="${escapeHTML(post.id)}">
       ${media}

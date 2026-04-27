@@ -4843,3 +4843,89 @@ article#member-editor-card::before,
 }
 
 .photo-preview-grid.is-multi { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+
+/* v56 board image ratio + publication members + member publication summary */
+.board-card__media,
+.detail-gallery__item,
+.photo-preview-grid__item,
+.detail-figure--contain {
+  background:#f5f7fb;
+}
+.board-card__media--contain {
+  display:grid;
+  place-items:center;
+  padding:.45rem;
+}
+.board-card__media--contain img {
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  display:block;
+}
+.detail-figure--contain {
+  display:grid;
+  place-items:center;
+  padding:.5rem;
+}
+.detail-figure--contain img {
+  width:100%;
+  height:100%;
+  object-fit:contain;
+}
+.detail-gallery__item,
+.photo-preview-grid__item {
+  display:grid;
+  place-items:center;
+  background:#f7f9fc;
+}
+.detail-gallery__item img,
+.photo-preview-grid__item img {
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  display:block;
+}
+.board-grid--skeleton {
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0,1fr));
+  gap:1rem;
+}
+.board-card--skeleton .board-card__media {
+  background:linear-gradient(90deg, #eef2f7 0%, #f7f9fc 50%, #eef2f7 100%);
+  background-size:200% 100%;
+  animation:skeleton-shimmer 1.4s infinite linear;
+}
+.member-publication-summary {
+  display:flex;
+  flex-wrap:wrap;
+  gap:.5rem;
+  margin-bottom:1rem;
+}
+.member-publication-summary-chip {
+  display:inline-flex;
+  align-items:center;
+  padding:.38rem .75rem;
+  border-radius:999px;
+  font-size:.82rem;
+  font-weight:700;
+}
+.publication-members .publication-abstract__content {
+  padding-top:.9rem;
+}
+.publication-members__list {
+  display:grid;
+  gap:.8rem;
+}
+.publication-members__item {
+  display:grid;
+  gap:.35rem;
+  padding:.85rem 1rem;
+  border:1px solid var(--line);
+  border-radius:18px;
+  background:#fff;
+}
+.publication-members__item strong {font-size:.98rem;}
+@media (max-width: 720px) {
+  .board-grid--skeleton { grid-template-columns:repeat(2, minmax(0,1fr)); }
+}
