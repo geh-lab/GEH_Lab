@@ -668,10 +668,14 @@ function bindPublicationSearchInput(container, selector, onUpdate) {
   if (!container) return;
   const input = container.querySelector(selector);
   if (!input || input.dataset.searchBound === 'true') return;
+  let composing = false;
   const apply = () => {
+    if (composing) return;
     const query = input.value || '';
     onUpdate(query);
   };
+  input.addEventListener('compositionstart', () => { composing = true; });
+  input.addEventListener('compositionend', () => { composing = false; apply(); });
   ['input', 'keyup', 'change', 'search'].forEach((eventName) => {
     input.addEventListener(eventName, apply);
   });
@@ -706,7 +710,7 @@ function renderPublicationMemberPicker(selected = []) {
     const key = item.memberId || item.id;
     if (key) selectedMap.set(String(key), item);
   });
-  const searchMarkup = `<label class="publication-picker__search-row"><input type="search" class="publication-picker__search-input" data-publication-member-search placeholder="멤버 이름, 영문 이름, 이메일 검색" value="${escapeHTML(state.publicationMemberQuery)}"></label>`;
+  const searchMarkup = `<label class="publication-picker__search-row"><input type="search" class="publication-picker__search-input" data-publication-member-search autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="멤버 이름, 영문 이름, 이메일 검색" value="${escapeHTML(state.publicationMemberQuery)}"></label>`;
   const allMembers = sortMembers(state.members.slice());
   if (!allMembers.length) {
     container.innerHTML = '<p class="muted">등록된 멤버가 없습니다.</p>';
@@ -716,8 +720,8 @@ function renderPublicationMemberPicker(selected = []) {
   container.innerHTML = `${searchMarkup}<section class="publication-picker__group"><div class="publication-picker__group-title">멤버</div><div class="publication-picker__table"><div class="publication-picker__row publication-picker__row--head"><span class="publication-picker__cell publication-picker__cell--info">멤버</span><span class="publication-picker__cell publication-picker__cell--role">제1저자</span><span class="publication-picker__cell publication-picker__cell--role">공동저자</span><span class="publication-picker__cell publication-picker__cell--role">교신저자</span></div>${items.map((member) => {
     const picked = selectedMap.get(member.id) || {};
     const roles = Array.isArray(picked.roles) ? picked.roles : [];
-    const detail = [member.email].filter(Boolean).join(' · ');
-    return `<article class="publication-picker__row publication-picker__item" data-search="${escapeHTML(memberSearchableText(member))}"><div class="publication-picker__cell publication-picker__cell--info"><strong>${escapeHTML(memberDisplayName(member,'kr'))}</strong>${detail ? `<small class="muted">${escapeHTML(detail)}</small>` : ''}</div><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="first" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member,'kr'))} 제1저자" ${roles.includes('first') ? 'checked' : ''}></label><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="co" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member,'kr'))} 공동저자" ${roles.includes('co') ? 'checked' : ''}></label><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="corresponding" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member,'kr'))} 교신저자" ${roles.includes('corresponding') ? 'checked' : ''}></label></article>`;
+    const detail = [formatEnglishName(member.nameEn), member.email].filter(Boolean).join(' · ');
+    return `<article class="publication-picker__row publication-picker__item" data-search="${escapeHTML(memberSearchableText(member))}"><div class="publication-picker__cell publication-picker__cell--info"><strong>${escapeHTML(memberDisplayName(member))}</strong>${detail ? `<small class="muted">${escapeHTML(detail)}</small>` : ''}</div><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="first" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member))} 제1저자" ${roles.includes('first') ? 'checked' : ''}></label><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="co" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member))} 공동저자" ${roles.includes('co') ? 'checked' : ''}></label><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="corresponding" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member))} 교신저자" ${roles.includes('corresponding') ? 'checked' : ''}></label></article>`;
   }).join('')}</div></section>`;
   bindPublicationSearchInput(container, '[data-publication-member-search]', (query) => { state.publicationMemberQuery = query; filterPublicationPicker(container, query); });
   filterPublicationPicker(container, state.publicationMemberQuery);
@@ -890,7 +894,6 @@ function bindEvents() {
   elements.projectFigureRemove?.addEventListener('click', clearProjectFigure);
   elements.boardImageInput?.addEventListener('change', onBoardImageChange);
   elements.boardImageRemove?.addEventListener('click', clearBoardImage);
-  elements.boardImagePreview?.addEventListener('click', (event) => { const button = event.target.closest?.('[data-board-preview-remove]'); if (!button) return; event.preventDefault(); removeBoardImageAt(Number(button.dataset.boardPreviewRemove)); });
   qs('#member-reset')?.addEventListener('click', resetMemberForm);
   qs('#project-reset')?.addEventListener('click', resetProjectForm);
   qs('#publication-reset')?.addEventListener('click', resetPublicationForm);
@@ -982,7 +985,7 @@ function renderMemberPublicationPicker(selected = []) {
     const key = item.publicationId || item.id || item.title;
     if (key) selectedMap.set(String(key), item);
   });
-  const searchMarkup = `<label class="publication-picker__search-row"><input type="search" class="publication-picker__search-input" data-publication-picker-search placeholder="논문 제목, 저자, 저널, DOI 검색" value="${escapeHTML(state.memberPublicationQuery)}"></label>`;
+  const searchMarkup = `<label class="publication-picker__search-row"><input type="search" class="publication-picker__search-input" data-publication-picker-search autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="논문 제목, 저자, 저널, DOI 검색" value="${escapeHTML(state.memberPublicationQuery)}"></label>`;
   if (!state.publications.length) {
     container.innerHTML = `<p class="muted">등록된 논문이 없습니다. 논문 관리에서 먼저 논문을 추가해주세요.</p>`;
     return;
@@ -1032,7 +1035,6 @@ function renderMemberPublicationPicker(selected = []) {
   bindPublicationSearchInput(container, '[data-publication-picker-search]', (query) => { state.memberPublicationQuery = query; filterPublicationPicker(container, query); });
   filterPublicationPicker(container, state.memberPublicationQuery);
 }
-
 
 function onPublicationPickerClick(event) {
   const button = event.target.closest('[data-publication-bulk]');
@@ -1503,53 +1505,13 @@ function revokeBoardPreviewUrls() {
   state.pendingBoardPreviews.forEach((url) => { try { URL.revokeObjectURL(url); } catch {} });
 }
 
-function updateBoardImageLabel() {
-  if (!elements.boardImageFileName) return;
-  if (Array.isArray(state.pendingBoardFiles) && state.pendingBoardFiles.length) {
-    elements.boardImageFileName.textContent = state.pendingBoardFiles.length === 1
-      ? state.pendingBoardFiles[0].name
-      : `${state.pendingBoardFiles.length}개 파일 선택`;
-    return;
-  }
-  const existing = Array.isArray(state.editingBoard?.imageUrls) ? state.editingBoard.imageUrls.filter(Boolean) : (state.editingBoard?.imageUrl ? [state.editingBoard.imageUrl] : []);
-  if (existing.length) {
-    elements.boardImageFileName.textContent = existing.length === 1 ? '기존 이미지 1장' : `기존 이미지 ${existing.length}장`;
-    return;
-  }
-  elements.boardImageFileName.textContent = '선택된 파일 없음';
-}
 function onBoardImageChange(event) {
+  updateFileInputLabel(event.currentTarget, elements.boardImageFileName);
   const files = Array.from(event.currentTarget.files || []);
   state.pendingBoardFiles = files;
   state.boardImageRemoved = false;
   revokeBoardPreviewUrls();
   state.pendingBoardPreviews = files.map((file) => URL.createObjectURL(file));
-  updateBoardImageLabel();
-  renderBoardImagePreview();
-}
-function removeBoardImageAt(index) {
-  if (Number.isNaN(Number(index))) return;
-  const i = Number(index);
-  if (Array.isArray(state.pendingBoardFiles) && state.pendingBoardFiles.length) {
-    state.pendingBoardFiles = state.pendingBoardFiles.filter((_, idx) => idx !== i);
-    if (Array.isArray(state.pendingBoardPreviews) && state.pendingBoardPreviews[i]) {
-      try { URL.revokeObjectURL(state.pendingBoardPreviews[i]); } catch {}
-    }
-    state.pendingBoardPreviews = (state.pendingBoardPreviews || []).filter((_, idx) => idx !== i);
-    if (!state.pendingBoardFiles.length && elements.boardImageInput) elements.boardImageInput.value = '';
-    updateBoardImageLabel();
-    renderBoardImagePreview();
-    return;
-  }
-  const existing = Array.isArray(state.editingBoard?.imageUrls) ? state.editingBoard.imageUrls.filter(Boolean) : (state.editingBoard?.imageUrl ? [state.editingBoard.imageUrl] : []);
-  const next = existing.filter((_, idx) => idx !== i);
-  if (state.editingBoard) {
-    state.editingBoard.imageUrls = next;
-    state.editingBoard.imageUrl = next[0] || '';
-    if (!next.length) state.editingBoard.imagePath = '';
-  }
-  state.boardImageRemoved = next.length === 0;
-  updateBoardImageLabel();
   renderBoardImagePreview();
 }
 function clearBoardImage() {
@@ -1557,14 +1519,13 @@ function clearBoardImage() {
   state.boardImageRemoved = true;
   revokeBoardPreviewUrls();
   state.pendingBoardPreviews = [];
-  updateBoardImageLabel();
   if (elements.boardImageInput) elements.boardImageInput.value = '';
+  updateFileInputLabel(elements.boardImageInput, elements.boardImageFileName);
   if (state.editingBoard) {
     state.editingBoard.imageUrl = '';
     state.editingBoard.imageUrls = [];
     state.editingBoard.imagePath = '';
   }
-  updateBoardImageLabel();
   renderBoardImagePreview();
 }
 function renderBoardImagePreview() {
@@ -1574,15 +1535,10 @@ function renderBoardImagePreview() {
     : (Array.isArray(state.editingBoard?.imageUrls) && state.editingBoard.imageUrls.length ? state.editingBoard.imageUrls : (state.editingBoard?.imageUrl ? [state.editingBoard.imageUrl] : []));
   if (!previewUrls.length) {
     elements.boardImagePreview.innerHTML = `<span>News</span>`;
-    updateBoardImageLabel();
     return;
   }
-  const names = Array.isArray(state.pendingBoardFiles) && state.pendingBoardFiles.length
-    ? state.pendingBoardFiles.map((file) => file.name)
-    : previewUrls.map((_, index) => `이미지 ${index + 1}`);
-  const gridClass = previewUrls.length > 1 ? ' is-multi' : '';
-  elements.boardImagePreview.innerHTML = `<div class="photo-preview-grid${gridClass}">` + previewUrls.map((url, index) => `<figure class="photo-preview-grid__item"><button type="button" class="photo-preview-grid__remove" data-board-preview-remove="${index}" aria-label="이미지 삭제">×</button><img src="${escapeHTML(rootAsset(url, root))}" alt="preview ${index + 1}"><figcaption class="photo-preview-grid__caption">${escapeHTML(names[index] || `이미지 ${index + 1}`)}</figcaption></figure>`).join('') + `</div>`;
-  updateBoardImageLabel();
+  const gridClass = previewUrls.length > 1 ? ' is-multi' : ' is-single';
+  elements.boardImagePreview.innerHTML = `<div class="photo-preview-grid${gridClass}">` + previewUrls.map((url, index) => `<figure class="photo-preview-grid__item${previewUrls.length === 1 ? ' photo-preview-grid__item--single' : ''}"><img src="${escapeHTML(rootAsset(url, root))}" alt="preview ${index + 1}"></figure>`).join('') + `</div>`;
 }
 
 function resetMemberForm() {
@@ -1895,6 +1851,7 @@ async function handleBoardSubmit(event) {
     document.body.classList.remove('modal-open');
     renderBoardList();
     renderSummary();
+    requestAnimationFrame(() => { closeEditor('board'); if (elements.boardEditorCard) { elements.boardEditorCard.hidden = true; elements.boardEditorCard.classList.remove('is-open'); } document.body.classList.remove('modal-open'); });
     showNotice('소식이 저장되었습니다.', 'success');
   } catch (error) {
     console.error(error);
