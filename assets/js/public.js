@@ -74,7 +74,7 @@ const modalState = {
   closeButtons: []
 };
 
-const PUBLIC_CACHE_KEY = 'geh-public-cache-v3';
+const PUBLIC_CACHE_KEY = 'geh-public-cache-v4';
 
 
 function cacheFresh(cache = {}, minutes = 15) {
@@ -1020,6 +1020,29 @@ function setupHeroSlider() {
   }, 5200);
 }
 
+function publicationIndexCount(items = [], label = '') {
+  return items.filter((item) => publicationIndexingLabel(item.indexing, 'en') === label).length;
+}
+
+function publicationSummaryLines(currentYearPubs = [], currentYear = String(new Date().getFullYear())) {
+  const currentSci = publicationIndexCount(currentYearPubs, 'SCI(E)');
+  const currentEsci = publicationIndexCount(currentYearPubs, 'ESCI');
+  const currentKci = publicationIndexCount(currentYearPubs, 'KCI');
+  const totalSci = publicationIndexCount(state.publications, 'SCI(E)');
+  const totalEsci = publicationIndexCount(state.publications, 'ESCI');
+  const totalKci = publicationIndexCount(state.publications, 'KCI');
+  if (lang === 'en') {
+    return [
+      `${currentYear} added ${currentYearPubs.length} · SCI(E) ${currentSci} · ESCI ${currentEsci} · KCI ${currentKci}`,
+      `Total SCI(E) ${totalSci} · ESCI ${totalEsci} · KCI ${totalKci}`
+    ];
+  }
+  return [
+    `${currentYear}년 추가 ${currentYearPubs.length} · SCI(E) ${currentSci} · ESCI ${currentEsci} · KCI ${currentKci}`,
+    `전체 SCI(E) ${totalSci} · ESCI ${totalEsci} · KCI ${totalKci}`
+  ];
+}
+
 function homeSummaryCard(title, value, lines = []) {
   const meta = (Array.isArray(lines) ? lines : []).filter(Boolean).map((line) => `<small>${escapeHTML(line)}</small>`).join('');
   return `<article class="stat-card stat-card--summary reveal"><strong class="count-up" data-target="${escapeHTML(value)}">0</strong><span>${escapeHTML(title)}</span>${meta ? `<div class="stat-card__meta">${meta}</div>` : ''}</article>`;
@@ -1078,7 +1101,7 @@ function renderHome() {
     heroStat.innerHTML = [
       homeSummaryCard(lang === 'en' ? 'Members' : '구성원', activeMembers.length, [lang === 'en' ? `PI ${piCount} · Research ${researchProfessors}` : `지도교수 ${piCount} · 연구교수 ${researchProfessors}`, lang === 'en' ? `Graduate ${graduateStudents.length} · Undergraduate ${undergrads}` : `대학원생 ${graduateStudents.length} · 학부연구생 ${undergrads}`, lang === 'en' ? `Alumni ${alumniMembers.length}` : `졸업생 ${alumniMembers.length}`]),
       homeSummaryCard(lang === 'en' ? 'Projects' : '과제', state.projects.length, [lang === 'en' ? `Ongoing ${ongoingProjects.length}` : `진행 중 ${ongoingProjects.length}`, lang === 'en' ? `Archived ${completedProjects.length}` : `종료 ${completedProjects.length}`]),
-      homeSummaryCard(lang === 'en' ? 'Publications' : '논문', state.publications.length, [lang === 'en' ? `${currentYear} added ${currentYearPubs.length}` : `${currentYear}년 추가 ${currentYearPubs.length}`, lang === 'en' ? `SCI(E) ${state.publications.filter((i)=>publicationIndexingLabel(i.indexing,'en')==='SCI(E)').length} · ESCI ${state.publications.filter((i)=>publicationIndexingLabel(i.indexing,'en')==='ESCI').length}` : `SCI(E) ${state.publications.filter((i)=>publicationIndexingLabel(i.indexing,'en')==='SCI(E)').length} · ESCI ${state.publications.filter((i)=>publicationIndexingLabel(i.indexing,'en')==='ESCI').length}`]),
+      homeSummaryCard(lang === 'en' ? 'Publications' : '논문', state.publications.length, publicationSummaryLines(currentYearPubs, currentYear)),
       homeSummaryCard(lang === 'en' ? 'News' : '소식', state.board.length, [lang === 'en' ? `Equipment ${state.board.filter((i)=>['equipment','news'].includes(i.category)).length}` : `장비 소개 ${state.board.filter((i)=>['equipment','news'].includes(i.category)).length}`, lang === 'en' ? `Conference ${state.board.filter((i)=>['conference','poster','oral'].includes(i.category)).length}` : `학회 ${state.board.filter((i)=>['conference','poster','oral'].includes(i.category)).length}`])
     ].join('');
   }
@@ -1439,21 +1462,32 @@ function padMonth(value = '') {
 
 function journalToneClass(journal = '') {
   const name = String(journal || '').trim().toLowerCase();
-  if (!name) return '';
+  if (!name) return 'journal-pill--tone-neutral';
   const manual = {
+    'industrial crops and products': 'journal-pill--tone-blue',
+    'scientific reports': 'journal-pill--tone-indigo',
     'the korean society for bio-environment control': 'journal-pill--tone-red',
     'journal of bio-environment control': 'journal-pill--tone-red',
     'horticultural science and technology': 'journal-pill--tone-purple',
-    'frontiers in plant science': 'journal-pill--tone-blue',
+    'frontiers in plant science': 'journal-pill--tone-sky',
     'plants': 'journal-pill--tone-green',
+    'agriculture': 'journal-pill--tone-lime',
     'agronomy': 'journal-pill--tone-amber',
     'horticulturae': 'journal-pill--tone-teal',
     'horticulture, environment, and biotechnology': 'journal-pill--tone-violet',
-    'ozone: science & engineering': 'journal-pill--tone-sky',
+    'ozone: science & engineering': 'journal-pill--tone-cyan',
     'australian journal of crop science': 'journal-pill--tone-orange'
   };
-  return manual[name] || 'journal-pill--tone-neutral';
+  if (manual[name]) return manual[name];
+  const tones = ['red', 'purple', 'blue', 'green', 'amber', 'teal', 'violet', 'sky', 'orange', 'rose', 'cyan', 'lime', 'indigo'];
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) {
+    hash = ((hash << 5) - hash) + name.charCodeAt(i);
+    hash |= 0;
+  }
+  return `journal-pill--tone-${tones[Math.abs(hash) % tones.length]}`;
 }
+
 
 function projectLeadRoleLabel(project = {}, locale = lang) {
   const key = project.leadRole || 'leadInstitutionInvestigator';

@@ -1315,21 +1315,32 @@ function padMonth(value = '') {
 
 function journalToneClass(journal = '') {
   const name = String(journal || '').trim().toLowerCase();
-  if (!name) return '';
+  if (!name) return 'journal-pill--tone-neutral';
   const manual = {
+    'industrial crops and products': 'journal-pill--tone-blue',
+    'scientific reports': 'journal-pill--tone-indigo',
     'the korean society for bio-environment control': 'journal-pill--tone-red',
     'journal of bio-environment control': 'journal-pill--tone-red',
     'horticultural science and technology': 'journal-pill--tone-purple',
-    'frontiers in plant science': 'journal-pill--tone-blue',
+    'frontiers in plant science': 'journal-pill--tone-sky',
     'plants': 'journal-pill--tone-green',
+    'agriculture': 'journal-pill--tone-lime',
     'agronomy': 'journal-pill--tone-amber',
     'horticulturae': 'journal-pill--tone-teal',
     'horticulture, environment, and biotechnology': 'journal-pill--tone-violet',
-    'ozone: science & engineering': 'journal-pill--tone-sky',
+    'ozone: science & engineering': 'journal-pill--tone-cyan',
     'australian journal of crop science': 'journal-pill--tone-orange'
   };
-  return manual[name] || 'journal-pill--tone-neutral';
+  if (manual[name]) return manual[name];
+  const tones = ['red', 'purple', 'blue', 'green', 'amber', 'teal', 'violet', 'sky', 'orange', 'rose', 'cyan', 'lime', 'indigo'];
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) {
+    hash = ((hash << 5) - hash) + name.charCodeAt(i);
+    hash |= 0;
+  }
+  return `journal-pill--tone-${tones[Math.abs(hash) % tones.length]}`;
 }
+
 
 function projectLeadRoleLabel(project = {}, locale = lang) {
   const key = project.leadRole || 'leadInstitutionInvestigator';

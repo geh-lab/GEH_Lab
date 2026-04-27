@@ -5108,3 +5108,52 @@ article#member-editor-card::before,
     width: 100%;
   }
 }
+
+
+/* v60 home/publication/member refinements */
+.home-publication-card .publication-topline,
+.home-publication-card__topline {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center !important;
+  gap: .55rem !important;
+  flex-wrap: wrap !important;
+}
+
+.home-publication-card .publication-source-group {
+  display: flex !important;
+  grid-template-columns: none !important;
+  flex: 0 1 auto !important;
+  width: auto !important;
+  max-width: min(100%, 430px) !important;
+  align-items: center !important;
+  gap: .5rem !important;
+}
+
+.home-publication-card .publication-source-group .journal-pill {
+  flex: 0 1 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: min(72vw, 340px) !important;
+  justify-self: start !important;
+}
+
+.home-publication-card .publication-source-group .index-pill {
+  flex: 0 0 auto !important;
+  justify-self: start !important;
+}
+
+.index-pill--kci {
+  color:#0f7a67 !important;
+  background:rgba(15,122,103,.09) !important;
+  border-color:rgba(15,122,103,.24) !important;
+}
+
+.journal-pill--tone-rose { color:#be123c; background:rgba(190,18,60,.08); border-color:rgba(190,18,60,.18); }
+.journal-pill--tone-cyan { color:#0e7490; background:rgba(14,116,144,.08); border-color:rgba(14,116,144,.18); }
+.journal-pill--tone-lime { color:#4d7c0f; background:rgba(77,124,15,.09); border-color:rgba(77,124,15,.2); }
+.journal-pill--tone-indigo { color:#4338ca; background:rgba(67,56,202,.09); border-color:rgba(67,56,202,.2); }
+
+.member-chip-row .member-chip--soft {
+  max-width: 100%;
+}

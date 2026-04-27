@@ -804,22 +804,62 @@ export function publicationIndexingLabel(indexing = '', lang = 'kr') {
   return normalized;
 }
 
-function memberSemesterLabel(value = '', lang = 'kr') {
+function normalizeSemesterValue(value = '') {
   const raw = String(value || '').trim().toLowerCase();
   if (!raw) return '';
-  const normalized = raw.includes('2') || raw.includes('fall') || raw.includes('second') || raw.includes('후') ? '2' : (raw.includes('1') || raw.includes('spring') || raw.includes('first') || raw.includes('전') ? '1' : '');
+  if (raw.includes('2') || raw.includes('fall') || raw.includes('second') || raw.includes('autumn') || raw.includes('후')) return '2';
+  if (raw.includes('1') || raw.includes('spring') || raw.includes('first') || raw.includes('전')) return '1';
+  return '';
+}
+
+function memberSemesterLabel(value = '', lang = 'kr') {
+  const normalized = normalizeSemesterValue(value);
   if (!normalized) return '';
-  if (lang === 'en') return normalized === '1' ? '1st semester admission' : '2nd semester admission';
+  if (lang === 'en') return normalized === '1' ? 'Spring admission' : 'Fall admission';
   return `${normalized}학기 입학`;
 }
 
+function currentAcademicTerm(date = new Date()) {
+  const month = date.getMonth() + 1;
+  const calendarYear = date.getFullYear();
+  if (month <= 2) return { year: calendarYear - 1, semester: 2 };
+  if (month <= 8) return { year: calendarYear, semester: 1 };
+  return { year: calendarYear, semester: 2 };
+}
+
+function admissionTermLabel(year, semester, lang = 'kr') {
+  if (!year || !semester) return memberSemesterLabel(semester, lang);
+  if (lang === 'en') return `${year} ${semester === 1 ? 'Spring' : 'Fall'} admission`;
+  return `${year}년 ${semester}학기 입학`;
+}
+
+function activeAcademicStandingLabel(member = {}, startYear, startSemester, lang = 'kr') {
+  const course = String(member.course || '').toLowerCase();
+  const group = String(member.group || '').toLowerCase();
+  const isAcademicMember = group === 'graduatestudent' || group === 'studentresearcher' || ['phd', 'doctoral', 'ms', 'masters', 'undergrad'].includes(course);
+  if (!isAcademicMember || !startYear || !startSemester) return '';
+  const current = currentAcademicTerm();
+  const elapsed = ((current.year - startYear) * 2) + (current.semester - startSemester) + 1;
+  if (elapsed < 1) return '';
+  const academicYear = Math.ceil(elapsed / 2);
+  const academicSemester = elapsed % 2 === 1 ? 1 : 2;
+  return lang === 'en' ? `Year ${academicYear}, Semester ${academicSemester}` : `${academicYear}학년 ${academicSemester}학기`;
+}
+
 export function memberYearLabel(member = {}, lang = 'kr') {
-  const year = Number(String(member.startYear || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
-  const semester = memberSemesterLabel(member.startSemester || member.admissionSemester || member.semester || '', lang);
-  if (!year) return semester;
+  const startYear = Number(String(member.startYear || member.admissionYear || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
+  const startSemester = Number(normalizeSemesterValue(member.startSemester || member.admissionSemester || member.semester || '') || 0);
+  const admissionLabel = admissionTermLabel(startYear, startSemester, lang);
+  if (!startYear) return startSemester ? memberSemesterLabel(startSemester, lang) : '';
+
+  if (member.status !== 'alumni' && member.group !== 'alumni') {
+    const academicStanding = activeAcademicStandingLabel(member, startYear, startSemester, lang);
+    if (academicStanding) return [academicStanding, admissionLabel].filter(Boolean).join(' · ');
+  }
+
   const current = new Date().getFullYear();
-  const diff = current - year + 1;
-  if (diff < 1) return semester;
+  const diff = current - startYear + 1;
+  if (diff < 1) return admissionLabel;
   const yearLabel = lang === 'en' ? `Year ${diff}` : `${diff}년차`;
-  return [yearLabel, semester].filter(Boolean).join(' · ');
+  return [yearLabel, admissionLabel || memberSemesterLabel(startSemester, lang)].filter(Boolean).join(' · ');
 }
