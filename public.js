@@ -60,7 +60,7 @@ const state = {
   projects: hasFirebaseConfig ? [] : sortProjects(FALLBACK_PROJECTS).filter(isActiveItem),
   publications: hasFirebaseConfig ? [] : sortPublications(FALLBACK_PUBLICATIONS).filter(isActiveItem),
   board: hasFirebaseConfig ? [] : sortBoardPosts(FALLBACK_BOARD_POSTS).filter(isActiveItem),
-  loadingBoard: hasFirebaseConfig && page === 'board',
+  loadingBoard: hasFirebaseConfig && (page === 'board' || page === 'home'),
   publicationQuery: '',
   boardTab: 'news',
   unsubs: [],
@@ -74,7 +74,14 @@ const modalState = {
   closeButtons: []
 };
 
-const PUBLIC_CACHE_KEY = 'geh-public-cache-v1';
+const PUBLIC_CACHE_KEY = 'geh-public-cache-v4';
+
+
+function cacheFresh(cache = {}, minutes = 15) {
+  const savedAt = Number(cache?.savedAt || 0);
+  if (!savedAt) return false;
+  return (Date.now() - savedAt) <= minutes * 60 * 1000;
+}
 
 function snapshotSerializableState() {
   return {
@@ -111,20 +118,21 @@ function applyCachedState() {
   const cache = readPublicCache();
   if (!cache) return false;
   let applied = false;
-  if (Array.isArray(cache.members) && cache.members.length) {
+  const fresh = cacheFresh(cache, 15);
+  if (Array.isArray(cache.members) && cache.members.length && fresh) {
     state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, cache.members)).filter(isActiveItem);
     applied = true;
   }
-  if (Array.isArray(cache.projects) && cache.projects.length) {
+  if (Array.isArray(cache.projects) && cache.projects.length && fresh) {
     state.projects = mergedProjectsForPage(cache.projects);
     state.loadingProjects = false;
     applied = true;
   }
-  if (Array.isArray(cache.publications) && cache.publications.length) {
+  if (Array.isArray(cache.publications) && cache.publications.length && fresh) {
     state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, cache.publications)).filter(isActiveItem);
     applied = true;
   }
-  if (Array.isArray(cache.board) && cache.board.length && page !== 'board' && (!useLiveBoardOnly() || boardCacheFresh(cache))) {
+  if (Array.isArray(cache.board) && cache.board.length && fresh && (!useLiveBoardOnly() || boardCacheFresh(cache))) {
     state.board = mergedBoardForPage(cache.board);
     state.loadingBoard = false;
     applied = true;
@@ -138,7 +146,7 @@ function useLiveProjectsOnly() {
 }
 
 function useLiveBoardOnly() {
-  return hasFirebaseConfig && page === 'board';
+  return hasFirebaseConfig && (page === 'board' || page === 'home');
 }
 
 function normalizeBoardForPage(items = []) {
@@ -153,7 +161,7 @@ function mergedBoardForPage(items = []) {
 function boardCacheFresh(cache = {}) {
   const savedAt = Number(cache?.savedAt || 0);
   if (!savedAt) return false;
-  return (Date.now() - savedAt) <= 60 * 1000;
+  return (Date.now() - savedAt) <= 10 * 60 * 1000;
 }
 
 function normalizeProjectsForPage(items = []) {
@@ -386,7 +394,7 @@ async function hydrate() {
   };
 
   const collectionNames = [COLLECTIONS.members, COLLECTIONS.projects, COLLECTIONS.publications];
-  if (COLLECTIONS.board && page === 'board') collectionNames.push(COLLECTIONS.board);
+  if (COLLECTIONS.board && (page === 'board' || page === 'home')) collectionNames.push(COLLECTIONS.board);
 
   const resultMap = new Map();
   const settled = await Promise.allSettled(collectionNames.map((collectionName) => readSafely(collectionName)));
@@ -404,7 +412,7 @@ async function hydrate() {
   state.projects = mergedProjectsForPage(projects);
   state.loadingProjects = false;
   state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, publications)).filter(isActiveItem);
-  if (COLLECTIONS.board && page === 'board') {
+  if (COLLECTIONS.board && (page === 'board' || page === 'home')) {
     state.board = mergedBoardForPage(board);
     state.loadingBoard = false;
   }
@@ -442,7 +450,7 @@ async function hydrate() {
     addListener(COLLECTIONS.board, (items) => {
       state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items)).filter(isActiveItem);
       writePublicCache();
-      if (page === 'board') renderPage();
+      if (page === 'home' || page === 'board') renderPage();
     });
   }
 }
@@ -593,6 +601,26 @@ function bindInteractiveCards() {
     if (post) openBoardModal(post);
   });
 
+  qsa('[data-link]').forEach((card) => {
+    if (card.dataset.linkBound === 'true') return;
+    card.dataset.linkBound = 'true';
+    const openLink = () => {
+      const link = card.dataset.link;
+      if (link) window.open(link, '_blank', 'noopener,noreferrer');
+    };
+    card.addEventListener('click', (event) => {
+      const interactive = event.target.closest('a, button');
+      if (interactive && interactive !== card) return;
+      openLink();
+    });
+    card.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openLink();
+      }
+    });
+  });
+
   qsa('.detail-open-button, .pi-photo-button').forEach((button) => {
     if (button.dataset.modalBound === 'true') return;
     button.dataset.modalBound = 'true';
@@ -605,6 +633,15 @@ function bindInteractiveCards() {
   });
 }
 
+function alumniCourseLabel(member = {}, locale = lang) {
+  if (!(member.status === 'alumni' || member.group === 'alumni')) return '';
+  const course = String(member.course || member.enrolledCourse || '').trim();
+  if (!['phd', 'ms'].includes(course)) return '';
+  const base = memberCourseLabel(course, locale);
+  if (!base) return '';
+  return locale === 'en' ? `${base} alumni` : `${base} 졸업`;
+}
+
 function openMemberModal(member) {
   const chips = [];
   if (member.group !== 'alumni') chips.push(member.group === 'pi' ? copy.pi : (member.group === 'researchProfessor' ? copy.researchProfessor : member.group === 'studentResearcher' ? copy.studentResearcherSection : copy.graduateStudent));
@@ -613,7 +650,11 @@ function openMemberModal(member) {
     if (member.track && member.track !== 'none') chips.push(memberTrackLabel(member.track, lang));
   }
   if (member.group === 'studentResearcher') chips.push(memberCourseLabel('undergrad', lang));
-  if (member.status === 'alumni') chips.push(`${copy.alumniSection}${member.graduationYear ? ` · ${member.graduationYear}` : ''}`);
+  if (member.status === 'alumni') {
+    chips.push(`${copy.alumniSection}${member.graduationYear ? ` · ${member.graduationYear}` : ''}`);
+    const completedCourse = alumniCourseLabel(member, lang);
+    if (completedCourse) chips.push(completedCourse);
+  }
   const yearLabel = memberYearLabel(member, lang);
   if (yearLabel) chips.push(yearLabel);
   const displayName = memberDisplayName(member);
@@ -756,6 +797,19 @@ function renderProjectParticipantBlock(project = {}) {
   return detailHtmlSection(lang === 'en' ? 'Participants' : '참여연구원', `<div class="linked-card-grid">${cards}</div>`);
 }
 
+
+function rolePriority(roles = []) {
+  const arr = Array.isArray(roles) ? roles : [];
+  if (arr.includes('first')) return 0;
+  if (arr.includes('co')) return 1;
+  if (arr.includes('corresponding')) return 2;
+  return 9;
+}
+function sortRoles(roles = []) {
+  const order = { first: 0, co: 1, corresponding: 2 };
+  return (Array.isArray(roles) ? roles : []).filter(Boolean).slice().sort((a,b)=>(order[a]??9)-(order[b]??9));
+}
+
 function resolvePublicationMemberItems(publication = {}) {
   const direct = Array.isArray(publication.memberLinks) ? publication.memberLinks : [];
   if (direct.length) {
@@ -767,15 +821,16 @@ function resolvePublicationMemberItems(publication = {}) {
         email: member?.email || item.email || '',
         roles: Array.isArray(item.roles) ? item.roles : []
       };
-    });
+    }).sort((a, b) => rolePriority(a.roles) - rolePriority(b.roles) || String(a.memberName || '').localeCompare(String(b.memberName || ''), 'ko'));
   }
   const derived = state.members.map((member) => {
     const link = (Array.isArray(member.publicationLinks) ? member.publicationLinks : []).find((entry) => String(entry.publicationId || entry.id || '') === String(publication.id || ''));
     if (!link) return null;
     return { memberId: member.id, memberName: memberDisplayName(member), email: member.email || '', roles: Array.isArray(link.roles) ? link.roles : [] };
   }).filter(Boolean);
-  return derived;
+  return derived.sort((a, b) => rolePriority(a.roles) - rolePriority(b.roles) || String(a.memberName || '').localeCompare(String(b.memberName || ''), 'ko'));
 }
+
 
 function renderPublicationMemberDetails(publication = {}) {
   const items = resolvePublicationMemberItems(publication);
@@ -784,14 +839,17 @@ function renderPublicationMemberDetails(publication = {}) {
     <details class="publication-abstract publication-members">
       <summary><span class="publication-abstract__label">Members</span><span class="publication-abstract__icon" aria-hidden="true">▾</span></summary>
       <div class="publication-abstract__content">
-        <div class="publication-members__list">${items.map((item) => `
-          <article class="publication-members__item">
+        <div class="publication-members__list">${items.map((item) => {
+          const orderedRoles = sortRoles(item.roles);
+          return `
+          <article class="publication-members__item publication-members__item--compact">
             <div class="publication-members__main">
               <strong>${escapeHTML(item.memberName || '')}</strong>
               ${item.email ? `<span class="muted">${escapeHTML(item.email)}</span>` : ''}
             </div>
-            ${Array.isArray(item.roles) && item.roles.length ? `<div class="member-publication-roles">${item.roles.map((role) => `<span class="member-publication-role member-publication-role--${escapeHTML(role)}">${escapeHTML(publicationRoleLabel(role, lang))}</span>`).join('')}</div>` : ''}
-          </article>`).join('')}</div>
+            ${orderedRoles.length ? `<div class="member-publication-roles">${orderedRoles.map((role) => `<span class="member-publication-role member-publication-role--${escapeHTML(role)}">${escapeHTML(publicationRoleLabel(role, lang))}</span>`).join('')}</div>` : ''}
+          </article>`;
+        }).join('')}</div>
       </div>
     </details>`;
 }
@@ -962,47 +1020,119 @@ function setupHeroSlider() {
   }, 5200);
 }
 
-function renderHome() {
-  const activeMembers = state.members.filter((item) => item.status !== 'alumni').length;
-  const alumniCount = state.members.filter((item) => item.status === 'alumni').length;
-  const ongoingCount = state.projects.filter((item) => item.status === 'ongoing').length;
-  const publicationCount = state.publications.length;
+function publicationIndexCount(items = [], label = '') {
+  return items.filter((item) => publicationIndexingLabel(item.indexing, 'en') === label).length;
+}
 
+function publicationSummaryLines(currentYearPubs = [], currentYear = String(new Date().getFullYear())) {
+  const currentSci = publicationIndexCount(currentYearPubs, 'SCI(E)');
+  const currentEsci = publicationIndexCount(currentYearPubs, 'ESCI');
+  const currentKci = publicationIndexCount(currentYearPubs, 'KCI');
+  const totalSci = publicationIndexCount(state.publications, 'SCI(E)');
+  const totalEsci = publicationIndexCount(state.publications, 'ESCI');
+  const totalKci = publicationIndexCount(state.publications, 'KCI');
+  if (lang === 'en') {
+    return [
+      `${currentYear} added ${currentYearPubs.length} · SCI(E) ${currentSci} · ESCI ${currentEsci} · KCI ${currentKci}`,
+      `SCI(E) ${totalSci} · ESCI ${totalEsci} · KCI ${totalKci}`
+    ];
+  }
+  return [
+    `${currentYear}년 추가 ${currentYearPubs.length} · SCI(E) ${currentSci} · ESCI ${currentEsci} · KCI ${currentKci}`,
+    `SCI(E) ${totalSci} · ESCI ${totalEsci} · KCI ${totalKci}`
+  ];
+}
+
+function homeSummaryCard(title, value, lines = []) {
+  const meta = (Array.isArray(lines) ? lines : []).filter(Boolean).map((line) => `<small>${escapeHTML(line)}</small>`).join('');
+  return `<article class="stat-card stat-card--summary reveal"><strong class="count-up" data-target="${escapeHTML(value)}">0</strong><span>${escapeHTML(title)}</span>${meta ? `<div class="stat-card__meta">${meta}</div>` : ''}</article>`;
+}
+
+function homePublicationCard(item = {}) {
+  const link = resolvePublicationLink(item);
+  const indexLabel = publicationIndexingLabel(item.indexing, lang);
+  const indexClass = indexLabel ? indexLabel.toLowerCase().replace(/[^a-z]+/g, '') : '';
+  const journalTone = journalToneClass(item.journal);
+  const yearPill = publicationYearMonthLabel(item);
+  const actionAttrs = link ? `data-link="${escapeHTML(link)}" tabindex="0" role="button"` : '';
+  return `<article class="home-publication-card reveal interactive-card" ${actionAttrs} aria-label="${escapeHTML(item.title || '')}">
+    <div class="publication-topline home-publication-card__topline">
+      ${yearPill ? `<span class="year-pill">${escapeHTML(yearPill)}</span>` : ''}
+      <div class="publication-source-group">
+        ${item.journal ? `<span class="journal-pill ${journalTone}">${escapeHTML(item.journal)}</span>` : ''}
+        ${indexLabel ? `<span class="index-pill ${indexClass ? `index-pill--${escapeHTML(indexClass)}` : ''}">${escapeHTML(indexLabel)}</span>` : ''}
+      </div>
+    </div>
+    <h3>${escapeHTML(item.title || '')}</h3>
+    ${item.authors ? `<p class="muted home-publication-card__authors">${escapeHTML(item.authors)}</p>` : ''}
+    ${link ? `<a class="member-link" href="${escapeHTML(link)}" target="_blank" rel="noreferrer">${escapeHTML(copy.doi)}</a>` : ''}
+  </article>`;
+}
+
+function homeNewsCard(item = {}) {
+  const cover = boardMediaUrls(item)[0] || '';
+  return `<article class="home-news-card reveal interactive-card" data-board-id="${escapeHTML(item.id)}">
+    ${cover ? `<div class="home-news-card__media"><img src="${escapeHTML(rootAsset(cover, root))}" alt="${escapeHTML(item.title || '')}"></div>` : ''}
+    <div class="home-news-card__copy">
+      <div class="member-chip-row"><span class="member-chip member-chip--soft">${escapeHTML(boardCategoryLabel(item.category))}</span>${item.date ? `<span class="member-chip member-chip--soft">${escapeHTML(item.date)}</span>` : ''}</div>
+      <h3>${escapeHTML(item.title || '')}</h3>
+      ${item.description ? `<p>${escapeHTML(item.description)}</p>` : ''}
+    </div>
+  </article>`;
+}
+
+function renderHome() {
+  const activeMembers = state.members.filter((item) => item.status !== 'alumni');
+  const alumniMembers = state.members.filter((item) => item.status === 'alumni');
+  const researchProfessors = activeMembers.filter((item) => item.group === 'researchProfessor').length;
+  const graduateStudents = activeMembers.filter((item) => item.group === 'graduateStudent');
+  const undergrads = activeMembers.filter((item) => item.group === 'studentResearcher').length;
+  const piCount = activeMembers.filter((item) => item.group === 'pi').length;
+  const gradPhd = graduateStudents.filter((item) => ['phd','doctoral'].includes(String(item.course || '').toLowerCase())).length;
+  const gradMs = graduateStudents.filter((item) => ['ms','masters'].includes(String(item.course || '').toLowerCase())).length;
+  const alumniPhd = alumniMembers.filter((item) => ['phd','doctoral'].includes(String(item.course || '').toLowerCase())).length;
+  const alumniMs = alumniMembers.filter((item) => ['ms','masters'].includes(String(item.course || '').toLowerCase())).length;
+  const ongoingProjects = state.projects.filter((item) => item.status === 'ongoing');
+  const completedProjects = state.projects.filter((item) => item.status === 'completed');
+  const currentYear = String(new Date().getFullYear());
+  const currentYearPubs = state.publications.filter((item) => String(item.year || '') === currentYear);
   const heroStat = qs('#hero-stat-grid');
   if (heroStat) {
     heroStat.innerHTML = [
-      { value: activeMembers, label: copy.stats.current },
-      { value: alumniCount, label: copy.stats.alumni },
-      { value: ongoingCount, label: copy.stats.ongoing },
-      { value: publicationCount, label: copy.stats.publications }
-    ].map((item) => `
-      <article class="stat-card reveal">
-        <strong class="count-up" data-target="${escapeHTML(item.value)}">0</strong>
-        <span>${escapeHTML(item.label)}</span>
-      </article>
-    `).join('');
+      homeSummaryCard(lang === 'en' ? 'Members' : '구성원', activeMembers.length, [lang === 'en' ? `PI ${piCount} · Research ${researchProfessors}` : `지도교수 ${piCount} · 연구교수 ${researchProfessors}`, lang === 'en' ? `Graduate ${graduateStudents.length} · Undergraduate ${undergrads}` : `대학원생 ${graduateStudents.length} · 학부연구생 ${undergrads}`, lang === 'en' ? `Alumni ${alumniMembers.length}` : `졸업생 ${alumniMembers.length}`]),
+      homeSummaryCard(lang === 'en' ? 'Projects' : '과제', state.projects.length, [lang === 'en' ? `Ongoing ${ongoingProjects.length}` : `진행 중 ${ongoingProjects.length}`, lang === 'en' ? `Archived ${completedProjects.length}` : `종료 ${completedProjects.length}`]),
+      homeSummaryCard(lang === 'en' ? 'Publications' : '논문', state.publications.length, publicationSummaryLines(currentYearPubs, currentYear)),
+      homeSummaryCard(lang === 'en' ? 'News' : '소식', state.board.length, [lang === 'en' ? `Equipment ${state.board.filter((i)=>['equipment','news'].includes(i.category)).length}` : `장비 소개 ${state.board.filter((i)=>['equipment','news'].includes(i.category)).length}`, lang === 'en' ? `Conference ${state.board.filter((i)=>['conference','poster','oral'].includes(i.category)).length}` : `학회 ${state.board.filter((i)=>['conference','poster','oral'].includes(i.category)).length}`])
+    ].join('');
   }
 
-  const focusGrid = qs('#focus-grid');
-  if (focusGrid) {
-    focusGrid.innerHTML = copy.focusCards.map((item, index) => `
-      <article class="focus-card reveal">
-        <div class="focus-card-media"><img src="${escapeHTML(focusImages[index])}" alt="${escapeHTML(item.label)}"></div>
-        <div class="focus-card-copy">
-          <span>${escapeHTML(item.label)}</span>
-          <strong>${escapeHTML(item.title)}</strong>
-          <p>${escapeHTML(item.desc)}</p>
-        </div>
-      </article>
-    `).join('');
+  const pubGrid = qs('#home-publication-grid');
+  if (pubGrid) {
+    const pubItems = (currentYearPubs.length ? currentYearPubs : state.publications.slice(0,4)).slice(0,4);
+    pubGrid.dataset.count = String(pubItems.length || 0);
+    pubGrid.innerHTML = pubItems.length ? pubItems.map(homePublicationCard).join('') : emptyState(lang === 'en' ? 'No publications yet.' : '표시할 논문이 없습니다.');
   }
 
-  const ongoingPreview = state.projects.filter((item) => item.status === 'ongoing').slice(0, 4);
+  const ongoingPreview = ongoingProjects.slice(0, 4);
   const previewGrid = qs('#ongoing-preview-grid');
   if (previewGrid) {
     previewGrid.dataset.count = String(ongoingPreview.length || 0);
     previewGrid.innerHTML = ongoingPreview.map((project) => projectCard(project, { compact: true })).join('');
     stretchProjectGrid(previewGrid);
+  }
+
+  const newsGrid = qs('#home-news-grid');
+  if (newsGrid) {
+    const newsItems = state.board.filter((item) => ['notice','equipment','news','conference','poster','oral'].includes(item.category)).slice(0,3);
+    newsGrid.innerHTML = newsItems.length ? newsItems.map(homeNewsCard).join('') : emptyState(lang === 'en' ? 'No news items yet.' : '표시할 소식이 없습니다.');
+  }
+
+  const contactGrid = qs('#home-contact-grid');
+  if (contactGrid) {
+    const lines = lang === 'en'
+      ? ['GEH Lab', 'Room 1332, College of Agriculture and Life Sciences 1 (E10-1)', '+82 42-821-7825']
+      : ['충남대학교 원예학과 시설환경원예학 연구실', '농업생명과학대학 1호관(E10-1) 1332호', '042-821-7825'];
+    contactGrid.innerHTML = `<article class="home-contact-card reveal"><h3>${escapeHTML(lang === 'en' ? 'Contact' : '오시는 길')}</h3><p>${escapeHTML(lines[0])}</p><p class="muted">${escapeHTML(lines[1])}</p><a class="member-link" href="${lang === 'en' ? 'contact.html' : 'contact.html'}">${escapeHTML(lang === 'en' ? 'Open contact page' : '오시는 길 보기')}</a><p class="muted">${escapeHTML(lines[2])}</p></article>`;
   }
 }
 
@@ -1016,15 +1146,32 @@ function renderMembers() {
 
   const pageStats = qs('#page-stat-grid');
   if (pageStats) {
+    const phdStudents = graduateStudents.filter((item) => ['phd','doctoral'].includes(String(item.course || '').toLowerCase())).length;
+    const msStudents = graduateStudents.filter((item) => ['ms','masters'].includes(String(item.course || '').toLowerCase())).length;
+    const activeBreakdown = [
+      `${copy.pi} ${members.filter((item) => item.group === 'pi' && item.status !== 'alumni').length}`,
+      `${copy.researchProfessor} ${researchProfessors.length}`,
+      `${copy.graduateStudent} ${graduateStudents.length}`,
+      `${copy.studentResearcher} ${undergrads.length}`
+    ];
+    const alumniBreakdown = [
+      `${lang === 'en' ? 'Ph.D.' : '박사'} ${alumni.filter((item) => ['phd','doctoral'].includes(String(item.course || '').toLowerCase())).length}`,
+      `${lang === 'en' ? 'M.S.' : '석사'} ${alumni.filter((item) => ['ms','masters'].includes(String(item.course || '').toLowerCase())).length}`
+    ];
+    const gradBreakdown = [
+      `${lang === 'en' ? 'Ph.D.' : '박사'} ${phdStudents}`,
+      `${lang === 'en' ? 'M.S.' : '석사'} ${msStudents}`
+    ];
     pageStats.innerHTML = [
-      { value: members.filter((item) => item.status !== 'alumni').length, label: copy.stats.current },
-      { value: alumni.length, label: copy.stats.alumni },
-      { value: researchProfessors.length, label: copy.researchProfessor },
-      { value: graduateStudents.length, label: copy.graduateStudent }
+      { value: members.filter((item) => item.status !== 'alumni').length, label: copy.stats.current, meta: activeBreakdown },
+      { value: researchProfessors.length, label: copy.researchProfessor, meta: [] },
+      { value: graduateStudents.length, label: copy.graduateStudent, meta: gradBreakdown },
+      { value: alumni.length, label: copy.stats.alumni, meta: alumniBreakdown }
     ].map((item) => `
-      <article class="stat-card reveal">
+      <article class="stat-card stat-card--summary reveal">
         <strong class="count-up" data-target="${escapeHTML(item.value)}">0</strong>
         <span>${escapeHTML(item.label)}</span>
+        ${Array.isArray(item.meta) && item.meta.length ? `<div class="stat-card__meta">${item.meta.map((line) => `<small>${escapeHTML(line)}</small>`).join('')}</div>` : ''}
       </article>
     `).join('');
   }
@@ -1367,7 +1514,10 @@ function getProjectPeriodDisplay(project = {}) {
 
 function memberMetaChips(member) {
   const chips = [];
-  if (member.group === 'graduateStudent') {
+  if (member.status === 'alumni' || member.group === 'alumni') {
+    const completedCourse = alumniCourseLabel(member, lang);
+    if (completedCourse) chips.push(completedCourse);
+  } else if (member.group === 'graduateStudent') {
     if (member.course) chips.push(memberCourseLabel(member.course, lang));
     if (member.track && member.track !== 'none') chips.push(memberTrackLabel(member.track, lang));
   }
@@ -1397,13 +1547,14 @@ function memberCard(member) {
 
 function alumniCard(member) {
   const education = memberEducationMarkup(member, lang, 'compact');
+  const chips = [member.graduationYear || '', alumniCourseLabel(member, lang)].filter(Boolean);
   return `
     <article class="member-card member-card--alumni reveal interactive-card" data-member-id="${escapeHTML(member.id)}" tabindex="0" role="button" aria-label="${escapeHTML(memberDisplayName(member))}">
       <div class="member-thumb">
         ${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}">` : `<span>${escapeHTML(getInitials(memberDisplayName(member, 'en') || memberDisplayName(member) || member.name))}</span>`}
       </div>
       <div class="member-copy">
-        <div class="member-chip-row"><span class="member-chip">${escapeHTML(member.graduationYear || '')}</span></div>
+        ${chips.length ? `<div class="member-chip-row">${chips.map((chip) => `<span class="member-chip">${escapeHTML(chip)}</span>`).join('')}</div>` : ''}
         <h3>${escapeHTML(memberDisplayName(member))}</h3>
         ${education || (localizedMemberText(member, 'bio') ? `<p>${escapeHTML(localizedMemberText(member, 'bio'))}</p>` : '')}
         ${localizedMemberText(member, 'currentPosition') ? `<p class="muted"><strong>${escapeHTML(copy.currentPosition)}:</strong> ${escapeHTML(localizedMemberText(member, 'currentPosition'))}</p>` : ''}
@@ -1518,10 +1669,11 @@ function boardMediaUrls(post = {}) {
 function renderBoardGallery(urls = [], alt = '') {
   if (!urls.length) return '';
   if (urls.length === 1) {
-    return `<div class="detail-figure detail-figure--natural detail-figure--contain"><img src="${escapeHTML(rootAsset(urls[0], root))}" alt="${escapeHTML(alt)}"></div>`;
+    return `<div class="detail-figure detail-figure--16-9 detail-figure--contain"><img src="${escapeHTML(rootAsset(urls[0], root))}" alt="${escapeHTML(alt)}"></div>`;
   }
-  return `<div class="detail-gallery detail-gallery--grid">${urls.map((url, index) => `<figure class="detail-gallery__item"><img src="${escapeHTML(rootAsset(url, root))}" alt="${escapeHTML(alt)} ${index + 1}"></figure>`).join('')}</div>`;
+  return `<div class="detail-gallery detail-gallery--grid detail-gallery--gallery">${urls.map((url, index) => `<figure class="detail-gallery__item detail-gallery__item--gallery"><img src="${escapeHTML(rootAsset(url, root))}" alt="${escapeHTML(alt)} ${index + 1}"></figure>`).join('')}</div>`;
 }
+
 
 function boardCategoryLabel(category = '') {
   const map = {

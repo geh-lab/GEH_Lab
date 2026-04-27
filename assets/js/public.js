@@ -1034,12 +1034,12 @@ function publicationSummaryLines(currentYearPubs = [], currentYear = String(new 
   if (lang === 'en') {
     return [
       `${currentYear} added ${currentYearPubs.length} · SCI(E) ${currentSci} · ESCI ${currentEsci} · KCI ${currentKci}`,
-      `Total SCI(E) ${totalSci} · ESCI ${totalEsci} · KCI ${totalKci}`
+      `SCI(E) ${totalSci} · ESCI ${totalEsci} · KCI ${totalKci}`
     ];
   }
   return [
     `${currentYear}년 추가 ${currentYearPubs.length} · SCI(E) ${currentSci} · ESCI ${currentEsci} · KCI ${currentKci}`,
-    `전체 SCI(E) ${totalSci} · ESCI ${totalEsci} · KCI ${totalKci}`
+    `SCI(E) ${totalSci} · ESCI ${totalEsci} · KCI ${totalKci}`
   ];
 }
 

@@ -841,6 +841,7 @@ function activeAcademicStandingLabel(member = {}, startYear, startSemester, lang
   const current = currentAcademicTerm();
   const elapsed = ((current.year - startYear) * 2) + (current.semester - startSemester) + 1;
   if (elapsed < 1) return '';
+  if (elapsed === 1) return lang === 'en' ? 'Semester 1' : '1학기';
   const academicYear = Math.ceil(elapsed / 2);
   const academicSemester = elapsed % 2 === 1 ? 1 : 2;
   return lang === 'en' ? `Year ${academicYear}, Semester ${academicSemester}` : `${academicYear}학년 ${academicSemester}학기`;
@@ -849,17 +850,15 @@ function activeAcademicStandingLabel(member = {}, startYear, startSemester, lang
 export function memberYearLabel(member = {}, lang = 'kr') {
   const startYear = Number(String(member.startYear || member.admissionYear || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
   const startSemester = Number(normalizeSemesterValue(member.startSemester || member.admissionSemester || member.semester || '') || 0);
-  const admissionLabel = admissionTermLabel(startYear, startSemester, lang);
-  if (!startYear) return startSemester ? memberSemesterLabel(startSemester, lang) : '';
+  if (!startYear) return startSemester ? (lang === 'en' ? `Semester ${startSemester}` : `${startSemester}학기`) : '';
 
   if (member.status !== 'alumni' && member.group !== 'alumni') {
     const academicStanding = activeAcademicStandingLabel(member, startYear, startSemester, lang);
-    if (academicStanding) return [academicStanding, admissionLabel].filter(Boolean).join(' · ');
+    if (academicStanding) return academicStanding;
   }
 
   const current = new Date().getFullYear();
   const diff = current - startYear + 1;
-  if (diff < 1) return admissionLabel;
-  const yearLabel = lang === 'en' ? `Year ${diff}` : `${diff}년차`;
-  return [yearLabel, admissionLabel || memberSemesterLabel(startSemester, lang)].filter(Boolean).join(' · ');
+  if (diff < 1) return '';
+  return lang === 'en' ? `Year ${diff}` : `${diff}년차`;
 }
