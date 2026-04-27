@@ -1033,12 +1033,12 @@ function publicationSummaryLines(currentYearPubs = [], currentYear = String(new 
   const totalKci = publicationIndexCount(state.publications, 'KCI');
   if (lang === 'en') {
     return [
-      `${currentYear} added ${currentYearPubs.length} · SCI(E) ${currentSci} · ESCI ${currentEsci} · KCI ${currentKci}`,
+      `${currentYear} SCI(E) ${currentSci} · ESCI ${currentEsci} · KCI ${currentKci} added`,
       `SCI(E) ${totalSci} · ESCI ${totalEsci} · KCI ${totalKci}`
     ];
   }
   return [
-    `${currentYear}년 추가 ${currentYearPubs.length} · SCI(E) ${currentSci} · ESCI ${currentEsci} · KCI ${currentKci}`,
+    `${currentYear}년 SCI(E) ${currentSci} · ESCI ${currentEsci} · KCI ${currentKci} 추가`,
     `SCI(E) ${totalSci} · ESCI ${totalEsci} · KCI ${totalKci}`
   ];
 }
@@ -1669,7 +1669,7 @@ function boardMediaUrls(post = {}) {
 function renderBoardGallery(urls = [], alt = '') {
   if (!urls.length) return '';
   if (urls.length === 1) {
-    return `<div class="detail-figure detail-figure--16-9 detail-figure--contain"><img src="${escapeHTML(rootAsset(urls[0], root))}" alt="${escapeHTML(alt)}"></div>`;
+    return `<figure class="detail-figure detail-figure--original detail-figure--contain"><img src="${escapeHTML(rootAsset(urls[0], root))}" alt="${escapeHTML(alt)}"></figure>`;
   }
   return `<div class="detail-gallery detail-gallery--grid detail-gallery--gallery">${urls.map((url, index) => `<figure class="detail-gallery__item detail-gallery__item--gallery"><img src="${escapeHTML(rootAsset(url, root))}" alt="${escapeHTML(alt)} ${index + 1}"></figure>`).join('')}</div>`;
 }

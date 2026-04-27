@@ -839,13 +839,21 @@ function activeAcademicStandingLabel(member = {}, startYear, startSemester, lang
   const isAcademicMember = group === 'graduatestudent' || group === 'studentresearcher' || ['phd', 'doctoral', 'ms', 'masters', 'undergrad'].includes(course);
   if (!isAcademicMember || !startYear || !startSemester) return '';
   const current = currentAcademicTerm();
-  const elapsed = ((current.year - startYear) * 2) + (current.semester - startSemester) + 1;
-  if (elapsed < 1) return '';
-  if (elapsed === 1) return lang === 'en' ? 'Semester 1' : '1학기';
-  const academicYear = Math.ceil(elapsed / 2);
-  const academicSemester = elapsed % 2 === 1 ? 1 : 2;
-  return lang === 'en' ? `Year ${academicYear}, Semester ${academicSemester}` : `${academicYear}학년 ${academicSemester}학기`;
+  const elapsedSemesters = ((current.year - startYear) * 2) + (current.semester - startSemester) + 1;
+  if (elapsedSemesters < 1) return '';
+
+  // Full-year progress follows the member's own admission semester.
+  // Spring entrants reach a new year in the next spring term, while fall entrants
+  // reach it when the calendar returns to the fall term.
+  const completedAcademicYears = (current.year - startYear) - (current.semester < startSemester ? 1 : 0);
+  if (completedAcademicYears < 1) {
+    const semesterOnly = Math.min(Math.max(elapsedSemesters, 1), 2);
+    return lang === 'en' ? `Semester ${semesterOnly}` : `${semesterOnly}학기`;
+  }
+
+  return lang === 'en' ? `Year ${completedAcademicYears}` : `${completedAcademicYears}년차`;
 }
+
 
 export function memberYearLabel(member = {}, lang = 'kr') {
   const startYear = Number(String(member.startYear || member.admissionYear || '').match(/(?:19|20)\d{2}/)?.[0] || 0);

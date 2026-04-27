@@ -5160,3 +5160,21 @@ article#member-editor-card::before,
 .member-chip-row .member-chip--soft {
   max-width: 100%;
 }
+
+
+/* v62 board modal original-ratio media + summary wording refinements */
+.detail-modal--board .detail-figure--original,
+.detail-figure--original {
+  aspect-ratio: auto !important;
+  max-height: none !important;
+  overflow: hidden;
+}
+.detail-modal--board .detail-figure--original img,
+.detail-figure--original img {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+}
