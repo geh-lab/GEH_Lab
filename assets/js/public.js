@@ -60,7 +60,7 @@ const state = {
   projects: hasFirebaseConfig ? [] : sortProjects(FALLBACK_PROJECTS).filter(isActiveItem),
   publications: hasFirebaseConfig ? [] : sortPublications(FALLBACK_PUBLICATIONS).filter(isActiveItem),
   board: hasFirebaseConfig ? [] : sortBoardPosts(FALLBACK_BOARD_POSTS).filter(isActiveItem),
-  loadingBoard: hasFirebaseConfig && page === 'board',
+  loadingBoard: hasFirebaseConfig && (page === 'board' || page === 'home'),
   publicationQuery: '',
   boardTab: 'news',
   unsubs: [],
@@ -74,7 +74,7 @@ const modalState = {
   closeButtons: []
 };
 
-const PUBLIC_CACHE_KEY = 'geh-public-cache-v2';
+const PUBLIC_CACHE_KEY = 'geh-public-cache-v3';
 
 
 function cacheFresh(cache = {}, minutes = 15) {
@@ -146,7 +146,7 @@ function useLiveProjectsOnly() {
 }
 
 function useLiveBoardOnly() {
-  return hasFirebaseConfig && page === 'board';
+  return hasFirebaseConfig && (page === 'board' || page === 'home');
 }
 
 function normalizeBoardForPage(items = []) {
@@ -394,7 +394,7 @@ async function hydrate() {
   };
 
   const collectionNames = [COLLECTIONS.members, COLLECTIONS.projects, COLLECTIONS.publications];
-  if (COLLECTIONS.board && page === 'board') collectionNames.push(COLLECTIONS.board);
+  if (COLLECTIONS.board && (page === 'board' || page === 'home')) collectionNames.push(COLLECTIONS.board);
 
   const resultMap = new Map();
   const settled = await Promise.allSettled(collectionNames.map((collectionName) => readSafely(collectionName)));
@@ -412,7 +412,7 @@ async function hydrate() {
   state.projects = mergedProjectsForPage(projects);
   state.loadingProjects = false;
   state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, publications)).filter(isActiveItem);
-  if (COLLECTIONS.board && page === 'board') {
+  if (COLLECTIONS.board && (page === 'board' || page === 'home')) {
     state.board = mergedBoardForPage(board);
     state.loadingBoard = false;
   }
@@ -450,7 +450,7 @@ async function hydrate() {
     addListener(COLLECTIONS.board, (items) => {
       state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items)).filter(isActiveItem);
       writePublicCache();
-      if (page === 'board') renderPage();
+      if (page === 'home' || page === 'board') renderPage();
     });
   }
 }
@@ -601,6 +601,26 @@ function bindInteractiveCards() {
     if (post) openBoardModal(post);
   });
 
+  qsa('[data-link]').forEach((card) => {
+    if (card.dataset.linkBound === 'true') return;
+    card.dataset.linkBound = 'true';
+    const openLink = () => {
+      const link = card.dataset.link;
+      if (link) window.open(link, '_blank', 'noopener,noreferrer');
+    };
+    card.addEventListener('click', (event) => {
+      const interactive = event.target.closest('a, button');
+      if (interactive && interactive !== card) return;
+      openLink();
+    });
+    card.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openLink();
+      }
+    });
+  });
+
   qsa('.detail-open-button, .pi-photo-button').forEach((button) => {
     if (button.dataset.modalBound === 'true') return;
     button.dataset.modalBound = 'true';
@@ -613,6 +633,15 @@ function bindInteractiveCards() {
   });
 }
 
+function alumniCourseLabel(member = {}, locale = lang) {
+  if (!(member.status === 'alumni' || member.group === 'alumni')) return '';
+  const course = String(member.course || member.enrolledCourse || '').trim();
+  if (!['phd', 'ms'].includes(course)) return '';
+  const base = memberCourseLabel(course, locale);
+  if (!base) return '';
+  return locale === 'en' ? `${base} alumni` : `${base} 졸업`;
+}
+
 function openMemberModal(member) {
   const chips = [];
   if (member.group !== 'alumni') chips.push(member.group === 'pi' ? copy.pi : (member.group === 'researchProfessor' ? copy.researchProfessor : member.group === 'studentResearcher' ? copy.studentResearcherSection : copy.graduateStudent));
@@ -621,7 +650,11 @@ function openMemberModal(member) {
     if (member.track && member.track !== 'none') chips.push(memberTrackLabel(member.track, lang));
   }
   if (member.group === 'studentResearcher') chips.push(memberCourseLabel('undergrad', lang));
-  if (member.status === 'alumni') chips.push(`${copy.alumniSection}${member.graduationYear ? ` · ${member.graduationYear}` : ''}`);
+  if (member.status === 'alumni') {
+    chips.push(`${copy.alumniSection}${member.graduationYear ? ` · ${member.graduationYear}` : ''}`);
+    const completedCourse = alumniCourseLabel(member, lang);
+    if (completedCourse) chips.push(completedCourse);
+  }
   const yearLabel = memberYearLabel(member, lang);
   if (yearLabel) chips.push(yearLabel);
   const displayName = memberDisplayName(member);
@@ -993,11 +1026,21 @@ function homeSummaryCard(title, value, lines = []) {
 }
 
 function homePublicationCard(item = {}) {
-  const meta = [publicationYearMonthLabel(item), item.journal].filter(Boolean).join(' · ');
   const link = resolvePublicationLink(item);
-  return `<article class="home-publication-card reveal interactive-card" ${link ? `data-link="${escapeHTML(link)}"` : ''} tabindex="0" role="button" aria-label="${escapeHTML(item.title || '')}">
+  const indexLabel = publicationIndexingLabel(item.indexing, lang);
+  const indexClass = indexLabel ? indexLabel.toLowerCase().replace(/[^a-z]+/g, '') : '';
+  const journalTone = journalToneClass(item.journal);
+  const yearPill = publicationYearMonthLabel(item);
+  const actionAttrs = link ? `data-link="${escapeHTML(link)}" tabindex="0" role="button"` : '';
+  return `<article class="home-publication-card reveal interactive-card" ${actionAttrs} aria-label="${escapeHTML(item.title || '')}">
+    <div class="publication-topline home-publication-card__topline">
+      ${yearPill ? `<span class="year-pill">${escapeHTML(yearPill)}</span>` : ''}
+      <div class="publication-source-group">
+        ${item.journal ? `<span class="journal-pill ${journalTone}">${escapeHTML(item.journal)}</span>` : ''}
+        ${indexLabel ? `<span class="index-pill ${indexClass ? `index-pill--${escapeHTML(indexClass)}` : ''}">${escapeHTML(indexLabel)}</span>` : ''}
+      </div>
+    </div>
     <h3>${escapeHTML(item.title || '')}</h3>
-    ${meta ? `<p class="home-publication-card__meta">${escapeHTML(meta)}</p>` : ''}
     ${item.authors ? `<p class="muted home-publication-card__authors">${escapeHTML(item.authors)}</p>` : ''}
     ${link ? `<a class="member-link" href="${escapeHTML(link)}" target="_blank" rel="noreferrer">${escapeHTML(copy.doi)}</a>` : ''}
   </article>`;
@@ -1057,7 +1100,7 @@ function renderHome() {
 
   const newsGrid = qs('#home-news-grid');
   if (newsGrid) {
-    const newsItems = state.board.filter((item) => ['notice','equipment','news'].includes(item.category)).slice(0,3);
+    const newsItems = state.board.filter((item) => ['notice','equipment','news','conference','poster','oral'].includes(item.category)).slice(0,3);
     newsGrid.innerHTML = newsItems.length ? newsItems.map(homeNewsCard).join('') : emptyState(lang === 'en' ? 'No news items yet.' : '표시할 소식이 없습니다.');
   }
 
@@ -1098,9 +1141,9 @@ function renderMembers() {
     ];
     pageStats.innerHTML = [
       { value: members.filter((item) => item.status !== 'alumni').length, label: copy.stats.current, meta: activeBreakdown },
-      { value: alumni.length, label: copy.stats.alumni, meta: alumniBreakdown },
       { value: researchProfessors.length, label: copy.researchProfessor, meta: [] },
-      { value: graduateStudents.length, label: copy.graduateStudent, meta: gradBreakdown }
+      { value: graduateStudents.length, label: copy.graduateStudent, meta: gradBreakdown },
+      { value: alumni.length, label: copy.stats.alumni, meta: alumniBreakdown }
     ].map((item) => `
       <article class="stat-card stat-card--summary reveal">
         <strong class="count-up" data-target="${escapeHTML(item.value)}">0</strong>
@@ -1437,7 +1480,10 @@ function getProjectPeriodDisplay(project = {}) {
 
 function memberMetaChips(member) {
   const chips = [];
-  if (member.group === 'graduateStudent') {
+  if (member.status === 'alumni' || member.group === 'alumni') {
+    const completedCourse = alumniCourseLabel(member, lang);
+    if (completedCourse) chips.push(completedCourse);
+  } else if (member.group === 'graduateStudent') {
     if (member.course) chips.push(memberCourseLabel(member.course, lang));
     if (member.track && member.track !== 'none') chips.push(memberTrackLabel(member.track, lang));
   }
@@ -1467,13 +1513,14 @@ function memberCard(member) {
 
 function alumniCard(member) {
   const education = memberEducationMarkup(member, lang, 'compact');
+  const chips = [member.graduationYear || '', alumniCourseLabel(member, lang)].filter(Boolean);
   return `
     <article class="member-card member-card--alumni reveal interactive-card" data-member-id="${escapeHTML(member.id)}" tabindex="0" role="button" aria-label="${escapeHTML(memberDisplayName(member))}">
       <div class="member-thumb">
         ${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}">` : `<span>${escapeHTML(getInitials(memberDisplayName(member, 'en') || memberDisplayName(member) || member.name))}</span>`}
       </div>
       <div class="member-copy">
-        <div class="member-chip-row"><span class="member-chip">${escapeHTML(member.graduationYear || '')}</span></div>
+        ${chips.length ? `<div class="member-chip-row">${chips.map((chip) => `<span class="member-chip">${escapeHTML(chip)}</span>`).join('')}</div>` : ''}
         <h3>${escapeHTML(memberDisplayName(member))}</h3>
         ${education || (localizedMemberText(member, 'bio') ? `<p>${escapeHTML(localizedMemberText(member, 'bio'))}</p>` : '')}
         ${localizedMemberText(member, 'currentPosition') ? `<p class="muted"><strong>${escapeHTML(copy.currentPosition)}:</strong> ${escapeHTML(localizedMemberText(member, 'currentPosition'))}</p>` : ''}

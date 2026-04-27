@@ -264,6 +264,57 @@ function memberProjectSectionVisible(group = '', course = '', status = '') {
   return !(status === 'alumni' || group === 'alumni' || course === 'alumni');
 }
 
+const MEMBER_COURSE_OPTIONS = {
+  pi: ['professor'],
+  researchProfessor: ['postdoc'],
+  graduateStudent: ['phd', 'ms'],
+  studentResearcher: ['undergrad'],
+  alumni: ['phd', 'ms']
+};
+
+function memberCourseOptionLabel(value = '', group = '') {
+  const isAlumni = group === 'alumni';
+  const labels = {
+    professor: '교수',
+    postdoc: '박사후연구원',
+    phd: isAlumni ? '박사과정 졸업' : '박사과정',
+    ms: isAlumni ? '석사과정 졸업' : '석사과정',
+    undergrad: '학부연구생',
+    alumni: '졸업생'
+  };
+  return labels[value] || value;
+}
+
+function syncMemberCourseAndStatus(form) {
+  if (!form) return;
+  const groupSelect = form.elements.namedItem('group');
+  const courseSelect = form.elements.namedItem('course');
+  const statusSelect = form.elements.namedItem('status');
+  const group = String(groupSelect?.value || '').trim();
+  const allowed = MEMBER_COURSE_OPTIONS[group] || MEMBER_COURSE_OPTIONS.graduateStudent;
+  if (courseSelect) {
+    Array.from(courseSelect.options).forEach((option) => {
+      const enabled = allowed.includes(option.value);
+      option.hidden = !enabled;
+      option.disabled = !enabled;
+      option.textContent = memberCourseOptionLabel(option.value, group);
+    });
+    if (!allowed.includes(courseSelect.value)) {
+      courseSelect.value = group === 'alumni' ? 'ms' : (allowed[0] || 'ms');
+    }
+    const courseField = courseSelect.closest?.('.field');
+    const courseLabel = courseField?.querySelector('span');
+    if (courseLabel) courseLabel.textContent = group === 'alumni' ? '졸업 과정' : '과정 / 직위';
+  }
+  const isAlumniGroup = group === 'alumni';
+  if (statusSelect) {
+    if (isAlumniGroup) statusSelect.value = 'alumni';
+    else if (statusSelect.value === 'alumni') statusSelect.value = 'enrolled';
+    const statusField = statusSelect.closest?.('.field');
+    if (statusField) statusField.hidden = isAlumniGroup;
+  }
+}
+
 function memberProjectSearchValues(member = {}) {
   return [
     member.nameKr,
@@ -911,12 +962,17 @@ function bindEvents() {
 
 function educationLevelForMember(formOrMember = {}) {
   const group = String(formOrMember.group || '').trim();
-  const course = String(formOrMember.course || '').trim();
+  const status = String(formOrMember.status || '').trim();
+  const course = String(formOrMember.course || formOrMember.enrolledCourse || formOrMember.restoreCourse || '').trim();
+  const isAlumni = group === 'alumni' || status === 'alumni';
+  if (isAlumni) {
+    if (course === 'phd') return 'phd';
+    if (course === 'ms') return 'ms';
+    return 'ms';
+  }
   if (group === 'pi' || group === 'researchProfessor' || course === 'professor' || course === 'postdoc') return 'phd';
   if (course === 'phd') return 'ms';
   if (course === 'ms') return 'bs';
-  if (group === 'alumni' && (formOrMember.enrolledCourse === 'phd' || formOrMember.restoreCourse === 'phd')) return 'ms';
-  if (group === 'alumni' && (formOrMember.enrolledCourse === 'ms' || formOrMember.restoreCourse === 'ms')) return 'bs';
   return 'phd';
 }
 
@@ -955,10 +1011,11 @@ ${phdMajor}` : ''}`.trim());
 function updateMemberEducationVisibility() {
   const form = elements.memberForm;
   if (!form) return;
+  syncMemberCourseAndStatus(form);
   const group = String(form.elements.namedItem('group')?.value || '').trim();
   const course = String(form.elements.namedItem('course')?.value || '').trim();
   const status = String(form.elements.namedItem('status')?.value || '').trim();
-  const level = educationLevelForMember({ group, course });
+  const level = educationLevelForMember({ group, course, status });
   const showBs = ['bs','ms','phd'].includes(level);
   const showMs = ['ms','phd'].includes(level);
   const showPhd = level === 'phd';
@@ -1657,13 +1714,20 @@ async function handleMemberSubmit(event) {
   const currentPositionKr = String(formData.get('currentPositionKr') || '').trim();
   const currentPositionEn = String(formData.get('currentPositionEn') || '').trim();
   const experienceEntries = collectMemberExperienceEntries();
+  let memberGroup = String(formData.get('group') || 'graduateStudent');
+  let memberCourse = String(formData.get('course') || 'ms');
+  let memberStatus = String(formData.get('status') || 'enrolled');
+  if (memberGroup === 'alumni') {
+    memberStatus = 'alumni';
+    if (!['phd', 'ms'].includes(memberCourse)) memberCourse = 'ms';
+  }
   const payload = {
     nameKr,
     nameEn,
     name: nameKr || nameEn || '',
-    group: String(formData.get('group') || 'graduateStudent'),
+    group: memberGroup,
     track: String(formData.get('track') || 'none'),
-    course: String(formData.get('course') || 'ms'),
+    course: memberCourse,
     email: String(formData.get('email') || '').trim(),
     bioKr,
     bioEn,
@@ -1703,9 +1767,10 @@ async function handleMemberSubmit(event) {
     currentPositionKr,
     currentPositionEn,
     currentPosition: firstFilledValue(currentPositionKr, currentPositionEn),
-    status: String(formData.get('status') || 'enrolled'),
+    status: memberStatus,
     graduationYear: String(formData.get('graduationYear') || '').trim(),
     startYear: String(formData.get('startYear') || '').trim(),
+    startSemester: String(formData.get('startSemester') || '').trim(),
     enrolledGroup: state.editingMember?.enrolledGroup || '',
     enrolledCourse: state.editingMember?.enrolledCourse || '',
     enrolledTrack: state.editingMember?.enrolledTrack || '',
@@ -1751,8 +1816,8 @@ async function handleMemberSubmit(event) {
       payload.enrolledCourse = payload.course;
       payload.enrolledTrack = payload.track;
     } else {
-      payload.enrolledGroup = payload.enrolledGroup || payload.group;
-      payload.enrolledCourse = payload.enrolledCourse || payload.course;
+      payload.enrolledGroup = payload.enrolledGroup && payload.enrolledGroup !== 'alumni' ? payload.enrolledGroup : 'graduateStudent';
+      payload.enrolledCourse = payload.enrolledCourse && payload.enrolledCourse !== 'alumni' ? payload.enrolledCourse : payload.course;
       payload.enrolledTrack = payload.enrolledTrack || payload.track;
     }
     const id = await saveDocument(COLLECTIONS.members, state.editingMember?.id || null, payload);
@@ -1935,7 +2000,7 @@ function renderMemberFilterTabs() {
 function memberItemMarkup(member) {
   const detailBits = [
     memberGroupLabel(member.group, 'kr'),
-    member.group === 'graduateStudent' ? memberCourseLabel(member.course, 'kr') : '',
+    (member.group === 'graduateStudent' || member.status === 'alumni') && ['phd', 'ms'].includes(member.course) ? `${memberCourseLabel(member.course, 'kr')}${member.status === 'alumni' ? ' 졸업' : ''}` : '',
     member.track && member.track !== 'none' ? memberTrackLabel(member.track, 'kr') : '',
     memberYearLabel(member, 'kr')
   ].filter(Boolean).join(' · ');
@@ -2311,7 +2376,8 @@ function loadMemberForm(member) {
     ['currentPositionEn', firstFilledValue(member.currentPositionEn, member.currentPosition)],
     ['status', member.status || 'enrolled'],
     ['graduationYear', member.graduationYear || ''],
-    ['startYear', member.startYear || '']
+    ['startYear', member.startYear || ''],
+    ['startSemester', member.startSemester || member.admissionSemester || '']
   ].forEach(([field, value]) => setFormValue(form, field, value));
   [
     ['bachelorsSchoolKr', member.bachelorsSchoolKr || ''],

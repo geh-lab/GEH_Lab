@@ -1847,27 +1847,5 @@ export const FALLBACK_PUBLICATIONS = [
   }
 ];
 
-export const FALLBACK_BOARD_POSTS = [
-  {
-    "id": "lab-notice-1",
-    "category": "notice",
-    "title": "연구실 공지",
-    "description": "관리자 페이지에서 게시판 항목을 추가·수정·삭제할 수 있습니다.",
-    "linkUrl": "",
-    "imageUrl": "",
-    "imagePath": "",
-    "date": "2026-04-07",
-    "updatedAt": "2026-04-07"
-  },
-  {
-    "id": "presentation-guide",
-    "category": "poster",
-    "title": "학회 발표 자료",
-    "description": "포스터 발표나 구두 발표 자료도 게시판에서 별도 카테고리로 관리할 수 있도록 준비했습니다.",
-    "linkUrl": "",
-    "imageUrl": "",
-    "imagePath": "",
-    "date": "2026-04-07",
-    "updatedAt": "2026-04-07"
-  }
-];
+export const FALLBACK_BOARD_POSTS = [];
+

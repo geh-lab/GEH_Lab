@@ -458,6 +458,7 @@ export function normalizeMember(item = {}, options = {}) {
     status,
     graduationYear: item.graduationYear || '',
     startYear: item.startYear || item.admissionYear || '',
+    startSemester: item.startSemester || item.admissionSemester || item.semester || '',
     enrolledGroup: item.enrolledGroup || group || '',
     enrolledCourse: item.enrolledCourse || course || '',
     enrolledTrack: item.enrolledTrack || track || '',
@@ -803,11 +804,22 @@ export function publicationIndexingLabel(indexing = '', lang = 'kr') {
   return normalized;
 }
 
+function memberSemesterLabel(value = '', lang = 'kr') {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return '';
+  const normalized = raw.includes('2') || raw.includes('fall') || raw.includes('second') || raw.includes('후') ? '2' : (raw.includes('1') || raw.includes('spring') || raw.includes('first') || raw.includes('전') ? '1' : '');
+  if (!normalized) return '';
+  if (lang === 'en') return normalized === '1' ? '1st semester admission' : '2nd semester admission';
+  return `${normalized}학기 입학`;
+}
+
 export function memberYearLabel(member = {}, lang = 'kr') {
   const year = Number(String(member.startYear || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
-  if (!year) return '';
+  const semester = memberSemesterLabel(member.startSemester || member.admissionSemester || member.semester || '', lang);
+  if (!year) return semester;
   const current = new Date().getFullYear();
   const diff = current - year + 1;
-  if (diff < 1) return '';
-  return lang === 'en' ? `Year ${diff}` : `${diff}년차`;
+  if (diff < 1) return semester;
+  const yearLabel = lang === 'en' ? `Year ${diff}` : `${diff}년차`;
+  return [yearLabel, semester].filter(Boolean).join(' · ');
 }
