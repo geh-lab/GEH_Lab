@@ -569,15 +569,20 @@ export function normalizePublication(item = {}, options = {}) {
 function normalizeBoardCategory(value = '') {
   const raw = String(value || '').trim().toLowerCase();
   if (!raw) return 'notice';
-  if (['notice', '공지'].includes(raw)) return 'notice';
-  if (['equipment', 'equipmentintro', 'equipment-intro', 'lab-equipment', 'news', '소식'].includes(raw)) return 'equipment';
+  if (['notice', '공지'].includes(raw)) return 'other';
+  if (['equipment', 'equipmentintro', 'equipment-intro', 'lab-equipment', 'labequipment', 'news', '소식', '실험실 장비 목록', '실험실장비목록'].includes(raw)) return 'equipment';
   if (['conference', 'poster', 'oral', '학회', '포스터', '구두'].includes(raw)) return 'conference';
+  if (['workshop', 'seminar', '워크숍', '워크샵', '세미나'].includes(raw)) return 'workshop';
+  if (['other', 'misc', '기타'].includes(raw)) return 'other';
   return raw;
 }
 
 export function normalizeBoardPost(item = {}, options = {}) {
   const preserveMissing = Boolean(options.preserveMissing);
   const imageUrls = (Array.isArray(item.imageUrls) ? item.imageUrls : Array.isArray(item.images) ? item.images : [item.imageUrl || ''])
+    .filter(Boolean)
+    .map((value) => String(value));
+  const imagePaths = (Array.isArray(item.imagePaths) ? item.imagePaths : [item.imagePath || ''])
     .filter(Boolean)
     .map((value) => String(value));
   return {
@@ -589,7 +594,8 @@ export function normalizeBoardPost(item = {}, options = {}) {
     youtubeUrl: item.youtubeUrl || item.videoUrl || '',
     imageUrl: imageUrls[0] || '',
     imageUrls,
-    imagePath: item.imagePath || '',
+    imagePath: imagePaths[0] || item.imagePath || '',
+    imagePaths,
     date: item.date || '',
     deleted: item.deleted === true,
     deletedAt: item.deletedAt || '',

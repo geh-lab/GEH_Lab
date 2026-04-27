@@ -1,4 +1,4 @@
-import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=68';
+import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=69';
 import {
   escapeHTML,
   getInitials,
@@ -31,7 +31,7 @@ import {
   normalizeProjectPeriod,
   groupBy,
   isActiveItem
-} from './utils.js?v=68';
+} from './utils.js?v=69';
 import {
   auth,
   hasFirebaseConfig,
@@ -49,14 +49,15 @@ import {
   uploadProjectFigure,
   uploadBoardImage,
   deleteStoragePath
-} from './firebase.js?v=68';
+} from './firebase.js?v=69';
 
+const useLiveAdminData = hasFirebaseConfig && !isLocalDevMode;
 const state = {
   user: null,
-  members: sortMembers(FALLBACK_MEMBERS),
-  projects: sortProjects(FALLBACK_PROJECTS),
-  publications: sortPublications(FALLBACK_PUBLICATIONS),
-  board: sortBoardPosts(FALLBACK_BOARD_POSTS),
+  members: useLiveAdminData ? [] : sortMembers(FALLBACK_MEMBERS),
+  projects: useLiveAdminData ? [] : sortProjects(FALLBACK_PROJECTS),
+  publications: useLiveAdminData ? [] : sortPublications(FALLBACK_PUBLICATIONS),
+  board: useLiveAdminData ? [] : sortBoardPosts(FALLBACK_BOARD_POSTS),
   trash: [],
   editingMember: null,
   editingProject: null,
@@ -1227,60 +1228,35 @@ function toggleViews(isAuthenticated) {
 }
 
 async function ensureSeeded() {
-  if (!state.user || state.seeded) return;
+  // 운영 배포 환경에서는 fallback 데이터를 Firestore에 자동으로 쓰지 않습니다.
+  // 이전 버전에서는 관리자 접속 시 기본 데이터가 다시 섞여 들어가
+  // 홈/멤버/과제/논문 화면에 예전 데이터가 순간적으로 보이는 문제가 있었습니다.
   state.seeded = true;
-  try {
-    const [members, projects, publications, board, trash] = await Promise.all([
-      fetchCollection(COLLECTIONS.members),
-      fetchCollection(COLLECTIONS.projects),
-      fetchCollection(COLLECTIONS.publications),
-      fetchCollection(COLLECTIONS.board),
-      fetchCollection(COLLECTIONS.trash)
-    ]);
-
-    const seedMissing = async (collectionName, existingItems, fallbackItems, normalizer, keyGetter) => {
-      const seen = new Set(existingItems.map((item) => keyGetter(normalizer(item))).filter(Boolean));
-      for (const item of fallbackItems) {
-        const normalized = normalizer(item);
-        const key = keyGetter(normalized);
-        if (!key || seen.has(key)) continue;
-        await saveDocument(collectionName, normalized.id, normalized);
-        seen.add(key);
-      }
-    };
-
-    await seedMissing(COLLECTIONS.members, members, FALLBACK_MEMBERS, normalizeMember, memberSemanticKey);
-    await seedMissing(COLLECTIONS.projects, projects, FALLBACK_PROJECTS, normalizeProject, projectSemanticKey);
-    await seedMissing(COLLECTIONS.publications, publications, FALLBACK_PUBLICATIONS, normalizePublication, publicationSemanticKey);
-    await seedMissing(COLLECTIONS.board, board, FALLBACK_BOARD_POSTS, normalizeBoardPost, boardSemanticKey);
-  } catch (error) {
-    console.error(error);
-    showNotice('기본 데이터 동기화 중 오류가 발생했습니다.', 'warning');
-  }
 }
+
 
 function attachListeners() {
   teardownListeners();
   state.unsubs = [
     listenCollection(COLLECTIONS.members, (items) => {
-      state.members = activeItems(sortMembers(mergeMembers(FALLBACK_MEMBERS, items)));
+      state.members = activeItems(useLiveAdminData ? sortMembers(items) : sortMembers(mergeMembers(FALLBACK_MEMBERS, items)));
       renderMembersList();
       renderProjectLeadOptions();
       renderMemberPublicationPicker(state.editingMember?.publicationLinks || []);
       renderSummary();
     }),
     listenCollection(COLLECTIONS.projects, (items) => {
-      state.projects = activeItems(sortProjects(mergeProjects(FALLBACK_PROJECTS, items)));
+      state.projects = activeItems(useLiveAdminData ? sortProjects(items) : sortProjects(mergeProjects(FALLBACK_PROJECTS, items)));
       renderProjectsList();
       renderSummary();
     }),
     listenCollection(COLLECTIONS.publications, (items) => {
-      state.publications = activeItems(sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items)));
+      state.publications = activeItems(useLiveAdminData ? sortPublications(items) : sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items)));
       renderPublicationsList();
       renderSummary();
     }),
     listenCollection(COLLECTIONS.board, (items) => {
-      state.board = activeItems(sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items)));
+      state.board = activeItems(useLiveAdminData ? sortBoardPosts(items) : sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items)));
       renderBoardList();
       renderSummary();
     }),
@@ -1926,7 +1902,7 @@ async function handleBoardSubmit(event) {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
   const payload = {
-    category: String(formData.get('category') || 'conference'),
+    category: normalizeBoardCategory(String(formData.get('category') || 'conference')),
     title: String(formData.get('title') || '').trim(),
     description: String(formData.get('description') || '').trim(),
     linkUrl: String(formData.get('linkUrl') || '').trim(),
@@ -1934,6 +1910,7 @@ async function handleBoardSubmit(event) {
     imageUrl: state.editingBoard?.imageUrl || '',
     imageUrls: Array.isArray(state.editingBoard?.imageUrls) ? [...state.editingBoard.imageUrls] : (state.editingBoard?.imageUrl ? [state.editingBoard.imageUrl] : []),
     imagePath: state.editingBoard?.imagePath || '',
+    imagePaths: Array.isArray(state.editingBoard?.imagePaths) ? [...state.editingBoard.imagePaths] : (state.editingBoard?.imagePath ? [state.editingBoard.imagePath] : []),
     date: String(formData.get('date') || '').trim()
   };
   if (!payload.title) return showNotice('게시판 제목을 입력해주세요.', 'warning');
@@ -1942,17 +1919,26 @@ async function handleBoardSubmit(event) {
     if (Array.isArray(state.pendingBoardFiles) && state.pendingBoardFiles.length) {
       const uploads = await Promise.all(state.pendingBoardFiles.map((file) => uploadBoardImage(file)));
       const urls = uploads.map((upload) => upload.imageUrl).filter(Boolean);
+      const paths = uploads.map((upload) => upload.imagePath).filter(Boolean);
       payload.imageUrls = urls;
       payload.imageUrl = urls[0] || '';
-      payload.imagePath = '';
+      payload.imagePaths = paths;
+      payload.imagePath = paths[0] || '';
     } else if (state.boardImageRemoved) {
       payload.imageUrl = '';
       payload.imageUrls = [];
       payload.imagePath = '';
+      payload.imagePaths = [];
     }
     const id = await saveDocument(COLLECTIONS.board, state.editingBoard?.id || null, payload);
     const saved = { ...payload, id, updatedAt: new Date().toISOString() };
-    state.board = activeItems(sortBoardPosts(mergeBoardPosts(state.board, [saved])));
+    state.board = activeItems(sortBoardPosts(useLiveAdminData ? [saved, ...state.board.filter((item) => item.id !== id)] : mergeBoardPosts(state.board, [saved])));
+    try {
+      const latestBoard = await fetchCollection(COLLECTIONS.board);
+      state.board = activeItems(useLiveAdminData ? sortBoardPosts(latestBoard) : sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, latestBoard)));
+    } catch (refreshError) {
+      console.warn('게시판 저장 후 목록을 다시 불러오지 못했습니다.', refreshError);
+    }
     resetBoardForm();
     closeEditor('board');
     if (elements.boardEditorCard) { elements.boardEditorCard.hidden = true; elements.boardEditorCard.classList.remove('is-open'); }
@@ -1964,7 +1950,7 @@ async function handleBoardSubmit(event) {
   } catch (error) {
     console.error(error);
     const message = /document.*too.*large|maximum document size|too many bytes/i.test(error?.message || '')
-      ? 'Firestore 문서 용량 제한을 초과했습니다. v68부터 게시판 이미지는 Storage에 저장되도록 수정했습니다. 새로고침 후 이미지를 다시 선택해 저장해주세요.'
+      ? 'Firestore 문서 용량 제한을 초과했습니다. v69부터 게시판 이미지는 Storage에 저장되도록 수정했습니다. 새로고침 후 이미지를 다시 선택해 저장해주세요.'
       : adminErrorMessage(error, '게시글 저장에 실패했습니다.');
     showNotice(message, 'danger');
   }

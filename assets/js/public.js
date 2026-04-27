@@ -1,4 +1,4 @@
-import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=68';
+import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=69';
 import {
   escapeHTML,
   getInitials,
@@ -24,8 +24,8 @@ import {
   normalizeProjectPeriod,
   isActiveItem,
   formatEnglishName
-} from './utils.js?v=68';
-import { hasFirebaseConfig, fetchCollection, listenCollection, COLLECTIONS } from './firebase.js?v=68';
+} from './utils.js?v=69';
+import { hasFirebaseConfig, fetchCollection, listenCollection, COLLECTIONS } from './firebase.js?v=69';
 
 const body = document.body;
 const page = body.dataset.page;
@@ -55,16 +55,19 @@ const focusImages = [
   'assets/images/background/hero-3.jpg'
 ].map((path) => rootAsset(path, root));
 
+const useLiveData = hasFirebaseConfig;
 const state = {
-  members: sortMembers(FALLBACK_MEMBERS).filter(isActiveItem),
-  projects: sortProjects(FALLBACK_PROJECTS).filter(isActiveItem),
-  publications: sortPublications(FALLBACK_PUBLICATIONS).filter(isActiveItem),
-  board: hasFirebaseConfig ? [] : sortBoardPosts(FALLBACK_BOARD_POSTS).filter(isActiveItem),
-  loadingBoard: hasFirebaseConfig && (page === 'board' || page === 'home'),
+  members: useLiveData ? [] : sortMembers(FALLBACK_MEMBERS).filter(isActiveItem),
+  projects: useLiveData ? [] : sortProjects(FALLBACK_PROJECTS).filter(isActiveItem),
+  publications: useLiveData ? [] : sortPublications(FALLBACK_PUBLICATIONS).filter(isActiveItem),
+  board: useLiveData ? [] : sortBoardPosts(FALLBACK_BOARD_POSTS).filter(isActiveItem),
+  loadingMembers: useLiveData && (page === 'home' || page === 'members'),
+  loadingProjects: useLiveData && (page === 'home' || page === 'projects'),
+  loadingPublications: useLiveData && (page === 'home' || page === 'publications'),
+  loadingBoard: useLiveData && (page === 'board' || page === 'home'),
   publicationQuery: '',
   boardTab: 'all',
-  unsubs: [],
-  loadingProjects: hasFirebaseConfig && page === 'projects'
+  unsubs: []
 };
 
 const modalState = {
@@ -74,7 +77,7 @@ const modalState = {
   closeButtons: []
 };
 
-const PUBLIC_CACHE_KEY = 'geh-public-cache-v68';
+const PUBLIC_CACHE_KEY = 'geh-public-cache-v69';
 
 
 function cacheFresh(cache = {}, minutes = 15) {
@@ -120,7 +123,8 @@ function applyCachedState() {
   let applied = false;
   const fresh = cacheFresh(cache, 15);
   if (Array.isArray(cache.members) && cache.members.length && fresh) {
-    state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, cache.members)).filter(isActiveItem);
+    state.members = useLiveData ? sortMembers(cache.members).filter(isActiveItem) : sortMembers(mergeMembers(FALLBACK_MEMBERS, cache.members)).filter(isActiveItem);
+    state.loadingMembers = false;
     applied = true;
   }
   if (Array.isArray(cache.projects) && cache.projects.length && fresh) {
@@ -129,7 +133,8 @@ function applyCachedState() {
     applied = true;
   }
   if (Array.isArray(cache.publications) && cache.publications.length && fresh) {
-    state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, cache.publications)).filter(isActiveItem);
+    state.publications = useLiveData ? sortPublications(cache.publications).filter(isActiveItem) : sortPublications(mergePublications(FALLBACK_PUBLICATIONS, cache.publications)).filter(isActiveItem);
+    state.loadingPublications = false;
     applied = true;
   }
   if (Array.isArray(cache.board) && cache.board.length && fresh && (!useLiveBoardOnly() || boardCacheFresh(cache))) {
@@ -142,11 +147,11 @@ function applyCachedState() {
 
 
 function useLiveProjectsOnly() {
-  return hasFirebaseConfig && page === 'projects';
+  return useLiveData;
 }
 
 function useLiveBoardOnly() {
-  return hasFirebaseConfig && (page === 'board' || page === 'home');
+  return useLiveData;
 }
 
 function normalizeBoardForPage(items = []) {
@@ -408,10 +413,12 @@ async function hydrate() {
   const publications = resultMap.get(COLLECTIONS.publications) || [];
   const board = COLLECTIONS.board ? (resultMap.get(COLLECTIONS.board) || []) : [];
 
-  state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, members)).filter(isActiveItem);
+  state.members = useLiveData ? sortMembers(members).filter(isActiveItem) : sortMembers(mergeMembers(FALLBACK_MEMBERS, members)).filter(isActiveItem);
+  state.loadingMembers = false;
   state.projects = mergedProjectsForPage(projects);
   state.loadingProjects = false;
-  state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, publications)).filter(isActiveItem);
+  state.publications = useLiveData ? sortPublications(publications).filter(isActiveItem) : sortPublications(mergePublications(FALLBACK_PUBLICATIONS, publications)).filter(isActiveItem);
+  state.loadingPublications = false;
   if (COLLECTIONS.board && (page === 'board' || page === 'home')) {
     state.board = mergedBoardForPage(board);
     state.loadingBoard = false;
@@ -431,7 +438,8 @@ async function hydrate() {
   };
 
   addListener(COLLECTIONS.members, (items) => {
-    state.members = sortMembers(mergeMembers(FALLBACK_MEMBERS, items)).filter(isActiveItem);
+    state.members = useLiveData ? sortMembers(items).filter(isActiveItem) : sortMembers(mergeMembers(FALLBACK_MEMBERS, items)).filter(isActiveItem);
+    state.loadingMembers = false;
     writePublicCache();
     if (page === 'home' || page === 'members') renderPage();
   });
@@ -442,13 +450,15 @@ async function hydrate() {
     if (page === 'home' || page === 'projects') renderPage();
   });
   addListener(COLLECTIONS.publications, (items) => {
-    state.publications = sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items)).filter(isActiveItem);
+    state.publications = useLiveData ? sortPublications(items).filter(isActiveItem) : sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items)).filter(isActiveItem);
+    state.loadingPublications = false;
     writePublicCache();
     if (page === 'home' || page === 'publications') renderPage();
   });
   if (COLLECTIONS.board) {
     addListener(COLLECTIONS.board, (items) => {
-      state.board = sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items)).filter(isActiveItem);
+      state.board = mergedBoardForPage(items);
+      state.loadingBoard = false;
       writePublicCache();
       if (page === 'home' || page === 'board') renderPage();
     });
@@ -1048,6 +1058,26 @@ function homeSummaryCard(title, value, lines = []) {
   return `<article class="stat-card stat-card--summary reveal"><strong class="count-up" data-target="${escapeHTML(value)}">0</strong><span>${escapeHTML(title)}</span>${meta ? `<div class="stat-card__meta">${meta}</div>` : ''}</article>`;
 }
 
+function homeLoadingSummaryCard(title) {
+  const loadingText = lang === 'en' ? 'Loading…' : '불러오는 중…';
+  return `<article class="stat-card stat-card--summary stat-card--loading reveal"><strong>…</strong><span>${escapeHTML(title)}</span><div class="stat-card__meta"><small>${escapeHTML(loadingText)}</small></div></article>`;
+}
+
+function homeIsInitialLoading() {
+  return useLiveData
+    && page === 'home'
+    && (state.loadingMembers || state.loadingProjects || state.loadingPublications || state.loadingBoard)
+    && !state.members.length
+    && !state.projects.length
+    && !state.publications.length
+    && !state.board.length;
+}
+
+function loadingStateText(kind = '') {
+  const label = lang === 'en' ? 'Loading data…' : `${kind ? `${kind} ` : ''}데이터를 불러오는 중입니다.`;
+  return emptyState(label);
+}
+
 function homePublicationCard(item = {}) {
   const link = resolvePublicationLink(item);
   const indexLabel = publicationIndexingLabel(item.indexing, lang);
@@ -1102,33 +1132,42 @@ function renderHome() {
   const boardOtherCount = state.board.filter((i) => normalizeBoardCategory(i.category) === 'other').length;
   const heroStat = qs('#hero-stat-grid');
   if (heroStat) {
-    heroStat.innerHTML = [
-      homeSummaryCard(lang === 'en' ? 'Members' : '구성원', activeMembers.length, [lang === 'en' ? `PI ${piCount} · Research ${researchProfessors}` : `지도교수 ${piCount} · 연구교수 ${researchProfessors}`, lang === 'en' ? `Graduate ${graduateStudents.length} · Undergraduate ${undergrads}` : `대학원생 ${graduateStudents.length} · 학부연구생 ${undergrads}`, lang === 'en' ? `Alumni ${alumniMembers.length}` : `졸업생 ${alumniMembers.length}`]),
-      homeSummaryCard(lang === 'en' ? 'Projects' : '과제', state.projects.length, [lang === 'en' ? `Ongoing ${ongoingProjects.length}` : `진행 중 ${ongoingProjects.length}`, lang === 'en' ? `Archived ${completedProjects.length}` : `종료 ${completedProjects.length}`]),
-      homeSummaryCard(lang === 'en' ? 'Publications' : '논문', state.publications.length, publicationSummaryLines(currentYearPubs, currentYear)),
-      homeSummaryCard(lang === 'en' ? 'Board' : '게시판', state.board.length, [lang === 'en' ? `Conference ${boardConferenceCount} · Workshop ${boardWorkshopCount}` : `학회 ${boardConferenceCount} · 워크숍 ${boardWorkshopCount}`, lang === 'en' ? `Lab equipment ${boardEquipmentCount} · Other ${boardOtherCount}` : `실험실 장비 목록 ${boardEquipmentCount} · 기타 ${boardOtherCount}`])
-    ].join('');
+    if (homeIsInitialLoading()) {
+      heroStat.innerHTML = [
+        homeLoadingSummaryCard(lang === 'en' ? 'Members' : '구성원'),
+        homeLoadingSummaryCard(lang === 'en' ? 'Projects' : '과제'),
+        homeLoadingSummaryCard(lang === 'en' ? 'Publications' : '논문'),
+        homeLoadingSummaryCard(lang === 'en' ? 'Board' : '게시판')
+      ].join('');
+    } else {
+      heroStat.innerHTML = [
+        homeSummaryCard(lang === 'en' ? 'Members' : '구성원', activeMembers.length, [lang === 'en' ? `PI ${piCount} · Research ${researchProfessors}` : `지도교수 ${piCount} · 연구교수 ${researchProfessors}`, lang === 'en' ? `Graduate ${graduateStudents.length} · Undergraduate ${undergrads}` : `대학원생 ${graduateStudents.length} · 학부연구생 ${undergrads}`, lang === 'en' ? `Alumni ${alumniMembers.length}` : `졸업생 ${alumniMembers.length}`]),
+        homeSummaryCard(lang === 'en' ? 'Projects' : '과제', state.projects.length, [lang === 'en' ? `Ongoing ${ongoingProjects.length}` : `진행 중 ${ongoingProjects.length}`, lang === 'en' ? `Archived ${completedProjects.length}` : `종료 ${completedProjects.length}`]),
+        homeSummaryCard(lang === 'en' ? 'Publications' : '논문', state.publications.length, publicationSummaryLines(currentYearPubs, currentYear)),
+        homeSummaryCard(lang === 'en' ? 'Board' : '게시판', state.board.length, [lang === 'en' ? `Conference ${boardConferenceCount} · Workshop ${boardWorkshopCount}` : `학회 ${boardConferenceCount} · 워크숍 ${boardWorkshopCount}`, lang === 'en' ? `Lab equipment ${boardEquipmentCount} · Other ${boardOtherCount}` : `실험실 장비 목록 ${boardEquipmentCount} · 기타 ${boardOtherCount}`])
+      ].join('');
+    }
   }
 
   const pubGrid = qs('#home-publication-grid');
   if (pubGrid) {
     const pubItems = (currentYearPubs.length ? currentYearPubs : state.publications.slice(0,4)).slice(0,4);
     pubGrid.dataset.count = String(pubItems.length || 0);
-    pubGrid.innerHTML = pubItems.length ? pubItems.map(homePublicationCard).join('') : emptyState(lang === 'en' ? 'No publications yet.' : '표시할 논문이 없습니다.');
+    pubGrid.innerHTML = (state.loadingPublications && !state.publications.length) ? loadingStateText(lang === 'en' ? 'Publication' : '논문') : (pubItems.length ? pubItems.map(homePublicationCard).join('') : emptyState(lang === 'en' ? 'No publications yet.' : '표시할 논문이 없습니다.'));
   }
 
   const ongoingPreview = ongoingProjects.slice(0, 4);
   const previewGrid = qs('#ongoing-preview-grid');
   if (previewGrid) {
     previewGrid.dataset.count = String(ongoingPreview.length || 0);
-    previewGrid.innerHTML = ongoingPreview.map((project) => projectCard(project, { compact: true })).join('');
+    previewGrid.innerHTML = (state.loadingProjects && !state.projects.length) ? loadingStateText(lang === 'en' ? 'Project' : '과제') : ongoingPreview.map((project) => projectCard(project, { compact: true })).join('');
     stretchProjectGrid(previewGrid);
   }
 
   const newsGrid = qs('#home-news-grid');
   if (newsGrid) {
     const newsItems = state.board.slice(0, 3);
-    newsGrid.innerHTML = newsItems.length ? newsItems.map(homeNewsCard).join('') : emptyState(lang === 'en' ? 'No board posts yet.' : '표시할 게시글이 없습니다.');
+    newsGrid.innerHTML = (state.loadingBoard && !state.board.length) ? loadingStateText(lang === 'en' ? 'Board' : '게시판') : (newsItems.length ? newsItems.map(homeNewsCard).join('') : emptyState(lang === 'en' ? 'No board posts yet.' : '표시할 게시글이 없습니다.'));
   }
 
   const contactGrid = qs('#home-contact-grid');
