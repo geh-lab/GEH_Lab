@@ -1,4 +1,4 @@
-import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=66';
+import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=67';
 import {
   escapeHTML,
   getInitials,
@@ -31,7 +31,7 @@ import {
   normalizeProjectPeriod,
   groupBy,
   isActiveItem
-} from './utils.js?v=66';
+} from './utils.js?v=67';
 import {
   auth,
   hasFirebaseConfig,
@@ -49,7 +49,7 @@ import {
   uploadProjectFigure,
   uploadBoardImage,
   deleteStoragePath
-} from './firebase.js?v=66';
+} from './firebase.js?v=67';
 
 const state = {
   user: null,

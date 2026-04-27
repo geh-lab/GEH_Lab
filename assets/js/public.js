@@ -1,4 +1,4 @@
-import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=66';
+import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=67';
 import {
   escapeHTML,
   getInitials,
@@ -24,8 +24,8 @@ import {
   normalizeProjectPeriod,
   isActiveItem,
   formatEnglishName
-} from './utils.js?v=66';
-import { hasFirebaseConfig, fetchCollection, listenCollection, COLLECTIONS } from './firebase.js?v=66';
+} from './utils.js?v=67';
+import { hasFirebaseConfig, fetchCollection, listenCollection, COLLECTIONS } from './firebase.js?v=67';
 
 const body = document.body;
 const page = body.dataset.page;
@@ -56,9 +56,9 @@ const focusImages = [
 ].map((path) => rootAsset(path, root));
 
 const state = {
-  members: hasFirebaseConfig ? [] : sortMembers(FALLBACK_MEMBERS).filter(isActiveItem),
-  projects: hasFirebaseConfig ? [] : sortProjects(FALLBACK_PROJECTS).filter(isActiveItem),
-  publications: hasFirebaseConfig ? [] : sortPublications(FALLBACK_PUBLICATIONS).filter(isActiveItem),
+  members: sortMembers(FALLBACK_MEMBERS).filter(isActiveItem),
+  projects: sortProjects(FALLBACK_PROJECTS).filter(isActiveItem),
+  publications: sortPublications(FALLBACK_PUBLICATIONS).filter(isActiveItem),
   board: hasFirebaseConfig ? [] : sortBoardPosts(FALLBACK_BOARD_POSTS).filter(isActiveItem),
   loadingBoard: hasFirebaseConfig && (page === 'board' || page === 'home'),
   publicationQuery: '',
@@ -74,7 +74,7 @@ const modalState = {
   closeButtons: []
 };
 
-const PUBLIC_CACHE_KEY = 'geh-public-cache-v4';
+const PUBLIC_CACHE_KEY = 'geh-public-cache-v67';
 
 
 function cacheFresh(cache = {}, minutes = 15) {
@@ -1391,6 +1391,17 @@ function renderBoard() {
       setupRevealAnimations();
       bindInteractiveCards();
     });
+  });
+}
+
+function setupSearch() {
+  qs('#publication-search')?.addEventListener('input', (event) => {
+    state.publicationQuery = event.currentTarget.value;
+    renderPublications();
+    setUpdatedDate();
+    setupRevealAnimations();
+    setupAccordions();
+    bindInteractiveCards();
   });
 }
 
