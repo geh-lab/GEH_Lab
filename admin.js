@@ -1,4 +1,4 @@
-import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=65';
+import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=66';
 import {
   escapeHTML,
   getInitials,
@@ -31,7 +31,7 @@ import {
   normalizeProjectPeriod,
   groupBy,
   isActiveItem
-} from './utils.js?v=65';
+} from './utils.js?v=66';
 import {
   auth,
   hasFirebaseConfig,
@@ -49,7 +49,7 @@ import {
   uploadProjectFigure,
   uploadBoardImage,
   deleteStoragePath
-} from './firebase.js?v=65';
+} from './firebase.js?v=66';
 
 const state = {
   user: null,
@@ -1256,7 +1256,7 @@ function sortTrashItems(items = []) {
 }
 
 function trashTypeLabel(type = '') {
-  const map = { member: '멤버', project: '과제', publication: '논문', board: '소식' };
+  const map = { member: '멤버', project: '과제', publication: '논문', board: '게시판' };
   return map[type] || '기타';
 }
 
@@ -1534,7 +1534,7 @@ function renderBoardImagePreview() {
     ? state.pendingBoardPreviews
     : (Array.isArray(state.editingBoard?.imageUrls) && state.editingBoard.imageUrls.length ? state.editingBoard.imageUrls : (state.editingBoard?.imageUrl ? [state.editingBoard.imageUrl] : []));
   if (!previewUrls.length) {
-    elements.boardImagePreview.innerHTML = `<span>News</span>`;
+    elements.boardImagePreview.innerHTML = `<span>게시판</span>`;
     return;
   }
   const gridClass = previewUrls.length > 1 ? ' is-multi' : ' is-single';
@@ -1585,7 +1585,7 @@ function resetBoardForm() {
   revokeBoardPreviewUrls();
   state.pendingBoardPreviews = [];
   state.boardImageRemoved = false;
-  if (elements.boardTitle) elements.boardTitle.textContent = '소식 추가';
+  if (elements.boardTitle) elements.boardTitle.textContent = '게시판 추가';
   renderBoardImagePreview();
 }
 
@@ -1817,7 +1817,7 @@ async function handleBoardSubmit(event) {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
   const payload = {
-    category: String(formData.get('category') || 'notice'),
+    category: String(formData.get('category') || 'conference'),
     title: String(formData.get('title') || '').trim(),
     description: String(formData.get('description') || '').trim(),
     linkUrl: String(formData.get('linkUrl') || '').trim(),
@@ -1827,9 +1827,9 @@ async function handleBoardSubmit(event) {
     imagePath: state.editingBoard?.imagePath || '',
     date: String(formData.get('date') || '').trim()
   };
-  if (!payload.title) return showNotice('소식 제목을 입력해주세요.', 'warning');
+  if (!payload.title) return showNotice('게시판 제목을 입력해주세요.', 'warning');
   try {
-    showNotice('소식을 저장하는 중입니다. 이미지가 있으면 잠시 더 걸릴 수 있습니다.', 'info');
+    showNotice('게시글을 저장하는 중입니다. 이미지가 있으면 잠시 더 걸릴 수 있습니다.', 'info');
     if (Array.isArray(state.pendingBoardFiles) && state.pendingBoardFiles.length) {
       const uploads = await Promise.all(state.pendingBoardFiles.map((file) => uploadBoardImage(file)));
       const urls = uploads.map((upload) => upload.imageUrl).filter(Boolean);
@@ -1852,12 +1852,12 @@ async function handleBoardSubmit(event) {
     renderBoardList();
     renderSummary();
     requestAnimationFrame(() => { closeEditor('board'); if (elements.boardEditorCard) { elements.boardEditorCard.hidden = true; elements.boardEditorCard.classList.remove('is-open'); } document.body.classList.remove('modal-open'); });
-    showNotice('소식이 저장되었습니다.', 'success');
+    showNotice('게시글이 저장되었습니다.', 'success');
   } catch (error) {
     console.error(error);
     const message = /document.*too.*large|maximum document size|too many bytes/i.test(error?.message || '')
-      ? '소식 이미지는 데이터베이스에 바로 저장되므로, 이미지 용량을 더 줄이거나 이미지 수를 줄인 뒤 다시 시도해주세요.'
-      : adminErrorMessage(error, '소식 저장에 실패했습니다.');
+      ? '게시판 이미지는 데이터베이스에 바로 저장되므로, 이미지 용량을 더 줄이거나 이미지 수를 줄인 뒤 다시 시도해주세요.'
+      : adminErrorMessage(error, '게시글 저장에 실패했습니다.');
     showNotice(message, 'danger');
   }
 }
@@ -2106,8 +2106,22 @@ function renderPublicationsList() {
   bindPagination(elements.publicationPagination, 'publicationPage');
 }
 
+function normalizeBoardCategory(category = '') {
+  const key = String(category || '').trim().toLowerCase();
+  if (['conference', 'poster', 'oral'].includes(key)) return 'conference';
+  if (['workshop', 'seminar'].includes(key)) return 'workshop';
+  if (['equipment', 'news', 'lab-equipment', 'labequipment'].includes(key)) return 'equipment';
+  if (['other', 'notice', 'misc'].includes(key)) return 'other';
+  return key || 'other';
+}
+
+function boardAdminFilters() {
+  return [['all', '전체'], ['conference', '학회'], ['workshop', '워크숍'], ['equipment', '실험실 장비 목록'], ['other', '기타']];
+}
+
 function renderBoardFilterTabs() {
-  const filters = [['all', '전체'], ['notice', '공지'], ['equipment', '실험실 장비 소개'], ['conference', '학회']];
+  const filters = boardAdminFilters();
+  if (!filters.some(([value]) => value === state.boardFilter)) state.boardFilter = 'all';
   elements.boardFilterTabs.innerHTML = filters.map(([value, label]) => `<button type="button" class="admin-subtab${state.boardFilter === value ? ' is-active' : ''}" data-board-filter="${escapeHTML(value)}">${escapeHTML(label)}</button>`).join('');
 }
 
@@ -2133,17 +2147,17 @@ function boardItemMarkup(item) {
 }
 
 function boardCategoryLabel(category = '') {
-  const map = { notice: '공지', equipment: '실험실 장비 소개', conference: '학회', poster: '학회', oral: '학회', news: '실험실 장비 소개' };
-  return map[category] || '공지';
+  const map = { conference: '학회', poster: '학회', oral: '학회', workshop: '워크숍', equipment: '실험실 장비 목록', news: '실험실 장비 목록', notice: '기타', other: '기타' };
+  return map[String(category || '').trim().toLowerCase()] || '기타';
 }
 
 function renderBoardList() {
   if (!elements.boardList) return;
   renderBoardFilterTabs();
-  const items = (state.boardFilter === 'all' ? state.board : state.board.filter((item) => item.category === state.boardFilter)).filter((item) => matchesSearch(state.boardQuery, ...boardSearchValues(item)));
+  const items = (state.boardFilter === 'all' ? state.board : state.board.filter((item) => normalizeBoardCategory(item.category) === state.boardFilter)).filter((item) => matchesSearch(state.boardQuery, ...boardSearchValues(item)));
   const pageData = paginateItems(items, state.boardPage);
   state.boardPage = pageData.page;
-  elements.boardList.innerHTML = adminSection(`소식 (${items.length})`, pageData.items.map(boardItemMarkup).join('') || emptyAdmin('없음'));
+  elements.boardList.innerHTML = adminSection(`게시판 (${items.length})`, pageData.items.map(boardItemMarkup).join('') || emptyAdmin('없음'));
   elements.boardPagination.innerHTML = paginationMarkup('board', pageData.page, pageData.pages);
   bindPagination(elements.boardPagination, 'boardPage');
 }
@@ -2155,7 +2169,7 @@ function renderTrashFilterTabs() {
     ['member', '멤버'],
     ['project', '과제'],
     ['publication', '논문'],
-    ['board', '소식']
+    ['board', '게시판']
   ];
   elements.trashFilterTabs.innerHTML = filters.map(([value, label]) => `
     <button type="button" class="admin-subtab${state.trashFilter === value ? ' is-active' : ''}" data-trash-filter="${escapeHTML(value)}">${escapeHTML(label)}</button>
@@ -2321,9 +2335,9 @@ function loadPublicationForm(item) {
 }
 function loadBoardForm(item) {
   state.editingBoard = item;
-  elements.boardTitle.textContent = '소식 수정';
+  elements.boardTitle.textContent = '게시판 수정';
   const form = elements.boardForm;
-  setFormValue(form, 'category', item.category || 'notice');
+  setFormValue(form, 'category', normalizeBoardCategory(item.category || 'conference'));
   ['title','description','linkUrl','youtubeUrl','date'].forEach((field) => setFormValue(form, field, item[field] || ''));
   state.boardImageRemoved = false;
   state.pendingBoardFiles = [];
@@ -2429,7 +2443,7 @@ async function removePublication(item) {
   }
 }
 async function removeBoard(item) {
-  const ok = await openDialog({ title: '소식 삭제', message: `${item.title} 항목을 휴지통으로 이동할까요?`, type: 'confirm' });
+  const ok = await openDialog({ title: '게시글 삭제', message: `${item.title} 항목을 휴지통으로 이동할까요?`, type: 'confirm' });
   if (!ok) return;
   try {
     const trashEntry = await moveItemToTrash('board', COLLECTIONS.board, item, item.title);
@@ -2438,10 +2452,10 @@ async function removeBoard(item) {
     renderBoardList();
     renderTrashList();
     renderSummary();
-    showNotice('소식이 휴지통으로 이동되었습니다.', 'success');
+    showNotice('게시글이 휴지통으로 이동되었습니다.', 'success');
   } catch (error) {
     console.error(error);
-    showNotice(adminErrorMessage(error, '소식 삭제에 실패했습니다.'), 'danger');
+    showNotice(adminErrorMessage(error, '게시글 삭제에 실패했습니다.'), 'danger');
   }
 }
 

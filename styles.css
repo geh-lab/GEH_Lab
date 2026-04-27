@@ -5178,3 +5178,8 @@ article#member-editor-card::before,
   object-fit: contain !important;
   object-position: center center !important;
 }
+
+
+/* v66 board tab/category refinements */
+.board-tabs { flex-wrap: wrap; }
+.board-tab { white-space: nowrap; }

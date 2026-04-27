@@ -11,13 +11,13 @@ export const SITE_COPY = {
       "members": "멤버",
       "projects": "과제",
       "publications": "논문",
-      "board": "소식"
+      "board": "게시판"
     },
     "switch": "Ko | En",
     "heroEyebrow": "충남대학교",
     "heroTitle": "원예 환경의 다음 기준을 설계합니다.",
     "heroSubtitle": "식물공장, 스마트팜, 기능성 작물, 지속가능한 수분 관리, 그리고 데이터 기반 재배 제어.",
-    "heroDesc": "충남대학교 환경원예학연구실은 생육 환경 제어와 작물 생리, 기능성 성분 축적, 인공지능 기반 재배 기술을 연구합니다.",
+    "heroDesc": "충남대학교 시설환경원예학연구실은 생육 환경 제어와 작물 생리, 기능성 성분 축적, 인공지능 기반 재배 기술을 연구합니다.",
     "heroButtons": {
       "members": "멤버 보기",
       "projects": "연구 과제 보기",
@@ -28,7 +28,7 @@ export const SITE_COPY = {
       "alumni": "졸업생",
       "ongoing": "진행 중 과제",
       "publications": "논문",
-      "board": "소식"
+      "board": "게시판"
     },
     "focusEyebrow": "핵심 연구 분야",
     "focusTitle": "식물공장 · 대마 · 인공지능.",
@@ -89,10 +89,10 @@ export const SITE_COPY = {
     "open": "열기",
     "countItems": "건",
     "footerNote": "Greenhouse & Environmental Horticulture Lab",
-    "boardHeroTitle": "소식",
+    "boardHeroTitle": "게시판",
     "boardHeroDesc": "",
-    "boardNav": "소식",
-    "boardCount": "소식"
+    "boardNav": "게시판",
+    "boardCount": "게시판"
   },
   "en": {
     "siteName": "CNU GEH Lab",
@@ -104,7 +104,7 @@ export const SITE_COPY = {
       "members": "Members",
       "projects": "Projects",
       "publications": "Publications",
-      "board": "News"
+      "board": "Board"
     },
     "switch": "Ko | En",
     "heroEyebrow": "충남대학교",
@@ -121,7 +121,7 @@ export const SITE_COPY = {
       "alumni": "Alumni",
       "ongoing": "Ongoing projects",
       "publications": "Publications",
-      "board": "News"
+      "board": "Board"
     },
     "focusEyebrow": "핵심 연구 분야",
     "focusTitle": "식물공장 · 대마 · 인공지능.",
@@ -182,10 +182,10 @@ export const SITE_COPY = {
     "open": "Open",
     "countItems": "items",
     "footerNote": "Greenhouse & Environmental Horticulture Lab",
-    "boardHeroTitle": "News",
+    "boardHeroTitle": "Board",
     "boardHeroDesc": "",
-    "boardNav": "News",
-    "boardCount": "News"
+    "boardNav": "Board",
+    "boardCount": "Board"
   }
 };
 

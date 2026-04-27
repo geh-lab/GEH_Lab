@@ -1,4 +1,4 @@
-import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=65';
+import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=66';
 import {
   escapeHTML,
   getInitials,
@@ -24,8 +24,8 @@ import {
   normalizeProjectPeriod,
   isActiveItem,
   formatEnglishName
-} from './utils.js?v=65';
-import { hasFirebaseConfig, fetchCollection, listenCollection, COLLECTIONS } from './firebase.js?v=65';
+} from './utils.js?v=66';
+import { hasFirebaseConfig, fetchCollection, listenCollection, COLLECTIONS } from './firebase.js?v=66';
 
 const body = document.body;
 const page = body.dataset.page;
@@ -62,7 +62,7 @@ const state = {
   board: hasFirebaseConfig ? [] : sortBoardPosts(FALLBACK_BOARD_POSTS).filter(isActiveItem),
   loadingBoard: hasFirebaseConfig && (page === 'board' || page === 'home'),
   publicationQuery: '',
-  boardTab: 'news',
+  boardTab: 'all',
   unsubs: [],
   loadingProjects: hasFirebaseConfig && page === 'projects'
 };
@@ -1096,13 +1096,17 @@ function renderHome() {
   const completedProjects = state.projects.filter((item) => item.status === 'completed');
   const currentYear = String(new Date().getFullYear());
   const currentYearPubs = state.publications.filter((item) => String(item.year || '') === currentYear);
+  const boardConferenceCount = state.board.filter((i) => normalizeBoardCategory(i.category) === 'conference').length;
+  const boardWorkshopCount = state.board.filter((i) => normalizeBoardCategory(i.category) === 'workshop').length;
+  const boardEquipmentCount = state.board.filter((i) => normalizeBoardCategory(i.category) === 'equipment').length;
+  const boardOtherCount = state.board.filter((i) => normalizeBoardCategory(i.category) === 'other').length;
   const heroStat = qs('#hero-stat-grid');
   if (heroStat) {
     heroStat.innerHTML = [
       homeSummaryCard(lang === 'en' ? 'Members' : '구성원', activeMembers.length, [lang === 'en' ? `PI ${piCount} · Research ${researchProfessors}` : `지도교수 ${piCount} · 연구교수 ${researchProfessors}`, lang === 'en' ? `Graduate ${graduateStudents.length} · Undergraduate ${undergrads}` : `대학원생 ${graduateStudents.length} · 학부연구생 ${undergrads}`, lang === 'en' ? `Alumni ${alumniMembers.length}` : `졸업생 ${alumniMembers.length}`]),
       homeSummaryCard(lang === 'en' ? 'Projects' : '과제', state.projects.length, [lang === 'en' ? `Ongoing ${ongoingProjects.length}` : `진행 중 ${ongoingProjects.length}`, lang === 'en' ? `Archived ${completedProjects.length}` : `종료 ${completedProjects.length}`]),
       homeSummaryCard(lang === 'en' ? 'Publications' : '논문', state.publications.length, publicationSummaryLines(currentYearPubs, currentYear)),
-      homeSummaryCard(lang === 'en' ? 'News' : '소식', state.board.length, [lang === 'en' ? `Equipment ${state.board.filter((i)=>['equipment','news'].includes(i.category)).length}` : `장비 소개 ${state.board.filter((i)=>['equipment','news'].includes(i.category)).length}`, lang === 'en' ? `Conference ${state.board.filter((i)=>['conference','poster','oral'].includes(i.category)).length}` : `학회 ${state.board.filter((i)=>['conference','poster','oral'].includes(i.category)).length}`])
+      homeSummaryCard(lang === 'en' ? 'Board' : '게시판', state.board.length, [lang === 'en' ? `Conference ${boardConferenceCount} · Workshop ${boardWorkshopCount}` : `학회 ${boardConferenceCount} · 워크숍 ${boardWorkshopCount}`, lang === 'en' ? `Lab equipment ${boardEquipmentCount} · Other ${boardOtherCount}` : `실험실 장비 목록 ${boardEquipmentCount} · 기타 ${boardOtherCount}`])
     ].join('');
   }
 
@@ -1123,8 +1127,8 @@ function renderHome() {
 
   const newsGrid = qs('#home-news-grid');
   if (newsGrid) {
-    const newsItems = state.board.filter((item) => ['notice','equipment','news','conference','poster','oral'].includes(item.category)).slice(0,3);
-    newsGrid.innerHTML = newsItems.length ? newsItems.map(homeNewsCard).join('') : emptyState(lang === 'en' ? 'No news items yet.' : '표시할 소식이 없습니다.');
+    const newsItems = state.board.slice(0, 3);
+    newsGrid.innerHTML = newsItems.length ? newsItems.map(homeNewsCard).join('') : emptyState(lang === 'en' ? 'No board posts yet.' : '표시할 게시글이 없습니다.');
   }
 
   const contactGrid = qs('#home-contact-grid');
@@ -1342,36 +1346,43 @@ function boardSkeletonMarkup() {
 }
 
 function renderBoard() {
-  const noticePosts = state.board.filter((item) => ['notice', 'equipment', 'news'].includes(item.category));
-  const presentationPosts = state.board.filter((item) => ['conference', 'poster', 'oral'].includes(item.category));
+  const filters = boardFilterConfig();
+  const validFilters = filters.map(([value]) => value);
+  if (!validFilters.includes(state.boardTab)) state.boardTab = 'all';
+
   const summary = qs('#board-summary');
-  if (summary) summary.textContent = lang === 'en' ? `${state.board.length} news items` : `소식 ${state.board.length}건`;
-  if (state.loadingBoard && !state.board.length) {
-    const grid = qs('#board-tab-grid');
-    const tabCount = qs('#board-tab-count');
-    const tabTitle = qs('#board-tab-title');
-    const tabEyebrow = qs('#board-tab-eyebrow');
-    if (tabCount) tabCount.textContent = lang === 'en' ? 'Loading…' : '불러오는 중…';
-    if (tabTitle) tabTitle.textContent = lang === 'en' ? 'Latest updates' : '최신 소식';
-    if (tabEyebrow) tabEyebrow.textContent = '';
-    if (grid) grid.innerHTML = boardSkeletonMarkup();
-    return;
-  }
-  const newsTab = qs('[data-board-tab="news"]');
-  const presentationTab = qs('[data-board-tab="presentations"]');
+  if (summary) summary.textContent = lang === 'en' ? `${state.board.length} board posts` : `게시판 ${state.board.length}건`;
+
   const grid = qs('#board-tab-grid');
   const tabCount = qs('#board-tab-count');
   const tabTitle = qs('#board-tab-title');
   const tabEyebrow = qs('#board-tab-eyebrow');
-  const isNews = state.boardTab !== 'presentations';
-  newsTab?.classList.toggle('is-active', isNews);
-  presentationTab?.classList.toggle('is-active', !isNews);
-  const activePosts = isNews ? noticePosts : presentationPosts;
+
+  if (state.loadingBoard && !state.board.length) {
+    if (tabCount) tabCount.textContent = lang === 'en' ? 'Loading…' : '불러오는 중…';
+    if (tabTitle) tabTitle.textContent = lang === 'en' ? 'Board' : '게시판';
+    if (tabEyebrow) tabEyebrow.textContent = '';
+    if (grid) grid.innerHTML = boardSkeletonMarkup();
+    return;
+  }
+
+  const activeFilter = state.boardTab || 'all';
+  const activeLabel = filters.find(([value]) => value === activeFilter)?.[1] || (lang === 'en' ? 'All' : '전체');
+  const activePosts = activeFilter === 'all'
+    ? state.board
+    : state.board.filter((item) => normalizeBoardCategory(item.category) === activeFilter);
+
   if (tabCount) tabCount.textContent = lang === 'en' ? `${activePosts.length} items` : `${activePosts.length}건`;
-  if (tabTitle) tabTitle.textContent = isNews ? (lang === 'en' ? 'Notices · Equipment' : '공지 · 실험실 장비 소개') : (lang === 'en' ? 'Conference' : '학회');
-  if (tabEyebrow) tabEyebrow.textContent = lang === 'en' ? '' : (isNews ? '공지' : '학회');
-  if (grid) grid.innerHTML = activePosts.length ? activePosts.map((post) => boardCard(post)).join('') : emptyState(isNews ? (lang === 'en' ? 'No notices or equipment posts yet.' : '공지와 실험실 장비 소개가 아직 없습니다.') : (lang === 'en' ? 'No conference items yet.' : '학회 자료가 아직 없습니다.'));
+  if (tabTitle) tabTitle.textContent = activeFilter === 'all' ? (lang === 'en' ? 'All board posts' : '전체 게시글') : activeLabel;
+  if (tabEyebrow) tabEyebrow.textContent = lang === 'en' ? 'Board' : '게시판';
+  if (grid) {
+    const emptyMessage = lang === 'en' ? `No ${activeLabel.toLowerCase()} posts yet.` : `${activeLabel} 게시글이 아직 없습니다.`;
+    grid.innerHTML = activePosts.length ? activePosts.map((post) => boardCard(post)).join('') : emptyState(emptyMessage);
+  }
+
   qsa('[data-board-tab]').forEach((button) => {
+    const isActive = button.dataset.boardTab === activeFilter;
+    button.classList.toggle('is-active', isActive);
     if (button.dataset.bound === 'true') return;
     button.dataset.bound = 'true';
     button.addEventListener('click', () => {
@@ -1380,17 +1391,6 @@ function renderBoard() {
       setupRevealAnimations();
       bindInteractiveCards();
     });
-  });
-}
-
-function setupSearch() {
-  qs('#publication-search')?.addEventListener('input', (event) => {
-    state.publicationQuery = event.currentTarget.value;
-    renderPublications();
-    setUpdatedDate();
-    setupRevealAnimations();
-    setupAccordions();
-    bindInteractiveCards();
   });
 }
 
@@ -1674,16 +1674,33 @@ function renderBoardGallery(urls = [], alt = '') {
 }
 
 
+function normalizeBoardCategory(category = '') {
+  const key = String(category || '').trim().toLowerCase();
+  if (['conference', 'poster', 'oral'].includes(key)) return 'conference';
+  if (['workshop', 'seminar'].includes(key)) return 'workshop';
+  if (['equipment', 'news', 'lab-equipment', 'labequipment'].includes(key)) return 'equipment';
+  if (['other', 'notice', 'misc'].includes(key)) return 'other';
+  return key || 'other';
+}
+
+function boardFilterConfig() {
+  return lang === 'en'
+    ? [['all', 'All'], ['conference', 'Conference'], ['workshop', 'Workshop'], ['equipment', 'Lab equipment list'], ['other', 'Other']]
+    : [['all', '전체'], ['conference', '학회'], ['workshop', '워크숍'], ['equipment', '실험실 장비 목록'], ['other', '기타']];
+}
+
 function boardCategoryLabel(category = '') {
   const map = {
-    notice: lang === 'en' ? 'Notice' : '공지',
-    equipment: lang === 'en' ? 'Lab equipment' : '실험실 장비 소개',
     conference: lang === 'en' ? 'Conference' : '학회',
     poster: lang === 'en' ? 'Conference' : '학회',
     oral: lang === 'en' ? 'Conference' : '학회',
-    news: lang === 'en' ? 'Lab equipment' : '실험실 장비 소개'
+    workshop: lang === 'en' ? 'Workshop' : '워크숍',
+    equipment: lang === 'en' ? 'Lab equipment list' : '실험실 장비 목록',
+    news: lang === 'en' ? 'Lab equipment list' : '실험실 장비 목록',
+    notice: lang === 'en' ? 'Other' : '기타',
+    other: lang === 'en' ? 'Other' : '기타'
   };
-  return map[category] || (lang === 'en' ? 'Notice' : '공지');
+  return map[String(category || '').trim().toLowerCase()] || (lang === 'en' ? 'Other' : '기타');
 }
 
 function boardCard(post) {

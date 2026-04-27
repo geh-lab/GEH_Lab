@@ -6,7 +6,7 @@
   <title>GEH Lab 관리자</title>
   <meta name="description" content="GEH Lab Firebase 관리자 페이지">
   <meta name="robots" content="noindex,nofollow,noarchive">
-  <link rel="stylesheet" href="assets/css/styles.css?v=65">
+  <link rel="stylesheet" href="assets/css/styles.css?v=66">
 </head>
 <body class="admin-body" data-root=".">
   <div class="admin-shell">
@@ -20,7 +20,7 @@
         <a href="members.html">멤버</a>
         <a href="projects.html">과제</a>
         <a href="publications.html">논문</a>
-        <a href="news.html">소식</a>
+        <a href="news.html">게시판</a>
         <a href="contact.html">오시는 길</a>
         <a href="admin.html" class="is-active" aria-current="page">관리자</a>
       </nav>
@@ -43,7 +43,7 @@
       <div class="login-card">
         <span class="eyebrow">관리자</span>
         <h1>CNU GEH Lab CMS</h1>
-        <p class="muted">관리자 페이지는 Google 계정 로그인으로만 접근할 수 있습니다. 로그인 후 멤버, 과제, 논문, 소식을 바로 추가·수정·삭제할 수 있습니다.</p>
+        <p class="muted">관리자 페이지는 Google 계정 로그인으로만 접근할 수 있습니다. 로그인 후 멤버, 과제, 논문, 게시판을 바로 추가·수정·삭제할 수 있습니다.</p>
         <div id="auth-notice" class="notice-banner is-info"></div>
         <button type="button" class="google-button" id="google-login-button">
           <svg class="google-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.6 3.9-5.4 3.9-3.2 0-5.9-2.7-5.9-6s2.7-6 5.9-6c1.8 0 3.1.8 3.8 1.4l2.6-2.5C16.7 3.4 14.6 2.5 12 2.5 6.8 2.5 2.5 6.8 2.5 12S6.8 21.5 12 21.5c6.9 0 9.1-4.8 9.1-7.3 0-.5-.1-.9-.1-1.3H12z"></path><path fill="#34A853" d="M3.6 7l3.2 2.3C7.7 7.7 9.7 6 12 6c1.8 0 3.1.8 3.8 1.4l2.6-2.5C16.7 3.4 14.6 2.5 12 2.5 8.3 2.5 5 4.6 3.6 7z"></path><path fill="#4A90E2" d="M12 21.5c2.5 0 4.6-.8 6.1-2.3l-2.8-2.3c-.8.6-1.8 1-3.3 1-3.7 0-5.1-2.5-5.4-3.8l-3.1 2.4c1.4 2.8 4.7 5 8.5 5z"></path><path fill="#FBBC05" d="M6.6 14.1c-.2-.6-.3-1.3-.3-2.1s.1-1.5.3-2.1L3.5 7.5C2.9 8.8 2.5 10.4 2.5 12s.4 3.2 1 4.5l3.1-2.4z"></path></svg>
@@ -58,21 +58,21 @@
         <div>
           <span class="eyebrow">관리자</span>
           <h1>콘텐츠 관리</h1>
-          <p>탭을 눌러 멤버, 과제, 논문, 소식을 분리해서 관리할 수 있습니다.</p>
+          <p>탭을 눌러 멤버, 과제, 논문, 게시판을 분리해서 관리할 수 있습니다.</p>
         </div>
       </div>
       <div class="admin-summary-row admin-summary-row--five">
         <article class="summary-card"><strong id="summary-members">0</strong><span>멤버</span></article>
         <article class="summary-card"><strong id="summary-projects">0</strong><span>과제</span></article>
         <article class="summary-card"><strong id="summary-publications">0</strong><span>논문</span></article>
-        <article class="summary-card"><strong id="summary-board">0</strong><span>소식</span></article>
+        <article class="summary-card"><strong id="summary-board">0</strong><span>게시판</span></article>
         <article class="summary-card summary-card--trash"><strong id="summary-trash">0</strong><span>휴지통</span></article>
       </div>
       <div class="admin-tabs">
         <button type="button" class="admin-tab is-active" data-admin-tab="members">멤버 관리</button>
         <button type="button" class="admin-tab" data-admin-tab="projects">과제 관리</button>
         <button type="button" class="admin-tab" data-admin-tab="publications">논문 관리</button>
-        <button type="button" class="admin-tab" data-admin-tab="board">소식 관리</button>
+        <button type="button" class="admin-tab" data-admin-tab="board">게시판 관리</button>
         <button type="button" class="admin-tab" data-admin-tab="trash">휴지통</button>
       </div>
 
@@ -208,10 +208,10 @@
 
       <section class="admin-stage" data-panel="board" hidden>
         <article class="admin-card admin-editor-modal" id="board-editor-card" hidden>
-          <div class="editor-title-row"><h2 id="board-form-title">소식 추가</h2><button type="button" class="small-button editor-close-button" data-editor-close="board">닫기</button></div>
+          <div class="editor-title-row"><h2 id="board-form-title">게시판 추가</h2><button type="button" class="small-button editor-close-button" data-editor-close="board">닫기</button></div>
           <form id="board-form" class="editor-form">
             <div class="form-grid form-grid--double">
-              <label class="field"><span>분류</span><select name="category"><option value="notice" selected>공지</option><option value="equipment">실험실 장비 소개</option><option value="conference">학회</option></select></label>
+              <label class="field"><span>분류</span><select name="category"><option value="conference" selected>학회</option><option value="workshop">워크숍</option><option value="equipment">실험실 장비 목록</option><option value="other">기타</option></select></label>
               <label class="field"><span>날짜</span><input name="date" type="date"></label>
             </div>
             <label class="field"><span>제목 *</span><input name="title" type="text" required></label>
@@ -222,7 +222,7 @@
             <div class="form-actions"><button class="button primary" type="submit">저장</button><button class="button secondary" type="button" id="board-reset">초기화</button></div>
           </form>
         </article>
-        <article class="admin-card"><div class="admin-card-head"><span class="eyebrow">저장된 소식</span><button type="button" class="button primary button-sm" id="board-add-button">소식 추가</button></div><div class="admin-subtabs" id="board-filter-tabs"></div><label class="field admin-search-field"><span>검색</span><input id="board-search" type="search" placeholder="제목, 설명, 링크 검색"></label><div class="admin-list-stack" id="board-list"></div><div class="admin-pagination" id="board-pagination"></div></article>
+        <article class="admin-card"><div class="admin-card-head"><span class="eyebrow">저장된 게시글</span><button type="button" class="button primary button-sm" id="board-add-button">게시판 추가</button></div><div class="admin-subtabs" id="board-filter-tabs"></div><label class="field admin-search-field"><span>검색</span><input id="board-search" type="search" placeholder="제목, 설명, 링크 검색"></label><div class="admin-list-stack" id="board-list"></div><div class="admin-pagination" id="board-pagination"></div></article>
       </section>
 
       <section class="admin-stage" data-panel="trash" hidden>
@@ -260,6 +260,6 @@
   </div>
 
 <script src="firebase-config.js"></script>
-  <script type="module" src="assets/js/admin.js?v=65"></script>
+  <script type="module" src="assets/js/admin.js?v=66"></script>
 </body>
 </html>
