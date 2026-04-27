@@ -1,4 +1,4 @@
-import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js';
+import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=65';
 import {
   escapeHTML,
   getInitials,
@@ -24,8 +24,8 @@ import {
   normalizeProjectPeriod,
   isActiveItem,
   formatEnglishName
-} from './utils.js';
-import { hasFirebaseConfig, fetchCollection, listenCollection, COLLECTIONS } from './firebase.js';
+} from './utils.js?v=65';
+import { hasFirebaseConfig, fetchCollection, listenCollection, COLLECTIONS } from './firebase.js?v=65';
 
 const body = document.body;
 const page = body.dataset.page;
@@ -1516,17 +1516,16 @@ function memberMetaChips(member) {
   const chips = [];
   if (member.status === 'alumni' || member.group === 'alumni') {
     const completedCourse = alumniCourseLabel(member, lang);
-    if (completedCourse) chips.push(completedCourse);
+    if (completedCourse) chips.push({ text: completedCourse });
   } else if (member.group === 'graduateStudent') {
-    if (member.course) chips.push(memberCourseLabel(member.course, lang));
-    if (member.track && member.track !== 'none') chips.push(memberTrackLabel(member.track, lang));
+    if (member.course) chips.push({ text: memberCourseLabel(member.course, lang) });
+    if (member.track && member.track !== 'none') chips.push({ text: memberTrackLabel(member.track, lang) });
   }
-  if (member.group === 'studentResearcher') chips.push(memberCourseLabel('undergrad', lang));
+  if (member.group === 'studentResearcher') chips.push({ text: memberCourseLabel('undergrad', lang) });
   const years = memberYearLabel(member, lang);
-  if (years) chips.push(years);
-  return chips.map((chip) => `<span class="member-chip member-chip--soft">${escapeHTML(chip)}</span>`).join('');
+  if (years) chips.push({ text: years, academic: true });
+  return chips.map((chip) => `<span class="member-chip member-chip--soft${chip.academic ? ' member-chip--academic' : ''}">${escapeHTML(chip.text)}</span>`).join('');
 }
-
 function memberCard(member) {
   const education = memberEducationMarkup(member, lang, 'compact');
   return `

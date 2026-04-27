@@ -1,4 +1,4 @@
-import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js';
+import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=65';
 import {
   escapeHTML,
   getInitials,
@@ -31,7 +31,7 @@ import {
   normalizeProjectPeriod,
   groupBy,
   isActiveItem
-} from './utils.js';
+} from './utils.js?v=65';
 import {
   auth,
   hasFirebaseConfig,
@@ -49,7 +49,7 @@ import {
   uploadProjectFigure,
   uploadBoardImage,
   deleteStoragePath
-} from './firebase.js';
+} from './firebase.js?v=65';
 
 const state = {
   user: null,
@@ -2376,8 +2376,8 @@ function loadMemberForm(member) {
     ['currentPositionEn', firstFilledValue(member.currentPositionEn, member.currentPosition)],
     ['status', member.status || 'enrolled'],
     ['graduationYear', member.graduationYear || ''],
-    ['startYear', member.startYear || ''],
-    ['startSemester', member.startSemester || member.admissionSemester || '']
+    ['startYear', member.startYear || member.admissionYear || member.entranceYear || member.entryYear || member.enrollmentYear || member.enterYear || ''],
+    ['startSemester', member.startSemester || member.admissionSemester || member.entranceSemester || member.entrySemester || member.enrollmentSemester || member.enterSemester || member.semester || '']
   ].forEach(([field, value]) => setFormValue(form, field, value));
   [
     ['bachelorsSchoolKr', member.bachelorsSchoolKr || ''],
