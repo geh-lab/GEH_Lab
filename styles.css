@@ -5186,3 +5186,87 @@ article#member-editor-card::before,
 /* v66 board tab/category refinements */
 .board-tabs { flex-wrap: wrap; }
 .board-tab { white-space: nowrap; }
+
+/* v74 universal skeleton loading states */
+@keyframes skeleton-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+.skeleton-line,
+.skeleton-pill,
+.skeleton-chip,
+.skeleton-thumb,
+.skeleton-media,
+.member-card--skeleton .member-thumb,
+.pi-photo--skeleton,
+.board-card--skeleton .skeleton-line,
+.board-card--skeleton .board-card__media,
+.home-news-card--skeleton .home-news-card__media {
+  background: linear-gradient(90deg, rgba(15,23,42,.055) 0%, rgba(15,23,42,.105) 45%, rgba(15,23,42,.055) 90%);
+  background-size: 240% 100%;
+  animation: skeleton-shimmer 1.35s ease-in-out infinite;
+  color: transparent !important;
+}
+.skeleton-line { display:block; height:1rem; border-radius:999px; }
+.skeleton-pill { display:inline-flex; width:var(--skeleton-width, 5.25rem); height:2rem; border-radius:999px; vertical-align:middle; }
+.skeleton-chip { display:inline-flex !important; width:7.25rem; height:1.9rem; border-radius:999px; border-color:transparent !important; }
+.skeleton-chip--short { width:5.25rem; }
+.member-card--skeleton,
+.publication-card--skeleton,
+.home-publication-card--skeleton,
+.home-news-card--skeleton,
+.pi-card-layout--skeleton,
+.project-card--skeleton,
+.board-card--skeleton {
+  pointer-events:none;
+}
+.member-grid--skeleton { align-items:stretch; }
+.member-card--skeleton .member-thumb,
+.skeleton-thumb {
+  width:96px;
+  height:96px;
+  border-radius:28px;
+  flex:0 0 auto;
+}
+.member-card--skeleton .member-copy { min-width:0; width:100%; }
+.skeleton-pill--chip { width:4.7rem; height:1.9rem; }
+.skeleton-pill--short { width:3.9rem; }
+.skeleton-line--member-title { width:8rem; height:1.35rem; margin:.35rem 0 .9rem; }
+.skeleton-line--member-text { width:88%; height:1rem; margin:.55rem 0; }
+.skeleton-line--member-text.short { width:68%; }
+.skeleton-line--member-link { width:58%; height:1rem; margin-top:.75rem; }
+.pi-card-layout--skeleton .pi-photo--skeleton { width:220px; height:300px; border-radius:28px; }
+.skeleton-line--eyebrow { width:5rem; height:.8rem; margin-bottom:.9rem; }
+.skeleton-line--pi-title { width:min(18rem, 70%); height:2rem; margin-bottom:1rem; }
+.skeleton-line--pi-subtitle { width:min(28rem, 85%); height:1.1rem; margin-bottom:1.2rem; }
+.skeleton-pill--button { width:7rem; height:3rem; border-radius:999px; }
+.pi-card-grid--skeleton article { min-height:132px; }
+.skeleton-line--panel-heading { width:6rem; height:1rem; margin-bottom:1rem; }
+.skeleton-line--text { width:92%; height:1rem; margin:.55rem 0; }
+.skeleton-line--text.short { width:66%; }
+.publication-list--skeleton { display:grid; gap:1rem; }
+.publication-card--skeleton { min-height:190px; }
+.skeleton-pill--year { width:4.8rem; height:2rem; }
+.skeleton-pill--journal { width:min(18rem, 48vw); height:2rem; }
+.skeleton-pill--index { width:4.6rem; height:2rem; }
+.skeleton-pill--doi { width:3.4rem; height:1.3rem; }
+.skeleton-line--publication-title { width:92%; height:1.65rem; margin:1.1rem 0 .55rem; }
+.skeleton-line--publication-title.short { width:62%; margin-top:.35rem; }
+.skeleton-line--publication-authors { width:min(30rem, 70%); height:1rem; margin:1rem 0; }
+.skeleton-line--publication-extra { width:8rem; height:1rem; margin-top:.9rem; }
+.skeleton-line--divider { width:100%; height:1px; margin:1rem 0; border-radius:0; }
+.home-publication-card--skeleton { min-height:180px; }
+.skeleton-line--home-title { width:88%; height:1.25rem; margin:1rem 0 .55rem; }
+.skeleton-line--home-title.short { width:64%; margin-top:.35rem; }
+.skeleton-line--home-text { width:72%; height:1rem; margin:.9rem 0 1rem; }
+.home-news-card--skeleton .home-news-card__media,
+.skeleton-media { min-height:220px; border-radius:22px; }
+.board-card--skeleton .skeleton-line--meta { width:42%; height:1rem; margin:.25rem 0 .8rem; }
+.board-card--skeleton .skeleton-line--title { width:78%; height:1.35rem; margin:.4rem 0 .75rem; }
+.board-card--skeleton .skeleton-line--text { width:90%; height:1rem; }
+.stat-card--summary.stat-card--skeleton .stat-card__meta small::before { content:'' !important; }
+@media (max-width: 760px) {
+  .pi-card-layout--skeleton .pi-photo--skeleton { width:100%; height:260px; }
+  .home-news-card--skeleton .home-news-card__media,
+  .skeleton-media { min-height:180px; }
+}

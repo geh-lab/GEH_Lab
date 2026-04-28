@@ -1,4 +1,4 @@
-import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=73';
+import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=74';
 import {
   escapeHTML,
   getInitials,
@@ -24,8 +24,8 @@ import {
   normalizeProjectPeriod,
   isActiveItem,
   formatEnglishName
-} from './utils.js?v=73';
-import { hasFirebaseConfig, fetchCollection, listenCollection, COLLECTIONS } from './firebase.js?v=73';
+} from './utils.js?v=74';
+import { hasFirebaseConfig, fetchCollection, listenCollection, COLLECTIONS } from './firebase.js?v=74';
 
 const body = document.body;
 const page = body.dataset.page;
@@ -77,7 +77,7 @@ const modalState = {
   closeButtons: []
 };
 
-const PUBLIC_CACHE_KEY = 'geh-public-cache-v72';
+const PUBLIC_CACHE_KEY = 'geh-public-cache-v74';
 
 
 function cacheFresh(cache = {}, minutes = 15) {
@@ -200,6 +200,114 @@ function projectSkeletonCard() {
       </div>
     </article>
   `;
+}
+
+
+function skeletonPill(width = '5rem') {
+  return '<span class="skeleton-pill" style="--skeleton-width:' + escapeHTML(width) + '"></span>';
+}
+
+function memberSkeletonCard() {
+  return [
+    '<article class="member-card member-card--skeleton reveal" aria-hidden="true">',
+    '<div class="member-thumb skeleton-thumb"></div>',
+    '<div class="member-copy">',
+    '<div class="member-chip-row">',
+    '<span class="member-chip member-chip--soft skeleton-pill skeleton-pill--chip"></span>',
+    '<span class="member-chip member-chip--soft skeleton-pill skeleton-pill--chip skeleton-pill--short"></span>',
+    '</div>',
+    '<span class="skeleton-line skeleton-line--member-title"></span>',
+    '<span class="skeleton-line skeleton-line--member-text"></span>',
+    '<span class="skeleton-line skeleton-line--member-text short"></span>',
+    '<span class="skeleton-line skeleton-line--member-link"></span>',
+    '</div>',
+    '</article>'
+  ].join('');
+}
+
+function memberGridSkeleton(count = 3, modifier = '') {
+  return '<div class="member-grid member-grid--skeleton ' + escapeHTML(modifier) + '">' + Array.from({ length: count }, () => memberSkeletonCard()).join('') + '</div>';
+}
+
+function piSkeletonCard() {
+  return [
+    '<div class="pi-card-layout pi-card-layout--skeleton" aria-hidden="true">',
+    '<div class="pi-photo pi-photo--skeleton skeleton-thumb"></div>',
+    '<div class="pi-card-main">',
+    '<div class="pi-card-head">',
+    '<span class="skeleton-line skeleton-line--eyebrow"></span>',
+    '<span class="skeleton-line skeleton-line--pi-title"></span>',
+    '<span class="skeleton-line skeleton-line--pi-subtitle"></span>',
+    '<span class="skeleton-pill skeleton-pill--button"></span>',
+    '</div>',
+    '<div class="pi-card-grid pi-card-grid--skeleton">',
+    Array.from({ length: 4 }).map(() => [
+      '<article>',
+      '<span class="skeleton-line skeleton-line--panel-heading"></span>',
+      '<span class="skeleton-line skeleton-line--text"></span>',
+      '<span class="skeleton-line skeleton-line--text short"></span>',
+      '</article>'
+    ].join('')).join(''),
+    '</div>',
+    '</div>',
+    '</div>'
+  ].join('');
+}
+
+function publicationSkeletonCard() {
+  return [
+    '<article class="publication-card publication-card--skeleton reveal" aria-hidden="true">',
+    '<div class="publication-head-row"><div class="publication-topline">',
+    '<span class="skeleton-pill skeleton-pill--year"></span>',
+    '<span class="skeleton-pill skeleton-pill--journal"></span>',
+    '<span class="skeleton-pill skeleton-pill--index"></span>',
+    '</div></div>',
+    '<span class="skeleton-line skeleton-line--publication-title"></span>',
+    '<span class="skeleton-line skeleton-line--publication-title short"></span>',
+    '<div class="publication-meta-row">',
+    '<span class="skeleton-line skeleton-line--publication-authors"></span>',
+    '<span class="skeleton-pill skeleton-pill--doi"></span>',
+    '</div>',
+    '<span class="skeleton-line skeleton-line--divider"></span>',
+    '<span class="skeleton-line skeleton-line--publication-extra"></span>',
+    '</article>'
+  ].join('');
+}
+
+function publicationListSkeleton(count = 3) {
+  return '<div class="publication-list publication-list--skeleton">' + Array.from({ length: count }, () => publicationSkeletonCard()).join('') + '</div>';
+}
+
+function homePublicationSkeletonCard() {
+  return [
+    '<article class="home-publication-card home-publication-card--skeleton reveal" aria-hidden="true">',
+    '<div class="publication-topline home-publication-card__topline">',
+    '<span class="skeleton-pill skeleton-pill--year"></span>',
+    '<span class="skeleton-pill skeleton-pill--journal"></span>',
+    '<span class="skeleton-pill skeleton-pill--index"></span>',
+    '</div>',
+    '<span class="skeleton-line skeleton-line--home-title"></span>',
+    '<span class="skeleton-line skeleton-line--home-title short"></span>',
+    '<span class="skeleton-line skeleton-line--home-text"></span>',
+    '<span class="skeleton-pill skeleton-pill--doi"></span>',
+    '</article>'
+  ].join('');
+}
+
+function homeNewsSkeletonCard() {
+  return [
+    '<article class="home-news-card home-news-card--skeleton reveal" aria-hidden="true">',
+    '<div class="home-news-card__media skeleton-media"></div>',
+    '<div class="home-news-card__copy">',
+    '<div class="member-chip-row">',
+    '<span class="member-chip member-chip--soft skeleton-pill skeleton-pill--chip"></span>',
+    '<span class="member-chip member-chip--soft skeleton-pill skeleton-pill--chip skeleton-pill--short"></span>',
+    '</div>',
+    '<span class="skeleton-line skeleton-line--home-title"></span>',
+    '<span class="skeleton-line skeleton-line--home-text"></span>',
+    '</div>',
+    '</article>'
+  ].join('');
 }
 
 function memberDisplayName(member, locale = lang) {
@@ -1062,8 +1170,7 @@ function homeSummaryCard(title, value, lines = []) {
 }
 
 function homeLoadingSummaryCard(title) {
-  const loadingText = lang === 'en' ? 'Loading…' : '불러오는 중…';
-  return `<article class="stat-card stat-card--summary stat-card--loading reveal"><strong>…</strong><span>${escapeHTML(title)}</span><div class="stat-card__meta"><small>${escapeHTML(loadingText)}</small></div></article>`;
+  return '<article class="stat-card stat-card--summary stat-card--skeleton stat-card--loading reveal" aria-hidden="true"><strong class="skeleton-line skeleton-line--number"></strong><span>' + escapeHTML(title) + '</span><div class="stat-card__meta"><small class="skeleton-chip"></small><small class="skeleton-chip skeleton-chip--short"></small></div></article>';
 }
 
 function homeIsInitialLoading() {
@@ -1155,22 +1262,36 @@ function renderHome() {
   const pubGrid = qs('#home-publication-grid');
   if (pubGrid) {
     const pubItems = (currentYearPubs.length ? currentYearPubs : state.publications.slice(0,4)).slice(0,4);
-    pubGrid.dataset.count = String(pubItems.length || 0);
-    pubGrid.innerHTML = (state.loadingPublications && !state.publications.length) ? loadingStateText(lang === 'en' ? 'Publication' : '논문') : (pubItems.length ? pubItems.map(homePublicationCard).join('') : emptyState(lang === 'en' ? 'No publications yet.' : '표시할 논문이 없습니다.'));
+    if (state.loadingPublications && !state.publications.length) {
+      pubGrid.dataset.count = '2';
+      pubGrid.innerHTML = Array.from({ length: 2 }, () => homePublicationSkeletonCard()).join('');
+    } else {
+      pubGrid.dataset.count = String(pubItems.length || 0);
+      pubGrid.innerHTML = pubItems.length ? pubItems.map(homePublicationCard).join('') : emptyState(lang === 'en' ? 'No publications yet.' : '표시할 논문이 없습니다.');
+    }
   }
 
   const ongoingPreview = ongoingProjects.slice(0, 4);
   const previewGrid = qs('#ongoing-preview-grid');
   if (previewGrid) {
-    previewGrid.dataset.count = String(ongoingPreview.length || 0);
-    previewGrid.innerHTML = (state.loadingProjects && !state.projects.length) ? loadingStateText(lang === 'en' ? 'Project' : '과제') : ongoingPreview.map((project) => projectCard(project, { compact: true })).join('');
+    if (state.loadingProjects && !state.projects.length) {
+      previewGrid.dataset.count = '4';
+      previewGrid.innerHTML = Array.from({ length: 4 }, () => projectSkeletonCard()).join('');
+    } else {
+      previewGrid.dataset.count = String(ongoingPreview.length || 0);
+      previewGrid.innerHTML = ongoingPreview.map((project) => projectCard(project, { compact: true })).join('');
+    }
     stretchProjectGrid(previewGrid);
   }
 
   const newsGrid = qs('#home-news-grid');
   if (newsGrid) {
     const newsItems = state.board.slice(0, 3);
-    newsGrid.innerHTML = (state.loadingBoard && !state.board.length) ? loadingStateText(lang === 'en' ? 'Board' : '게시판') : (newsItems.length ? newsItems.map(homeNewsCard).join('') : emptyState(lang === 'en' ? 'No board posts yet.' : '표시할 게시글이 없습니다.'));
+    if (state.loadingBoard && !state.board.length) {
+      newsGrid.innerHTML = Array.from({ length: 3 }, () => homeNewsSkeletonCard()).join('');
+    } else {
+      newsGrid.innerHTML = newsItems.length ? newsItems.map(homeNewsCard).join('') : emptyState(lang === 'en' ? 'No board posts yet.' : '표시할 게시글이 없습니다.');
+    }
   }
 
   const contactGrid = qs('#home-contact-grid');
@@ -1189,6 +1310,33 @@ function renderMembers() {
   const graduateStudents = members.filter((item) => item.group === 'graduateStudent' && item.status !== 'alumni');
   const undergrads = members.filter((item) => item.group === 'studentResearcher' && item.status !== 'alumni');
   const alumni = members.filter((item) => item.status === 'alumni');
+  const membersLoading = state.loadingMembers && useLiveData && !state.members.length;
+
+  if (membersLoading) {
+    const pageStats = qs('#page-stat-grid');
+    if (pageStats) {
+      const stats = [copy.stats.current, copy.researchProfessor, copy.graduateStudent, copy.stats.alumni];
+      pageStats.innerHTML = stats.map((label) => projectStatSkeleton(label)).join('');
+    }
+    const piCard = qs('#pi-card');
+    if (piCard) piCard.innerHTML = piSkeletonCard();
+    const researchList = qs('#research-professor-list');
+    if (researchList) researchList.innerHTML = memberGridSkeleton(2, 'member-grid--wide');
+    const graduateAccordion = qs('#graduate-accordion');
+    if (graduateAccordion) {
+      graduateAccordion.innerHTML = [
+        accordionMarkup(copy.phdFullTime, '…', memberGridSkeleton(3), true),
+        accordionMarkup(copy.phdPartTime, '…', memberGridSkeleton(2), false),
+        accordionMarkup(copy.msFullTime, '…', memberGridSkeleton(2), false),
+        accordionMarkup(copy.msPartTime, '…', memberGridSkeleton(2), false)
+      ].join('');
+    }
+    const researcherAccordion = qs('#student-researcher-accordion');
+    if (researcherAccordion) researcherAccordion.innerHTML = accordionMarkup(copy.studentResearcherSection, '…', memberGridSkeleton(2, 'member-grid--wide'), false);
+    const alumniAccordion = qs('#alumni-accordion');
+    if (alumniAccordion) alumniAccordion.innerHTML = accordionMarkup(copy.stats.alumni, '…', memberGridSkeleton(3, 'member-grid--alumni'), false);
+    return;
+  }
 
   const pageStats = qs('#page-stat-grid');
   if (pageStats) {
@@ -1359,18 +1507,30 @@ function renderPublications() {
       { value: allEsci, label: 'ESCI' },
       { value: allKci, label: 'KCI' }
     ];
-    const signature = stats.map((item) => `${item.label}:${item.value}`).join('|');
-    if (statGrid.dataset.signature !== signature) {
-      statGrid.dataset.signature = signature;
-      statGrid.innerHTML = stats.map((item) => `<article class="stat-card reveal"><strong class="count-up" data-target="${escapeHTML(item.value)}">0</strong><span>${escapeHTML(item.label)}</span></article>`).join('');
+    if (state.loadingPublications && useLiveData && !state.publications.length) {
+      statGrid.dataset.signature = 'loading';
+      statGrid.innerHTML = stats.map((item) => projectStatSkeleton(item.label)).join('');
+    } else {
+      const signature = stats.map((item) => item.label + ':' + item.value).join('|');
+      if (statGrid.dataset.signature !== signature) {
+        statGrid.dataset.signature = signature;
+        statGrid.innerHTML = stats.map((item) => '<article class="stat-card reveal"><strong class="count-up" data-target="' + escapeHTML(item.value) + '">0</strong><span>' + escapeHTML(item.label) + '</span></article>').join('');
+      }
     }
   }
 
   const publicationAccordion = qs('#publication-accordion');
   if (publicationAccordion) {
-    const grouped = Object.entries(groupBy(filtered, (item) => item.year || (lang === 'en' ? 'Unspecified' : '미정')))
-      .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
-    publicationAccordion.innerHTML = grouped.map(([year, items], index) => accordionMarkup(year, items.length, `<div class="publication-list">${items.map((item) => publicationCard(item)).join('')}</div>`, index === 0)).join('');
+    if (state.loadingPublications && useLiveData && !state.publications.length) {
+      publicationAccordion.innerHTML = publicationListSkeleton(4);
+    } else {
+      const grouped = Object.entries(groupBy(filtered, (item) => item.year || (lang === 'en' ? 'Unspecified' : '미정')))
+        .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
+      publicationAccordion.innerHTML = grouped.map(([year, items], index) => {
+        const content = '<div class="publication-list">' + items.map((item) => publicationCard(item)).join('') + '</div>';
+        return accordionMarkup(year, items.length, content, index === 0);
+      }).join('');
+    }
   }
 }
 
