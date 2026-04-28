@@ -1,4 +1,4 @@
-import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=69';
+import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=73';
 import {
   escapeHTML,
   getInitials,
@@ -31,7 +31,7 @@ import {
   normalizeProjectPeriod,
   groupBy,
   isActiveItem
-} from './utils.js?v=69';
+} from './utils.js?v=73';
 import {
   auth,
   hasFirebaseConfig,
@@ -49,7 +49,7 @@ import {
   uploadProjectFigure,
   uploadBoardImage,
   deleteStoragePath
-} from './firebase.js?v=69';
+} from './firebase.js?v=73';
 
 const useLiveAdminData = hasFirebaseConfig && !isLocalDevMode;
 const state = {
@@ -99,6 +99,27 @@ const state = {
 const qs = (selector) => document.querySelector(selector);
 const qsa = (selector) => Array.from(document.querySelectorAll(selector));
 const root = document.body.dataset.root || '.';
+
+function withAdminTimeout(promise, ms = 45000, message = '작업 시간이 초과되었습니다.') {
+  let timer = null;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = window.setTimeout(() => reject(new Error(message)), ms);
+    })
+  ]).finally(() => {
+    if (timer) window.clearTimeout(timer);
+  });
+}
+
+function firestoreDocumentApproxSize(payload = {}) {
+  try {
+    return new TextEncoder().encode(JSON.stringify(payload)).length;
+  } catch {
+    return JSON.stringify(payload).length;
+  }
+}
+
 
 const elements = {
   authLoading: qs('#auth-loading'),
@@ -1536,6 +1557,141 @@ function revokeBoardPreviewUrls() {
   state.pendingBoardPreviews.forEach((url) => { try { URL.revokeObjectURL(url); } catch {} });
 }
 
+function uniqueBoardStrings(values = []) {
+  const seen = new Set();
+  return (Array.isArray(values) ? values : [])
+    .map((value) => String(value || '').trim())
+    .filter((value) => {
+      if (!value || seen.has(value)) return false;
+      seen.add(value);
+      return true;
+    });
+}
+
+function isInlineBoardImage(url = '') {
+  return /^data:image\//i.test(String(url || ''));
+}
+
+function boardStoredImageUrls(item = {}) {
+  return uniqueBoardStrings([
+    ...(Array.isArray(item?.imageUrls) ? item.imageUrls : []),
+    item?.imageUrl || ''
+  ]);
+}
+
+function boardStoredImagePaths(item = {}) {
+  return uniqueBoardStrings([
+    ...(Array.isArray(item?.imagePaths) ? item.imagePaths : []),
+    item?.imagePath || ''
+  ]);
+}
+
+function applyBoardImagesToPayload(payload, urls = [], paths = []) {
+  const nextUrls = uniqueBoardStrings(urls);
+  const nextPaths = uniqueBoardStrings(paths);
+  payload.imageUrls = nextUrls;
+  payload.imageUrl = nextUrls[0] && !isInlineBoardImage(nextUrls[0]) ? nextUrls[0] : '';
+  payload.imagePaths = nextPaths;
+  payload.imagePath = nextPaths[0] || '';
+  return payload;
+}
+
+function boardPayloadWithoutImages(payload = {}) {
+  return { ...payload, imageUrl: '', imageUrls: [], imagePath: '', imagePaths: [] };
+}
+
+function boardImageTargetChars(count = 1, attempt = 0) {
+  const imageCount = Math.max(1, Number(count || 1));
+  const penalty = Math.max(0, Number(attempt || 0)) * 45 * 1024;
+  const base = imageCount <= 1 ? 620 * 1024 : imageCount === 2 ? 280 * 1024 : imageCount <= 4 ? 170 * 1024 : 110 * 1024;
+  return Math.max(45 * 1024, base - penalty);
+}
+
+async function dataUrlToImageFile(dataUrl = '', name = 'board-image.jpg') {
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+  return new File([blob], name, { type: blob.type || 'image/jpeg' });
+}
+
+function collectPendingBoardFiles() {
+  const fromState = Array.isArray(state.pendingBoardFiles) ? state.pendingBoardFiles : [];
+  const fromInput = Array.from(elements.boardImageInput?.files || []);
+  const source = fromState.length ? fromState : fromInput;
+  const seen = new Set();
+  return source
+    .filter((file) => file && typeof file === 'object')
+    .filter((file) => !file.type || String(file.type).startsWith('image/'))
+    .filter((file) => {
+      const key = `${file.name || ''}:${file.size || 0}:${file.lastModified || 0}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+async function buildCompressedBoardImages(pendingFiles, payload) {
+  const files = Array.isArray(pendingFiles) ? pendingFiles.filter(Boolean) : [];
+  if (!files.length) return { urls: [], paths: [] };
+  const baseSize = firestoreDocumentApproxSize(boardPayloadWithoutImages(payload));
+  const totalBudgets = [860 * 1024, 720 * 1024, 560 * 1024, 430 * 1024];
+  let lastError = null;
+  for (let attempt = 0; attempt < totalBudgets.length; attempt += 1) {
+    const safeTotalChars = Math.max(60 * 1024, totalBudgets[attempt] - baseSize);
+    const perImageChars = Math.max(42 * 1024, Math.min(boardImageTargetChars(files.length, attempt), Math.floor(safeTotalChars / files.length) - 4096));
+    try {
+      const uploads = [];
+      for (let index = 0; index < files.length; index += 1) {
+        const retryLabel = attempt ? ` 재압축 ${attempt + 1}` : '';
+        showNotice(`게시글 이미지 압축 중입니다${retryLabel}. (${index + 1}/${files.length})`, 'info');
+        const upload = await uploadBoardImage(files[index], {
+          imageCount: files.length,
+          maxDataUrlChars: perImageChars,
+          compressTimeoutMs: 70000
+        });
+        if (!upload?.imageUrl) throw new Error('이미지 URL을 생성하지 못했습니다.');
+        uploads.push(upload);
+      }
+      const urls = uploads.map((upload) => upload.imageUrl).filter(Boolean);
+      const paths = uploads.map((upload) => upload.imagePath).filter(Boolean);
+      if (urls.length !== files.length) throw new Error('선택한 이미지 중 일부를 저장하지 못했습니다.');
+      const testPayload = applyBoardImagesToPayload({ ...payload }, urls, paths);
+      if (firestoreDocumentApproxSize(testPayload) <= 900000) return { urls, paths };
+      lastError = new Error('maximum document size exceeded');
+    } catch (error) {
+      lastError = error;
+      if (!/maximum document size|too.*large|용량/i.test(String(error?.message || '')) && attempt === totalBudgets.length - 1) throw error;
+    }
+  }
+  throw lastError || new Error('maximum document size exceeded');
+}
+
+async function prepareExistingBoardImagesForSave(urls = [], payload = {}) {
+  const original = uniqueBoardStrings(urls);
+  if (!original.length) return [];
+  const next = [];
+  for (let index = 0; index < original.length; index += 1) {
+    const url = original[index];
+    if (!isInlineBoardImage(url)) {
+      next.push(url);
+      continue;
+    }
+    const needsCompression = url.length > boardImageTargetChars(original.length, 0) || firestoreDocumentApproxSize({ ...payload, imageUrl: '', imageUrls: original }) > 900000;
+    if (!needsCompression) {
+      next.push(url);
+      continue;
+    }
+    showNotice(`기존 게시글 이미지 재압축 중입니다. (${index + 1}/${original.length})`, 'info');
+    const file = await dataUrlToImageFile(url, `board-existing-${index + 1}.jpg`);
+    const upload = await uploadBoardImage(file, {
+      imageCount: original.length,
+      maxDataUrlChars: boardImageTargetChars(original.length, 1),
+      compressTimeoutMs: 70000
+    });
+    if (upload?.imageUrl) next.push(upload.imageUrl);
+  }
+  return uniqueBoardStrings(next);
+}
+
 function updateBoardImageLabel() {
   if (!elements.boardImageFileName) return;
   if (Array.isArray(state.pendingBoardFiles) && state.pendingBoardFiles.length) {
@@ -1544,7 +1700,7 @@ function updateBoardImageLabel() {
       : `${state.pendingBoardFiles.length}개 파일 선택`;
     return;
   }
-  const existing = Array.isArray(state.editingBoard?.imageUrls) ? state.editingBoard.imageUrls.filter(Boolean) : (state.editingBoard?.imageUrl ? [state.editingBoard.imageUrl] : []);
+  const existing = boardStoredImageUrls(state.editingBoard);
   if (existing.length) {
     elements.boardImageFileName.textContent = existing.length === 1 ? '기존 이미지 1장' : `기존 이미지 ${existing.length}장`;
     return;
@@ -1574,12 +1730,12 @@ function removeBoardImageAt(index) {
     renderBoardImagePreview();
     return;
   }
-  const existing = Array.isArray(state.editingBoard?.imageUrls) ? state.editingBoard.imageUrls.filter(Boolean) : (state.editingBoard?.imageUrl ? [state.editingBoard.imageUrl] : []);
+  const existing = boardStoredImageUrls(state.editingBoard);
   const next = existing.filter((_, idx) => idx !== i);
   if (state.editingBoard) {
     state.editingBoard.imageUrls = next;
-    state.editingBoard.imageUrl = next[0] || '';
-    if (!next.length) state.editingBoard.imagePath = '';
+    state.editingBoard.imageUrl = next[0] && !isInlineBoardImage(next[0]) ? next[0] : '';
+    if (!next.length) { state.editingBoard.imagePath = ''; state.editingBoard.imagePaths = []; }
   }
   state.boardImageRemoved = next.length === 0;
   updateBoardImageLabel();
@@ -1596,6 +1752,7 @@ function clearBoardImage() {
     state.editingBoard.imageUrl = '';
     state.editingBoard.imageUrls = [];
     state.editingBoard.imagePath = '';
+    state.editingBoard.imagePaths = [];
   }
   updateBoardImageLabel();
   renderBoardImagePreview();
@@ -1604,7 +1761,7 @@ function renderBoardImagePreview() {
   if (!elements.boardImagePreview) return;
   const previewUrls = Array.isArray(state.pendingBoardPreviews) && state.pendingBoardPreviews.length
     ? state.pendingBoardPreviews
-    : (Array.isArray(state.editingBoard?.imageUrls) && state.editingBoard.imageUrls.length ? state.editingBoard.imageUrls : (state.editingBoard?.imageUrl ? [state.editingBoard.imageUrl] : []));
+    : boardStoredImageUrls(state.editingBoard);
   if (!previewUrls.length) {
     elements.boardImagePreview.innerHTML = `<span>게시판</span>`;
     updateBoardImageLabel();
@@ -1901,44 +2058,49 @@ async function handlePublicationSubmit(event) {
 async function handleBoardSubmit(event) {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
-  const payload = {
+  let payload = {
     category: normalizeBoardCategory(String(formData.get('category') || 'conference')),
     title: String(formData.get('title') || '').trim(),
     description: String(formData.get('description') || '').trim(),
     linkUrl: String(formData.get('linkUrl') || '').trim(),
     youtubeUrl: String(formData.get('youtubeUrl') || '').trim(),
-    imageUrl: state.editingBoard?.imageUrl || '',
-    imageUrls: Array.isArray(state.editingBoard?.imageUrls) ? [...state.editingBoard.imageUrls] : (state.editingBoard?.imageUrl ? [state.editingBoard.imageUrl] : []),
-    imagePath: state.editingBoard?.imagePath || '',
-    imagePaths: Array.isArray(state.editingBoard?.imagePaths) ? [...state.editingBoard.imagePaths] : (state.editingBoard?.imagePath ? [state.editingBoard.imagePath] : []),
-    date: String(formData.get('date') || '').trim()
+    imageUrl: '',
+    imageUrls: boardStoredImageUrls(state.editingBoard),
+    imagePath: '',
+    imagePaths: boardStoredImagePaths(state.editingBoard),
+    date: String(formData.get('date') || '').trim(),
+    deleted: false,
+    deletedAt: '',
+    purgeAfterAt: '',
+    trashExpired: false
   };
   if (!payload.title) return showNotice('게시판 제목을 입력해주세요.', 'warning');
   try {
-    showNotice('게시글을 저장하는 중입니다. 이미지가 있으면 잠시 더 걸릴 수 있습니다.', 'info');
-    if (Array.isArray(state.pendingBoardFiles) && state.pendingBoardFiles.length) {
-      const uploads = await Promise.all(state.pendingBoardFiles.map((file) => uploadBoardImage(file)));
-      const urls = uploads.map((upload) => upload.imageUrl).filter(Boolean);
-      const paths = uploads.map((upload) => upload.imagePath).filter(Boolean);
-      payload.imageUrls = urls;
-      payload.imageUrl = urls[0] || '';
-      payload.imagePaths = paths;
-      payload.imagePath = paths[0] || '';
+    const pendingFiles = collectPendingBoardFiles();
+    if (pendingFiles.length) {
+      const { urls, paths } = await buildCompressedBoardImages(pendingFiles, payload);
+      payload = applyBoardImagesToPayload(payload, urls, paths);
     } else if (state.boardImageRemoved) {
-      payload.imageUrl = '';
-      payload.imageUrls = [];
-      payload.imagePath = '';
-      payload.imagePaths = [];
+      payload = applyBoardImagesToPayload(payload, [], []);
+    } else if (payload.imageUrls.length) {
+      const existingUrls = await prepareExistingBoardImagesForSave(payload.imageUrls, payload);
+      payload = applyBoardImagesToPayload(payload, existingUrls, payload.imagePaths);
     }
-    const id = await saveDocument(COLLECTIONS.board, state.editingBoard?.id || null, payload);
-    const saved = { ...payload, id, updatedAt: new Date().toISOString() };
+
+    const approxSize = firestoreDocumentApproxSize(payload);
+    if (approxSize > 900000) {
+      throw new Error('maximum document size exceeded');
+    }
+
+    showNotice('게시글을 저장하는 중입니다.', 'info');
+    const editingId = state.editingBoard?.id || null;
+    const id = await withAdminTimeout(
+      saveDocument(COLLECTIONS.board, editingId, payload),
+      45000,
+      'Firestore 저장 시간이 초과되었습니다. 네트워크 상태를 확인한 뒤 다시 시도해주세요.'
+    );
+    const saved = { ...payload, id, updatedAt: new Date().toISOString(), deleted: false };
     state.board = activeItems(sortBoardPosts(useLiveAdminData ? [saved, ...state.board.filter((item) => item.id !== id)] : mergeBoardPosts(state.board, [saved])));
-    try {
-      const latestBoard = await fetchCollection(COLLECTIONS.board);
-      state.board = activeItems(useLiveAdminData ? sortBoardPosts(latestBoard) : sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, latestBoard)));
-    } catch (refreshError) {
-      console.warn('게시판 저장 후 목록을 다시 불러오지 못했습니다.', refreshError);
-    }
     resetBoardForm();
     closeEditor('board');
     if (elements.boardEditorCard) { elements.boardEditorCard.hidden = true; elements.boardEditorCard.classList.remove('is-open'); }
@@ -1949,8 +2111,8 @@ async function handleBoardSubmit(event) {
     showNotice('게시글이 저장되었습니다.', 'success');
   } catch (error) {
     console.error(error);
-    const message = /document.*too.*large|maximum document size|too many bytes/i.test(error?.message || '')
-      ? 'Firestore 문서 용량 제한을 초과했습니다. v69부터 게시판 이미지는 Storage에 저장되도록 수정했습니다. 새로고침 후 이미지를 다시 선택해 저장해주세요.'
+    const message = /document.*too.*large|maximum document size|too many bytes|1\s*MiB/i.test(error?.message || '')
+      ? 'Firestore 문서 용량 제한에 걸렸습니다. 이미지를 자동 압축했지만 아직 큽니다. 이미지 수를 줄이거나 더 작은 사진으로 다시 시도해주세요.'
       : adminErrorMessage(error, '게시글 저장에 실패했습니다.');
     showNotice(message, 'danger');
   }
@@ -2223,7 +2385,7 @@ function boardItemMarkup(item) {
   return `
     <article class="admin-item-card">
       <div class="admin-item-main">
-        <div class="admin-item-thumb">${(Array.isArray(item.imageUrls) && item.imageUrls[0]) || item.imageUrl ? `<img src="${escapeHTML(rootAsset((Array.isArray(item.imageUrls) && item.imageUrls[0]) || item.imageUrl, root))}" alt="${escapeHTML(item.title)}">` : `<span>${escapeHTML(boardCategoryLabel(item.category).slice(0,1) || '소')}</span>`}</div>
+        <div class="admin-item-thumb">${boardStoredImageUrls(item)[0] ? `<img src="${escapeHTML(rootAsset(boardStoredImageUrls(item)[0], root))}" alt="${escapeHTML(item.title)}">` : `<span>${escapeHTML(boardCategoryLabel(item.category).slice(0,1) || '소')}</span>`}</div>
         <div class="admin-item-content">
           <div class="card-topline"><strong>${escapeHTML(item.title)}</strong><span class="status-badge">${escapeHTML(boardCategoryLabel(item.category))}</span></div>
           ${item.date ? `<p class="muted">${escapeHTML(item.date)}</p>` : ''}

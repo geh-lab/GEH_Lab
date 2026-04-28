@@ -1,4 +1,4 @@
-import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=69';
+import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=73';
 import {
   escapeHTML,
   getInitials,
@@ -24,8 +24,8 @@ import {
   normalizeProjectPeriod,
   isActiveItem,
   formatEnglishName
-} from './utils.js?v=69';
-import { hasFirebaseConfig, fetchCollection, listenCollection, COLLECTIONS } from './firebase.js?v=69';
+} from './utils.js?v=73';
+import { hasFirebaseConfig, fetchCollection, listenCollection, COLLECTIONS } from './firebase.js?v=73';
 
 const body = document.body;
 const page = body.dataset.page;
@@ -77,7 +77,7 @@ const modalState = {
   closeButtons: []
 };
 
-const PUBLIC_CACHE_KEY = 'geh-public-cache-v69';
+const PUBLIC_CACHE_KEY = 'geh-public-cache-v72';
 
 
 function cacheFresh(cache = {}, minutes = 15) {
@@ -118,6 +118,9 @@ function writePublicCache() {
 }
 
 function applyCachedState() {
+  // Firebase 배포 환경에서는 오래된 공개 캐시/기본 데이터를 먼저 보여주지 않습니다.
+  // Firestore 응답 전에는 로딩 상태를 유지해 예전 홈 화면이 순간적으로 뜨는 문제를 방지합니다.
+  if (useLiveData) return false;
   const cache = readPublicCache();
   if (!cache) return false;
   let applied = false;
@@ -380,8 +383,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setupSearch();
   if (page === 'home') setupHeroSlider();
 
-  // 최근 동기화된 실제 데이터를 먼저 보여주고,
-  // 캐시가 없을 때만 fallback 데이터를 사용합니다.
+  // Firestore 데이터를 불러오기 전에는 로딩 상태를 보여줍니다.
+  // 로컬/오프라인 모드에서만 캐시 또는 기본 데이터를 사용합니다.
   applyCachedState();
   renderPage();
   hydrate().catch((error) => console.warn('초기 데이터 동기화 실패', error));
@@ -1710,9 +1713,18 @@ function youtubeEmbedUrl(value = '') {
 }
 
 function boardMediaUrls(post = {}) {
-  return (Array.isArray(post.imageUrls) ? post.imageUrls : [post.imageUrl || ''])
-    .filter(Boolean)
-    .map((value) => String(value));
+  const seen = new Set();
+  const values = [
+    ...(Array.isArray(post.imageUrls) ? post.imageUrls : []),
+    post.imageUrl || ''
+  ];
+  return values
+    .map((value) => String(value || '').trim())
+    .filter((value) => {
+      if (!value || seen.has(value)) return false;
+      seen.add(value);
+      return true;
+    });
 }
 
 function renderBoardGallery(urls = [], alt = '') {

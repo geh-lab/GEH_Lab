@@ -181,43 +181,96 @@ function loadImageElement(src) {
   });
 }
 
-async function compressImageForFirestore(file, options = {}) {
-  const maxWidth = options.maxWidth || 1400;
-  const maxHeight = options.maxHeight || 1400;
-  const maxBytes = options.maxBytes || 650 * 1024;
-  const dataUrl = await readFileAsDataURL(file);
-  const image = await loadImageElement(dataUrl);
-  let width = image.naturalWidth || image.width || 0;
-  let height = image.naturalHeight || image.height || 0;
-  if (!width || !height) return dataUrl;
-  let scale = Math.min(1, maxWidth / width, maxHeight / height);
-  width = Math.max(1, Math.round(width * scale));
-  height = Math.max(1, Math.round(height * scale));
+function dataUrlStoredChars(dataUrl = '') {
+  return String(dataUrl || '').length;
+}
+
+async function withOperationTimeout(promise, ms = 30000, message = '작업 시간이 초과되었습니다.') {
+  let timer = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = window.setTimeout(() => reject(new Error(message)), ms);
+      })
+    ]);
+  } finally {
+    if (timer) window.clearTimeout(timer);
+  }
+}
+
+async function compressImageSourceForFirestore(src, options = {}) {
+  const maxWidth = Number(options.maxWidth || 1200);
+  const maxHeight = Number(options.maxHeight || 1200);
+  const maxBytes = Number(options.maxBytes || 360 * 1024);
+  const maxDataUrlChars = Number(options.maxDataUrlChars || Math.ceil(maxBytes * 1.38) + 1800);
+  const minDimension = Number(options.minDimension || 300);
+  const minQuality = Number(options.minQuality || 0.30);
+  const image = await loadImageElement(src);
+  const originalWidth = image.naturalWidth || image.width || 0;
+  const originalHeight = image.naturalHeight || image.height || 0;
+  if (!originalWidth || !originalHeight) return String(src || '');
+
+  let scale = Math.min(1, maxWidth / originalWidth, maxHeight / originalHeight);
+  let width = Math.max(1, Math.round(originalWidth * scale));
+  let height = Math.max(1, Math.round(originalHeight * scale));
+
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('이미지 압축을 위한 Canvas를 사용할 수 없습니다.');
+
+  const overLimit = (output = '') => estimateDataUrlBytes(output) > maxBytes || dataUrlStoredChars(output) > maxDataUrlChars;
   const render = () => {
     canvas.width = width;
     canvas.height = height;
     ctx.clearRect(0, 0, width, height);
+    // 투명 PNG를 JPEG로 저장할 때 검게 변하지 않도록 흰 배경으로 합성합니다.
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, width, height);
     ctx.drawImage(image, 0, 0, width, height);
   };
+
   render();
-  let quality = 0.86;
+  let quality = Number(options.quality || 0.82);
   let output = canvas.toDataURL('image/jpeg', quality);
-  while (estimateDataUrlBytes(output) > maxBytes && quality > 0.5) {
-    quality -= 0.08;
+
+  let qualitySteps = 0;
+  while (overLimit(output) && quality > minQuality && qualitySteps < 16) {
+    quality = Math.max(minQuality, quality - 0.055);
     output = canvas.toDataURL('image/jpeg', quality);
+    qualitySteps += 1;
   }
-  while (estimateDataUrlBytes(output) > maxBytes && (width > 720 || height > 720)) {
-    width = Math.max(720, Math.round(width * 0.86));
-    height = Math.max(720, Math.round(height * 0.86));
+
+  let shrinkSteps = 0;
+  while (overLimit(output) && Math.max(width, height) > minDimension && shrinkSteps < 20) {
+    const currentMax = Math.max(width, height);
+    const nextMax = Math.max(minDimension, Math.round(currentMax * 0.82));
+    const resizeScale = nextMax / currentMax;
+    width = Math.max(1, Math.round(width * resizeScale));
+    height = Math.max(1, Math.round(height * resizeScale));
     render();
-    output = canvas.toDataURL('image/jpeg', Math.max(quality, 0.72));
+    quality = Math.max(minQuality, quality - 0.025);
+    output = canvas.toDataURL('image/jpeg', quality);
+    shrinkSteps += 1;
   }
-  if (estimateDataUrlBytes(output) > maxBytes) {
+
+  if (overLimit(output)) {
+    const tinyScale = Math.min(1, 300 / Math.max(originalWidth, originalHeight));
+    width = Math.max(1, Math.round(originalWidth * tinyScale));
+    height = Math.max(1, Math.round(originalHeight * tinyScale));
+    render();
+    output = canvas.toDataURL('image/jpeg', 0.28);
+  }
+
+  if (overLimit(output)) {
     throw new Error('maximum document size exceeded');
   }
   return output;
+}
+
+async function compressImageForFirestore(file, options = {}) {
+  const dataUrl = await readFileAsDataURL(file);
+  return compressImageSourceForFirestore(dataUrl, options);
 }
 
 export async function signInAdminWithGoogle() {
@@ -424,12 +477,35 @@ export async function uploadProjectFigure(file) {
   return { figureUrl: asset.url, figurePath: asset.path };
 }
 
-export async function uploadBoardImage(file) {
-  // 게시판 이미지는 Firestore 문서에 base64로 직접 넣지 않고
-  // Firebase Storage에 업로드한 뒤 Firestore에는 짧은 URL/path만 저장합니다.
-  // Firestore 문서 최대 크기(1 MiB) 초과 오류를 방지하기 위한 처리입니다.
-  const asset = await uploadAsset(file, 'board-media');
-  return { imageUrl: asset.url, imagePath: asset.path };
+export async function uploadBoardImage(file, options = {}) {
+  if (!file) throw new Error('이미지 파일을 찾지 못했습니다.');
+  const imageCount = Math.max(1, Number(options.imageCount || 1));
+  // v57처럼 Firestore에 저장하되, 문서 1 MiB 제한을 피하기 위해 훨씬 강하게 압축합니다.
+  // Firebase Storage 규칙/버킷 문제와 관계없이 게시판 등록이 끝나도록 Storage 업로드는 사용하지 않습니다.
+  const requestedChars = Number(options.maxDataUrlChars || 0);
+  const targetChars = requestedChars > 0
+    ? requestedChars
+    : imageCount <= 1
+      ? 620 * 1024
+      : imageCount === 2
+        ? 280 * 1024
+        : imageCount <= 4
+          ? 170 * 1024
+          : 110 * 1024;
+  const maxDimension = targetChars >= 500 * 1024 ? 1280 : targetChars >= 250 * 1024 ? 1080 : targetChars >= 160 * 1024 ? 900 : 720;
+  const imageUrl = await withOperationTimeout(
+    compressImageForFirestore(file, {
+      maxWidth: Number(options.maxWidth || maxDimension),
+      maxHeight: Number(options.maxHeight || maxDimension),
+      maxBytes: Number(options.maxBytes || Math.max(35 * 1024, Math.floor(targetChars * 0.70))),
+      maxDataUrlChars: targetChars,
+      minDimension: targetChars <= 128 * 1024 ? 260 : 300,
+      minQuality: targetChars <= 128 * 1024 ? 0.26 : 0.30
+    }),
+    Number(options.compressTimeoutMs || 60000),
+    '이미지 압축 시간이 초과되었습니다. 더 작은 이미지로 다시 시도해주세요.'
+  );
+  return { imageUrl, imagePath: '' };
 }
 
 export async function deleteStoragePath(path) {
