@@ -1,4 +1,4 @@
-import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=74';
+import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=75';
 import {
   escapeHTML,
   getInitials,
@@ -31,7 +31,7 @@ import {
   normalizeProjectPeriod,
   groupBy,
   isActiveItem
-} from './utils.js?v=74';
+} from './utils.js?v=75';
 import {
   auth,
   hasFirebaseConfig,
@@ -49,7 +49,7 @@ import {
   uploadProjectFigure,
   uploadBoardImage,
   deleteStoragePath
-} from './firebase.js?v=74';
+} from './firebase.js?v=75';
 
 const useLiveAdminData = hasFirebaseConfig && !isLocalDevMode;
 const state = {

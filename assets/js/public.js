@@ -1,4 +1,4 @@
-import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=74';
+import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=75';
 import {
   escapeHTML,
   getInitials,
@@ -24,8 +24,8 @@ import {
   normalizeProjectPeriod,
   isActiveItem,
   formatEnglishName
-} from './utils.js?v=74';
-import { hasFirebaseConfig, fetchCollection, listenCollection, COLLECTIONS } from './firebase.js?v=74';
+} from './utils.js?v=75';
+import { hasFirebaseConfig, fetchCollection, listenCollection, COLLECTIONS } from './firebase.js?v=75';
 
 const body = document.body;
 const page = body.dataset.page;
@@ -77,7 +77,7 @@ const modalState = {
   closeButtons: []
 };
 
-const PUBLIC_CACHE_KEY = 'geh-public-cache-v74';
+const PUBLIC_CACHE_KEY = 'geh-public-cache-v75';
 
 
 function cacheFresh(cache = {}, minutes = 15) {
@@ -1221,17 +1221,47 @@ function homeNewsCard(item = {}) {
   </article>`;
 }
 
+const CURRENT_MEMBER_GROUPS = new Set(['pi', 'researchProfessor', 'graduateStudent', 'studentResearcher']);
+
+function isAlumniRecord(member = {}) {
+  return String(member.status || '').toLowerCase() === 'alumni'
+    || String(member.group || '').toLowerCase() === 'alumni'
+    || String(member.course || '').toLowerCase() === 'alumni';
+}
+
+function isCurrentRosterMember(member = {}) {
+  const group = String(member.group || '').trim();
+  return !isAlumniRecord(member) && CURRENT_MEMBER_GROUPS.has(group);
+}
+
+function currentMemberBreakdown(members = []) {
+  const currentMembers = members.filter(isCurrentRosterMember);
+  const piMembers = currentMembers.filter((item) => item.group === 'pi');
+  const researchProfessorMembers = currentMembers.filter((item) => item.group === 'researchProfessor');
+  const graduateStudents = currentMembers.filter((item) => item.group === 'graduateStudent');
+  const undergradMembers = currentMembers.filter((item) => item.group === 'studentResearcher');
+  return {
+    currentMembers,
+    piMembers,
+    researchProfessorMembers,
+    graduateStudents,
+    undergradMembers,
+    piCount: piMembers.length,
+    researchProfessorCount: researchProfessorMembers.length,
+    graduateStudentCount: graduateStudents.length,
+    undergradCount: undergradMembers.length,
+    total: piMembers.length + researchProfessorMembers.length + graduateStudents.length + undergradMembers.length
+  };
+}
+
 function renderHome() {
-  const activeMembers = state.members.filter((item) => item.status !== 'alumni');
-  const alumniMembers = state.members.filter((item) => item.status === 'alumni');
-  const researchProfessors = activeMembers.filter((item) => item.group === 'researchProfessor').length;
-  const graduateStudents = activeMembers.filter((item) => item.group === 'graduateStudent');
-  const undergrads = activeMembers.filter((item) => item.group === 'studentResearcher').length;
-  const piCount = activeMembers.filter((item) => item.group === 'pi').length;
+  const memberCounts = currentMemberBreakdown(state.members);
+  const researchProfessors = memberCounts.researchProfessorCount;
+  const graduateStudents = memberCounts.graduateStudents;
+  const undergrads = memberCounts.undergradCount;
+  const piCount = memberCounts.piCount;
   const gradPhd = graduateStudents.filter((item) => ['phd','doctoral'].includes(String(item.course || '').toLowerCase())).length;
   const gradMs = graduateStudents.filter((item) => ['ms','masters'].includes(String(item.course || '').toLowerCase())).length;
-  const alumniPhd = alumniMembers.filter((item) => ['phd','doctoral'].includes(String(item.course || '').toLowerCase())).length;
-  const alumniMs = alumniMembers.filter((item) => ['ms','masters'].includes(String(item.course || '').toLowerCase())).length;
   const ongoingProjects = state.projects.filter((item) => item.status === 'ongoing');
   const completedProjects = state.projects.filter((item) => item.status === 'completed');
   const currentYear = String(new Date().getFullYear());
@@ -1251,7 +1281,7 @@ function renderHome() {
       ].join('');
     } else {
       heroStat.innerHTML = [
-        homeSummaryCard(lang === 'en' ? 'Members' : '구성원', activeMembers.length, [lang === 'en' ? `PI ${piCount} · Research ${researchProfessors}` : `지도교수 ${piCount} · 연구교수 ${researchProfessors}`, lang === 'en' ? `Graduate ${graduateStudents.length} · Undergraduate ${undergrads}` : `대학원생 ${graduateStudents.length} · 학부연구생 ${undergrads}`, lang === 'en' ? `Alumni ${alumniMembers.length}` : `졸업생 ${alumniMembers.length}`]),
+        homeSummaryCard(lang === 'en' ? 'Members' : '구성원', memberCounts.total, [lang === 'en' ? `PI ${piCount} · Research ${researchProfessors}` : `지도교수 ${piCount} · 연구교수 ${researchProfessors}`, lang === 'en' ? `Graduate ${graduateStudents.length} · Undergraduate ${undergrads}` : `대학원생 ${graduateStudents.length} · 학부연구생 ${undergrads}`]),
         homeSummaryCard(lang === 'en' ? 'Projects' : '과제', state.projects.length, [lang === 'en' ? `Ongoing ${ongoingProjects.length}` : `진행 중 ${ongoingProjects.length}`, lang === 'en' ? `Archived ${completedProjects.length}` : `종료 ${completedProjects.length}`]),
         homeSummaryCard(lang === 'en' ? 'Publications' : '논문', state.publications.length, publicationSummaryLines(currentYearPubs, currentYear)),
         homeSummaryCard(lang === 'en' ? 'Board' : '게시판', state.board.length, [lang === 'en' ? `Conference ${boardConferenceCount} · Workshop ${boardWorkshopCount}` : `학회 ${boardConferenceCount} · 워크숍 ${boardWorkshopCount}`, lang === 'en' ? `Lab equipment ${boardEquipmentCount} · Other ${boardOtherCount}` : `실험실 장비 목록 ${boardEquipmentCount} · 기타 ${boardOtherCount}`])
@@ -1305,10 +1335,12 @@ function renderHome() {
 
 function renderMembers() {
   const members = state.members;
-  const pi = members.find((item) => item.group === 'pi' && item.status !== 'alumni');
-  const researchProfessors = members.filter((item) => item.group === 'researchProfessor' && item.status !== 'alumni');
-  const graduateStudents = members.filter((item) => item.group === 'graduateStudent' && item.status !== 'alumni');
-  const undergrads = members.filter((item) => item.group === 'studentResearcher' && item.status !== 'alumni');
+  const memberCounts = currentMemberBreakdown(members);
+  const pi = memberCounts.piMembers[0];
+  const piCount = memberCounts.piCount;
+  const researchProfessors = memberCounts.researchProfessorMembers;
+  const graduateStudents = memberCounts.graduateStudents;
+  const undergrads = memberCounts.undergradMembers;
   const alumni = members.filter((item) => item.status === 'alumni');
   const membersLoading = state.loadingMembers && useLiveData && !state.members.length;
 
@@ -1343,7 +1375,7 @@ function renderMembers() {
     const phdStudents = graduateStudents.filter((item) => ['phd','doctoral'].includes(String(item.course || '').toLowerCase())).length;
     const msStudents = graduateStudents.filter((item) => ['ms','masters'].includes(String(item.course || '').toLowerCase())).length;
     const activeBreakdown = [
-      `${copy.pi} ${members.filter((item) => item.group === 'pi' && item.status !== 'alumni').length}`,
+      `${copy.pi} ${piCount}`,
       `${copy.researchProfessor} ${researchProfessors.length}`,
       `${copy.graduateStudent} ${graduateStudents.length}`,
       `${copy.studentResearcher} ${undergrads.length}`
@@ -1357,7 +1389,7 @@ function renderMembers() {
       `${lang === 'en' ? 'M.S.' : '석사'} ${msStudents}`
     ];
     pageStats.innerHTML = [
-      { value: members.filter((item) => item.status !== 'alumni').length, label: copy.stats.current, meta: activeBreakdown },
+      { value: memberCounts.total, label: copy.stats.current, meta: activeBreakdown },
       { value: researchProfessors.length, label: copy.researchProfessor, meta: [] },
       { value: graduateStudents.length, label: copy.graduateStudent, meta: gradBreakdown },
       { value: alumni.length, label: copy.stats.alumni, meta: alumniBreakdown }
