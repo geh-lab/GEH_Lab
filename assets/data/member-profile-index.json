@@ -1,0 +1,293 @@
+{
+  "generatedAt": "2026-07-12T15:11:18.407Z",
+  "source": "projects/cnu-geh-lab/databases/(default)",
+  "canonicalPages": {
+    "ko": "/members.html",
+    "en": "/en/members.html"
+  },
+  "memberCount": 40,
+  "currentCount": 20,
+  "alumniCount": 20,
+  "members": [
+    {
+      "id": "jongseok-park",
+      "nameKr": "박종석",
+      "nameEn": "Jongseok Park",
+      "group": "pi",
+      "status": "enrolled"
+    },
+    {
+      "id": "seungyong-hahm",
+      "nameKr": "함승용",
+      "nameEn": "Seungyong Hahm",
+      "group": "researchProfessor",
+      "status": "enrolled"
+    },
+    {
+      "id": "vu-phong-lam",
+      "nameKr": "부퐁람",
+      "nameEn": "Vu Phong Lam",
+      "group": "researchProfessor",
+      "status": "enrolled"
+    },
+    {
+      "id": "kwangya-lee",
+      "nameKr": "이광야",
+      "nameEn": "Kwangya Lee",
+      "group": "researchProfessor",
+      "status": "enrolled"
+    },
+    {
+      "id": "vLEXSW0jKrDciaeD8L69",
+      "nameKr": "어기주",
+      "nameEn": "Giju Eoh",
+      "group": "graduateStudent",
+      "status": "enrolled"
+    },
+    {
+      "id": "sunwoo-kim",
+      "nameKr": "김선우",
+      "nameEn": "Sunwoo Kim",
+      "group": "graduateStudent",
+      "status": "enrolled"
+    },
+    {
+      "id": "jiwon-bae",
+      "nameKr": "배지원",
+      "nameEn": "Jiwon Bae",
+      "group": "graduateStudent",
+      "status": "enrolled"
+    },
+    {
+      "id": "yongjae-lee",
+      "nameKr": "이용재",
+      "nameEn": "Yongjae Lee",
+      "group": "graduateStudent",
+      "status": "enrolled"
+    },
+    {
+      "id": "eun-sun-choi",
+      "nameKr": "최은선",
+      "nameEn": "Eun Sun Choi",
+      "group": "graduateStudent",
+      "status": "enrolled"
+    },
+    {
+      "id": "byungjun-kim",
+      "nameKr": "김병준",
+      "nameEn": "Byungjun Kim",
+      "group": "graduateStudent",
+      "status": "enrolled"
+    },
+    {
+      "id": "wonkyu-yi",
+      "nameKr": "이원규",
+      "nameEn": "Wonkyu Yi",
+      "group": "graduateStudent",
+      "status": "enrolled"
+    },
+    {
+      "id": "dao-nhan-loi",
+      "nameKr": "다어난로이",
+      "nameEn": "Dao Nhan Loi",
+      "group": "graduateStudent",
+      "status": "enrolled"
+    },
+    {
+      "id": "younghwi-ahn",
+      "nameKr": "안영휘",
+      "nameEn": "Younghwi Ahn",
+      "group": "graduateStudent",
+      "status": "enrolled"
+    },
+    {
+      "id": "gX35JBRWk8AUoXDvo4ye",
+      "nameKr": "최영",
+      "nameEn": "최영",
+      "group": "graduateStudent",
+      "status": "enrolled"
+    },
+    {
+      "id": "yKPZKMt5i7TLhPnk4Dxm",
+      "nameKr": "이경미",
+      "nameEn": "이경미",
+      "group": "graduateStudent",
+      "status": "enrolled"
+    },
+    {
+      "id": "vang-a-me",
+      "nameKr": "방아메",
+      "nameEn": "Vang A Me",
+      "group": "graduateStudent",
+      "status": "enrolled"
+    },
+    {
+      "id": "inseong-choi",
+      "nameKr": "최인성",
+      "nameEn": "Inseong Choi",
+      "group": "graduateStudent",
+      "status": "enrolled"
+    },
+    {
+      "id": "iQC3ISudR3y4aCyEJNWm",
+      "nameKr": "황지연",
+      "nameEn": "Jiyeon Hwang",
+      "group": "graduateStudent",
+      "status": "enrolled"
+    },
+    {
+      "id": "suyeon-kim",
+      "nameKr": "김수연",
+      "nameEn": "Suyeon Kim",
+      "group": "studentResearcher",
+      "status": "enrolled"
+    },
+    {
+      "id": "hyunsoo-ha",
+      "nameKr": "하현수",
+      "nameEn": "Hyunsoo Ha",
+      "group": "studentResearcher",
+      "status": "enrolled"
+    },
+    {
+      "id": "3iQTq8tvyUtDY5UHenJZ",
+      "nameKr": "전주석",
+      "nameEn": "Juseok Jeon",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "to-kang",
+      "nameKr": "강토",
+      "nameEn": "To Kang",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "junyoung-kwak",
+      "nameKr": "곽준영",
+      "nameEn": "Junyoung Kwak",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "sumin-lee",
+      "nameKr": "이수민",
+      "nameEn": "Sumin Lee",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "mfXjRIcIiTKyuOi3CsQP",
+      "nameKr": "김영삼",
+      "nameEn": "김영삼",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "jiwoo-park",
+      "nameKr": "박지우",
+      "nameEn": "Jiwoo Park",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "yfvb6pGdVNWv3GZyAEvf",
+      "nameKr": "손경민",
+      "nameEn": "손경민",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "seungwoon-ha",
+      "nameKr": "하승운",
+      "nameEn": "Seungwoon Ha",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "minji-nam",
+      "nameKr": "남민지",
+      "nameEn": "Minji Nam",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "gwon-jeong-bok",
+      "nameKr": "복권정",
+      "nameEn": "Gwon Jeong Bok",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "x4NmQtEcVMK2FOycBkny",
+      "nameKr": "신주형",
+      "nameEn": "Juhyung Shin",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "xin-wang",
+      "nameKr": "왕신",
+      "nameEn": "Xin Wang",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "sungjin-kim",
+      "nameKr": "김성진",
+      "nameEn": "Sungjin Kim",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "ao2bxwGJ0Sj6IIas5dY9",
+      "nameKr": "황수빈",
+      "nameEn": "황수빈",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "seungwon-noh",
+      "nameKr": "노승원",
+      "nameEn": "Seungwon Noh",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "vu-ky-anh",
+      "nameKr": "부키안",
+      "nameEn": "Vu Ky Anh",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "QX5V9WEDsvHc2cInQ9y9",
+      "nameKr": "신혜인",
+      "nameEn": "신혜인",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "rWrjigv5BZY5yRoMEDu4",
+      "nameKr": "장지현",
+      "nameEn": "장지현",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "j9805qapTkq86kFaAM4t",
+      "nameKr": "도종원",
+      "nameEn": "도종원",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "dUq17KRzhgnm9ZTNqL4v",
+      "nameKr": "최재윤",
+      "nameEn": "최재윤",
+      "group": "alumni",
+      "status": "alumni"
+    }
+  ]
+}

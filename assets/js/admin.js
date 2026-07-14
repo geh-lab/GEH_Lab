@@ -1,4 +1,4 @@
-import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=75';
+import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=79';
 import {
   escapeHTML,
   getInitials,
@@ -30,8 +30,10 @@ import {
   publicationYearMonthLabel,
   normalizeProjectPeriod,
   groupBy,
-  isActiveItem
-} from './utils.js?v=75';
+  isActiveItem,
+  setupAdaptiveGlass,
+  setSpatialOrigin
+} from './utils.js?v=110';
 import {
   auth,
   hasFirebaseConfig,
@@ -49,7 +51,7 @@ import {
   uploadProjectFigure,
   uploadBoardImage,
   deleteStoragePath
-} from './firebase.js?v=75';
+} from './firebase.js?v=80';
 
 const useLiveAdminData = hasFirebaseConfig && !isLocalDevMode;
 const state = {
@@ -93,12 +95,72 @@ const state = {
   boardQuery: '',
   trashQuery: '',
   memberPublicationQuery: '',
-  publicationMemberQuery: ''
+  publicationMemberQuery: '',
+  memberEditorTab: 'basic',
+  editorReturnFocus: null,
+  dialogReturnFocus: null,
+  dirtyForms: new Set()
 };
 
 const qs = (selector) => document.querySelector(selector);
 const qsa = (selector) => Array.from(document.querySelectorAll(selector));
 const root = document.body.dataset.root || '.';
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function visibleFocusable(container) {
+  return Array.from(container?.querySelectorAll(focusableSelector) || [])
+    .filter((element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true' && element.getClientRects().length > 0);
+}
+
+function trapFocus(event, container) {
+  if (event.key !== 'Tab' || !container) return;
+  const focusable = visibleFocusable(container);
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function markFormClean(form) {
+  if (!form) return;
+  state.dirtyForms.delete(form.id);
+  form.dataset.dirty = 'false';
+}
+
+function markFormDirty(form) {
+  if (!form || form.dataset.busy === 'true') return;
+  state.dirtyForms.add(form.id);
+  form.dataset.dirty = 'true';
+}
+
+function isFormDirty(kind) {
+  return state.dirtyForms.has(`${kind}-form`);
+}
+
+function setFormBusy(form, busy, busyLabel = '저장 중…') {
+  if (!form) return;
+  form.dataset.busy = String(busy);
+  form.setAttribute('aria-busy', String(busy));
+  const submit = form.querySelector('[type="submit"]');
+  if (!submit) return;
+  if (busy) {
+    submit.dataset.label = submit.textContent;
+    submit.textContent = busyLabel;
+    submit.disabled = true;
+    submit.setAttribute('aria-busy', 'true');
+  } else {
+    submit.textContent = submit.dataset.label || '저장';
+    submit.disabled = false;
+    submit.removeAttribute('aria-busy');
+  }
+}
 
 function withAdminTimeout(promise, ms = 45000, message = '작업 시간이 초과되었습니다.') {
   let timer = null;
@@ -136,6 +198,8 @@ const elements = {
   memberList: qs('#member-list'),
   memberTitle: qs('#member-form-title'),
   memberEditorCard: qs('#member-editor-card'),
+  memberEditorTabs: qsa('[data-member-editor-tab]'),
+  memberEditorPanels: qsa('[data-member-editor-panel]'),
   memberAddButton: qs('#member-add-button'),
   memberPagination: qs('#member-pagination'),
   memberPhotoInput: qs('#member-photo-input'),
@@ -205,9 +269,12 @@ const elements = {
   dialogConfirm: qs('#admin-dialog-confirm')
 };
 
-function setTopbarAuthState(isAuthenticated, email = '') {
+function setTopbarAuthState(isAuthenticated, _email = '') {
   if (elements.currentUser) {
-    elements.currentUser.textContent = isAuthenticated ? (email || '관리자') : '로그인 필요';
+    elements.currentUser.innerHTML = isAuthenticated
+      ? '<i class="ph ph-shield-check" aria-hidden="true"></i><span>관리자로 로그인</span>'
+      : '<i class="ph ph-lock-key" aria-hidden="true"></i><span>로그인 필요</span>';
+    elements.currentUser.setAttribute('aria-label', isAuthenticated ? '관리자로 로그인됨' : '관리자 로그인 필요');
     elements.currentUser.classList.toggle('is-authenticated', Boolean(isAuthenticated));
   }
   if (elements.loginShortcutButton) {
@@ -278,7 +345,7 @@ function matchesSearch(query = '', ...values) {
 }
 
 function memberProjectPickerTitle(group = '', course = '') {
-  const isParticipant = group === 'graduateStudent' || group === 'studentResearcher' || ['phd', 'ms', 'undergrad'].includes(course);
+  const isParticipant = group === 'graduateStudent' || group === 'studentResearcher' || ['phd', 'phdCompleted', 'ms', 'undergrad'].includes(course);
   return isParticipant ? '참여 과제 연결' : '관련 과제 연결';
 }
 
@@ -289,7 +356,7 @@ function memberProjectSectionVisible(group = '', course = '', status = '') {
 const MEMBER_COURSE_OPTIONS = {
   pi: ['professor'],
   researchProfessor: ['postdoc'],
-  graduateStudent: ['phd', 'ms'],
+  graduateStudent: ['phd', 'phdCompleted', 'ms'],
   studentResearcher: ['undergrad'],
   alumni: ['phd', 'ms']
 };
@@ -300,6 +367,7 @@ function memberCourseOptionLabel(value = '', group = '') {
     professor: '교수',
     postdoc: '박사후연구원',
     phd: isAlumni ? '박사과정 졸업' : '박사과정',
+    phdCompleted: '박사수료 후 연구생',
     ms: isAlumni ? '석사과정 졸업' : '석사과정',
     undergrad: '학부연구생',
     alumni: '졸업생'
@@ -311,10 +379,12 @@ function syncMemberCourseAndStatus(form) {
   if (!form) return;
   const groupSelect = form.elements.namedItem('group');
   const courseSelect = form.elements.namedItem('course');
+  const trackSelect = form.elements.namedItem('track');
   const statusSelect = form.elements.namedItem('status');
   const group = String(groupSelect?.value || '').trim();
   const allowed = MEMBER_COURSE_OPTIONS[group] || MEMBER_COURSE_OPTIONS.graduateStudent;
   if (courseSelect) {
+    if (group === 'alumni' && courseSelect.value === 'phdCompleted') courseSelect.value = 'phd';
     Array.from(courseSelect.options).forEach((option) => {
       const enabled = allowed.includes(option.value);
       option.hidden = !enabled;
@@ -327,6 +397,12 @@ function syncMemberCourseAndStatus(form) {
     const courseField = courseSelect.closest?.('.field');
     const courseLabel = courseField?.querySelector('span');
     if (courseLabel) courseLabel.textContent = group === 'alumni' ? '졸업 과정' : '과정 / 직위';
+  }
+  if (trackSelect) {
+    const trackField = trackSelect.closest?.('.field');
+    const isPostCompletionResearcher = courseSelect?.value === 'phdCompleted';
+    if (isPostCompletionResearcher) trackSelect.value = 'none';
+    if (trackField) trackField.hidden = isPostCompletionResearcher;
   }
   const isAlumniGroup = group === 'alumni';
   if (statusSelect) {
@@ -490,6 +566,7 @@ function renderMemberExperienceRows(entries = []) {
   elements.memberExperienceList.innerHTML = rows.map((entry, index) => experienceRowTemplate(entry, index)).join('');
   elements.memberExperienceList.querySelectorAll('[data-experience-remove]').forEach((button) => {
     button.addEventListener('click', () => {
+      markFormDirty(elements.memberForm);
       button.closest('.experience-row')?.remove();
       if (!elements.memberExperienceList?.children.length) renderMemberExperienceRows([]);
     });
@@ -538,6 +615,7 @@ function renderMemberCourseSchedule(schedule = []) {
   elements.memberCourseScheduleList.innerHTML = rows.map((entry, index) => courseScheduleRowTemplate(entry, index)).join('');
   elements.memberCourseScheduleList.querySelectorAll('[data-schedule-remove]').forEach((button) => {
     button.addEventListener('click', () => {
+      markFormDirty(elements.memberForm);
       const row = button.closest('.course-schedule-row');
       row?.remove();
       if (!elements.memberCourseScheduleList?.children.length) renderMemberCourseSchedule([]);
@@ -562,6 +640,10 @@ function numericYearSort(value) {
 }
 
 function adminErrorMessage(error, fallback) {
+  if (error?.code === 'auth/unauthorized-domain') {
+    const hostname = window.location.hostname || '현재 도메인';
+    return `현재 도메인(${hostname})이 Firebase Authentication 허용 목록에 없습니다. Firebase Console > Authentication > Settings > Authorized domains에 ${hostname}을 추가해주세요.`;
+  }
   if (error?.code === 'permission-denied' || /Missing or insufficient permissions/i.test(error?.message || '')) {
     return `${fallback} Firestore 보안 규칙에 ${COLLECTIONS.board} / ${COLLECTIONS.members} / ${COLLECTIONS.projects} / ${COLLECTIONS.publications} / ${COLLECTIONS.trash} 쓰기 권한이 반영되었는지 확인해주세요.`;
   }
@@ -578,25 +660,83 @@ function editorElement(kind) {
   }[kind] || null;
 }
 
+function setMemberEditorTab(tabKey = 'basic', options = {}) {
+  const { focusTab = false, resetScroll = true } = options;
+  const requested = String(tabKey || 'basic');
+  const selectedButton = elements.memberEditorTabs.find((button) => button.dataset.memberEditorTab === requested)
+    || elements.memberEditorTabs[0];
+  if (!selectedButton) return;
+  const selectedKey = selectedButton.dataset.memberEditorTab;
+  state.memberEditorTab = selectedKey;
+  elements.memberEditorTabs.forEach((button) => {
+    const active = button === selectedButton;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-selected', String(active));
+    button.tabIndex = active ? 0 : -1;
+  });
+  elements.memberEditorPanels.forEach((panel) => {
+    const active = panel.dataset.memberEditorPanel === selectedKey;
+    panel.hidden = !active;
+    panel.classList.toggle('is-active', active);
+  });
+  if (resetScroll) {
+    const scrollRegion = elements.memberEditorCard?.querySelector('.member-editor-panels');
+    if (scrollRegion) scrollRegion.scrollTop = 0;
+  }
+  if (focusTab) selectedButton.focus({ preventScroll: true });
+}
+
 function openEditor(kind) {
-  ensureEditorPseudoHidden();
+  const scrim = ensureEditorScrim();
   const target = editorElement(kind);
   if (!target) return;
+  state.editorReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   state.openEditorKind = kind;
+  if (kind === 'member') setMemberEditorTab('basic');
+  window.clearTimeout(target._closeTimer);
   target.hidden = false;
-  target.classList.add('is-open');
-  target.style.background = '#ffffff';
-  target.style.backgroundImage = 'none';
+  target.classList.remove('is-open');
+  scrim?.classList.add('is-open');
   document.body.classList.add('modal-open');
+  setSpatialOrigin(target, state.editorReturnFocus);
+  requestAnimationFrame(() => {
+    target.classList.add('is-open');
+    const firstField = target.querySelector('input:not([type="hidden"]), select, textarea, button');
+    (firstField || target).focus({ preventScroll: true });
+  });
 }
 
 function closeEditor(kind) {
   const target = editorElement(kind);
   if (!target) return;
   target.classList.remove('is-open');
-  target.hidden = true;
+  document.querySelector('.admin-editor-scrim')?.classList.remove('is-open');
   if (state.openEditorKind === kind) state.openEditorKind = '';
-  if (!state.openEditorKind && elements.dialog?.hidden !== false) document.body.classList.remove('modal-open');
+  const returnFocus = state.editorReturnFocus;
+  state.editorReturnFocus = null;
+  window.clearTimeout(target._closeTimer);
+  target._closeTimer = window.setTimeout(() => {
+    if (target.classList.contains('is-open')) return;
+    target.hidden = true;
+    if (!state.openEditorKind && elements.dialog?.hidden !== false) document.body.classList.remove('modal-open');
+    if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+  }, reducedMotion.matches ? 0 : 160);
+}
+
+async function requestCloseEditor(kind) {
+  if (!kind) return;
+  if (isFormDirty(kind)) {
+    const discard = await openDialog({
+      title: '저장되지 않은 변경사항',
+      message: '변경사항을 저장하지 않고 편집 창을 닫을까요?',
+      type: 'confirm',
+      confirmText: '변경사항 버리기',
+      cancelText: '계속 편집'
+    });
+    if (!discard) return;
+    markFormClean(qs(`#${kind}-form`));
+  }
+  closeEditor(kind);
 }
 
 function paginateItems(items = [], page = 1) {
@@ -648,6 +788,7 @@ function resolveMemberFilter(member = {}) {
   if (member.group === 'pi') return 'pi';
   if (member.group === 'researchProfessor') return 'research';
   if (member.group === 'studentResearcher') return 'undergrad';
+  if (member.group === 'graduateStudent' && member.course === 'phdCompleted') return 'phdCompleted';
   if (member.group === 'graduateStudent' && member.course === 'phd') return 'phd';
   return 'ms';
 }
@@ -845,24 +986,19 @@ async function syncPublicationLinksToMembers(publication = {}, memberLinks = [])
   state.members = activeItems(sortMembers(nextMembers));
 }
 
-function ensureEditorPseudoHidden() {
-  if (document.getElementById('debug-hide-pseudo')) return;
-  const el = document.querySelector('article#member-editor-card');
-  if (!el) return;
-  const styleTag = document.createElement('style');
-  styleTag.id = 'debug-hide-pseudo';
-  styleTag.innerHTML = `
-    article#member-editor-card::before,
-    .admin-editor-modal::before {
-      display: none !important;
-      content: none !important;
-    }
-  `;
-  document.head.appendChild(styleTag);
+function ensureEditorScrim() {
+  let scrim = document.querySelector('.admin-editor-scrim');
+  if (scrim) return scrim;
+  scrim = document.createElement('div');
+  scrim.className = 'admin-editor-scrim';
+  scrim.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(scrim);
+  return scrim;
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  ensureEditorPseudoHidden();
+  ensureEditorScrim();
+  setupAdaptiveGlass(document);
   bindEvents();
   renderSetupMessage();
   renderAllLists();
@@ -905,18 +1041,57 @@ function bindEvents() {
     await signOutAdmin();
     await handleAuthState(null);
   });
-  elements.tabButtons.forEach((button) => button.addEventListener('click', () => setActiveTab(button.dataset.adminTab)));
+  elements.tabButtons.forEach((button) => button.addEventListener('click', async () => {
+    if (state.openEditorKind) {
+      const openKind = state.openEditorKind;
+      await requestCloseEditor(openKind);
+      if (state.openEditorKind === openKind) return;
+    }
+    setActiveTab(button.dataset.adminTab);
+  }));
+  elements.tabButtons.forEach((button) => button.addEventListener('keydown', (event) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const currentIndex = elements.tabButtons.indexOf(button);
+    let nextIndex = currentIndex;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = elements.tabButtons.length - 1;
+    if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + elements.tabButtons.length) % elements.tabButtons.length;
+    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % elements.tabButtons.length;
+    const nextButton = elements.tabButtons[nextIndex];
+    setActiveTab(nextButton.dataset.adminTab);
+    nextButton.focus();
+  }));
   elements.memberAddButton?.addEventListener('click', () => { resetMemberForm(); openEditor('member'); });
   elements.projectAddButton?.addEventListener('click', () => { resetProjectForm(); openEditor('project'); });
   elements.publicationAddButton?.addEventListener('click', () => { resetPublicationForm(); openEditor('publication'); });
   elements.boardAddButton?.addEventListener('click', () => { resetBoardForm(); openEditor('board'); });
-  qsa('[data-editor-close]').forEach((button) => button.addEventListener('click', () => closeEditor(button.dataset.editorClose)));
+  qsa('[data-editor-close]').forEach((button) => button.addEventListener('click', () => requestCloseEditor(button.dataset.editorClose)));
   elements.memberFilterTabs?.addEventListener('click', onMemberFilterClick);
   elements.projectFilterTabs?.addEventListener('click', onProjectFilterClick);
   elements.publicationFilterTabs?.addEventListener('click', onPublicationFilterClick);
   elements.boardFilterTabs?.addEventListener('click', onBoardFilterClick);
   elements.trashFilterTabs?.addEventListener('click', onTrashFilterClick);
   elements.memberForm?.addEventListener('submit', handleMemberSubmit);
+  elements.memberEditorTabs.forEach((button) => button.addEventListener('click', () => {
+    setMemberEditorTab(button.dataset.memberEditorTab);
+  }));
+  elements.memberEditorTabs.forEach((button) => button.addEventListener('keydown', (event) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const currentIndex = elements.memberEditorTabs.indexOf(button);
+    let nextIndex = currentIndex;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = elements.memberEditorTabs.length - 1;
+    if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + elements.memberEditorTabs.length) % elements.memberEditorTabs.length;
+    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % elements.memberEditorTabs.length;
+    setMemberEditorTab(elements.memberEditorTabs[nextIndex]?.dataset.memberEditorTab, { focusTab: true });
+  }));
+  elements.memberForm?.addEventListener('invalid', (event) => {
+    const panel = event.target.closest?.('[data-member-editor-panel]');
+    if (!panel || !panel.hidden) return;
+    setMemberEditorTab(panel.dataset.memberEditorPanel, { resetScroll: false });
+  }, true);
   elements.memberForm?.elements?.namedItem('nameKr')?.addEventListener('input', syncMemberNameField);
   elements.memberForm?.elements?.namedItem('nameEn')?.addEventListener('input', syncMemberNameField);
   elements.memberForm?.elements?.namedItem('group')?.addEventListener('change', updateMemberEducationVisibility);
@@ -928,11 +1103,13 @@ function bindEvents() {
   elements.boardSearchInput?.addEventListener('input', (event) => { state.boardQuery = event.currentTarget.value; state.boardPage = 1; renderBoardList(); });
   elements.trashSearchInput?.addEventListener('input', (event) => { state.trashQuery = event.currentTarget.value; state.trashPage = 1; renderTrashList(); });
   elements.memberCourseScheduleAdd?.addEventListener('click', () => {
+    markFormDirty(elements.memberForm);
     const current = collectMemberCourseSchedule();
     current.push({ day: '월', time: '', courseName: '', credits: '', description: '' });
     renderMemberCourseSchedule(current);
   });
   elements.memberExperienceAdd?.addEventListener('click', () => {
+    markFormDirty(elements.memberForm);
     const current = collectMemberExperienceEntries();
     current.push({ period: '', detail: '' });
     renderMemberExperienceRows(current);
@@ -947,12 +1124,25 @@ function bindEvents() {
     const editor = editorElement(state.openEditorKind);
     if (!editor || editor.hidden) return;
     if (editor.contains(event.target)) return;
-    closeEditor(state.openEditorKind);
+    requestCloseEditor(state.openEditorKind);
   });
   document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') return;
-    if (state.openEditorKind) closeEditor(state.openEditorKind);
-    else if (elements.dialog && !elements.dialog.hidden) closeDialog(null);
+    if (elements.dialog && !elements.dialog.hidden) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeDialog(null);
+      } else {
+        trapFocus(event, elements.dialog);
+      }
+      return;
+    }
+    const editor = editorElement(state.openEditorKind);
+    if (event.key === 'Escape' && state.openEditorKind) {
+      event.preventDefault();
+      requestCloseEditor(state.openEditorKind);
+      return;
+    }
+    if (editor && !editor.hidden) trapFocus(event, editor);
   });
   elements.projectForm?.addEventListener('submit', handleProjectSubmit);
   elements.publicationForm?.addEventListener('submit', handlePublicationSubmit);
@@ -979,6 +1169,15 @@ function bindEvents() {
   elements.dialog?.addEventListener('click', (event) => {
     if (event.target === elements.dialog || event.target.closest('[data-dialog-close]')) closeDialog(null);
   });
+  [elements.memberForm, elements.projectForm, elements.publicationForm, elements.boardForm].forEach((form) => {
+    form?.addEventListener('input', () => markFormDirty(form));
+    form?.addEventListener('change', () => markFormDirty(form));
+  });
+  window.addEventListener('beforeunload', (event) => {
+    if (!state.dirtyForms.size) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
 }
 
 
@@ -988,12 +1187,12 @@ function educationLevelForMember(formOrMember = {}) {
   const course = String(formOrMember.course || formOrMember.enrolledCourse || formOrMember.restoreCourse || '').trim();
   const isAlumni = group === 'alumni' || status === 'alumni';
   if (isAlumni) {
-    if (course === 'phd') return 'phd';
+    if (course === 'phd' || course === 'phdCompleted') return 'phd';
     if (course === 'ms') return 'ms';
     return 'ms';
   }
   if (group === 'pi' || group === 'researchProfessor' || course === 'professor' || course === 'postdoc') return 'phd';
-  if (course === 'phd') return 'ms';
+  if (course === 'phd' || course === 'phdCompleted') return 'ms';
   if (course === 'ms') return 'bs';
   return 'phd';
 }
@@ -1207,7 +1406,7 @@ async function handleGoogleLogin() {
     console.error(error);
     togglePending(false);
     toggleViews(false);
-    showNotice(error.message || 'Google 로그인에 실패했습니다.', 'danger');
+    showNotice(adminErrorMessage(error, 'Google 로그인에 실패했습니다.'), 'danger');
   } finally {
     elements.googleLoginButton?.removeAttribute('disabled');
     elements.loginShortcutButton?.removeAttribute('disabled');
@@ -1227,11 +1426,12 @@ async function handleAuthState(user) {
     renderProjectLeadOptions();
     return;
   }
+  renderAdminLoadingState();
   await ensureSeeded();
   attachListeners();
   setActiveTab(state.activeTab || 'members');
   renderProjectLeadOptions();
-  if (previousUid !== state.user.uid) showNotice(`${state.user.email} 계정으로 로그인되었습니다.`, 'success');
+  if (previousUid !== state.user.uid) showNotice('관리자로 로그인되었습니다.', 'success');
 }
 
 function togglePending(isPending) {
@@ -1255,9 +1455,22 @@ async function ensureSeeded() {
   state.seeded = true;
 }
 
+function renderAdminLoadingState() {
+  const skeleton = '<div class="admin-list-skeleton" aria-hidden="true"><span></span><span></span><span></span></div>';
+  [elements.memberList, elements.projectList, elements.publicationList, elements.boardList, elements.trashList]
+    .forEach((container) => { if (container) container.innerHTML = skeleton; });
+  [elements.summaryMembers, elements.summaryProjects, elements.summaryPublications, elements.summaryBoard, elements.summaryTrash]
+    .forEach((summary) => { if (summary) summary.textContent = '—'; });
+  showNotice('관리자 콘텐츠를 불러오는 중입니다.', 'info');
+}
+
 
 function attachListeners() {
   teardownListeners();
+  const onError = (error) => {
+    console.error(error);
+    showNotice(adminErrorMessage(error, '관리자 데이터를 불러오지 못했습니다.'), 'danger');
+  };
   state.unsubs = [
     listenCollection(COLLECTIONS.members, (items) => {
       state.members = activeItems(useLiveAdminData ? sortMembers(items) : sortMembers(mergeMembers(FALLBACK_MEMBERS, items)));
@@ -1265,28 +1478,28 @@ function attachListeners() {
       renderProjectLeadOptions();
       renderMemberPublicationPicker(state.editingMember?.publicationLinks || []);
       renderSummary();
-    }),
+    }, onError),
     listenCollection(COLLECTIONS.projects, (items) => {
       state.projects = activeItems(useLiveAdminData ? sortProjects(items) : sortProjects(mergeProjects(FALLBACK_PROJECTS, items)));
       renderProjectsList();
       renderSummary();
-    }),
+    }, onError),
     listenCollection(COLLECTIONS.publications, (items) => {
       state.publications = activeItems(useLiveAdminData ? sortPublications(items) : sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items)));
       renderPublicationsList();
       renderSummary();
-    }),
+    }, onError),
     listenCollection(COLLECTIONS.board, (items) => {
       state.board = activeItems(useLiveAdminData ? sortBoardPosts(items) : sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items)));
       renderBoardList();
       renderSummary();
-    }),
+    }, onError),
     listenCollection(COLLECTIONS.trash, (items) => {
       state.trash = sortTrashItems(items);
       renderTrashList();
       renderSummary();
       cleanupExpiredTrash().catch((error) => console.error(error));
-    })
+    }, onError)
   ];
 }
 
@@ -1403,6 +1616,7 @@ const dialogState = { resolve: null, type: 'alert' };
 function openDialog({ title = '확인', message = '', inputLabel = '입력', defaultValue = '', type = 'alert', confirmText = '확인', cancelText = '취소' } = {}) {
   return new Promise((resolve) => {
     if (!elements.dialog) return resolve(null);
+    state.dialogReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     dialogState.resolve = resolve;
     dialogState.type = type;
     elements.dialogTitle.textContent = title;
@@ -1414,21 +1628,36 @@ function openDialog({ title = '확인', message = '', inputLabel = '입력', def
     elements.dialogCancel.hidden = type === 'alert';
     elements.dialogCancel.textContent = cancelText;
     elements.dialogConfirm.textContent = confirmText;
+    elements.dialogConfirm.classList.toggle('is-danger', /삭제|버리기/.test(`${title} ${confirmText}`));
+    window.clearTimeout(elements.dialog._closeTimer);
     elements.dialog.hidden = false;
+    elements.dialog.classList.remove('is-open');
     document.body.classList.add('modal-open');
-    if (type === 'prompt') setTimeout(() => elements.dialogInput.focus(), 40);
-    else setTimeout(() => elements.dialogConfirm.focus(), 40);
+    setSpatialOrigin(elements.dialog.querySelector('.admin-dialog__panel'), state.dialogReturnFocus);
+    requestAnimationFrame(() => {
+      elements.dialog.classList.add('is-open');
+      if (type === 'prompt') elements.dialogInput.focus({ preventScroll: true });
+      else elements.dialogConfirm.focus({ preventScroll: true });
+    });
   });
 }
 
 
 function closeDialog(result = null) {
   if (!elements.dialog) return;
-  elements.dialog.hidden = true;
-  if (!state.openEditorKind) document.body.classList.remove('modal-open');
+  elements.dialog.classList.remove('is-open');
   const resolve = dialogState.resolve;
   dialogState.resolve = null;
+  const returnFocus = state.dialogReturnFocus;
+  state.dialogReturnFocus = null;
   resolve?.(result);
+  window.clearTimeout(elements.dialog._closeTimer);
+  elements.dialog._closeTimer = window.setTimeout(() => {
+    if (elements.dialog.classList.contains('is-open')) return;
+    elements.dialog.hidden = true;
+    if (!state.openEditorKind) document.body.classList.remove('modal-open');
+    if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+  }, reducedMotion.matches ? 0 : 160);
 }
 
 function submitDialog() {
@@ -1463,8 +1692,23 @@ function renderProjectLeadOptions() {
 
 function setActiveTab(tabName) {
   state.activeTab = tabName;
-  elements.tabButtons.forEach((button) => button.classList.toggle('is-active', button.dataset.adminTab === tabName));
-  elements.panels.forEach((panel) => { panel.hidden = panel.dataset.panel !== tabName; });
+  elements.tabButtons.forEach((button) => {
+    const selected = button.dataset.adminTab === tabName;
+    const panelId = `admin-panel-${button.dataset.adminTab}`;
+    button.id ||= `admin-tab-${button.dataset.adminTab}`;
+    button.setAttribute('role', 'tab');
+    button.setAttribute('aria-controls', panelId);
+    button.setAttribute('aria-selected', String(selected));
+    button.tabIndex = selected ? 0 : -1;
+    button.classList.toggle('is-active', selected);
+  });
+  elements.panels.forEach((panel) => {
+    const selected = panel.dataset.panel === tabName;
+    panel.id ||= `admin-panel-${panel.dataset.panel}`;
+    panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', `admin-tab-${panel.dataset.panel}`);
+    panel.hidden = !selected;
+  });
 }
 
 function onMemberFilterClick(event) {
@@ -1513,20 +1757,17 @@ function onMemberPhotoChange(event) {
   renderMemberPhotoPreview();
 }
 function clearMemberPhoto() {
+  markFormDirty(elements.memberForm);
   state.pendingMemberFile = null;
   state.memberPhotoRemoved = true;
   if (state.pendingMemberPreview) URL.revokeObjectURL(state.pendingMemberPreview);
   state.pendingMemberPreview = '';
   if (elements.memberPhotoInput) elements.memberPhotoInput.value = '';
   updateFileInputLabel(elements.memberPhotoInput, elements.memberPhotoFileName);
-  if (state.editingMember) {
-    state.editingMember.photoUrl = '';
-    state.editingMember.photoPath = '';
-  }
   renderMemberPhotoPreview();
 }
 function renderMemberPhotoPreview() {
-  const url = state.pendingMemberPreview || state.editingMember?.photoUrl || '';
+  const url = state.pendingMemberPreview || (!state.memberPhotoRemoved ? state.editingMember?.photoUrl : '') || '';
   if (!elements.memberPhotoPreview) return;
   elements.memberPhotoPreview.innerHTML = url ? `<img src="${escapeHTML(rootAsset(url, root))}" alt="preview">` : `<span>${escapeHTML(getInitials(state.editingMember?.name || 'GEH'))}</span>`;
 }
@@ -1539,6 +1780,7 @@ function onProjectFigureChange(event) {
   renderProjectFigurePreview();
 }
 function clearProjectFigure() {
+  markFormDirty(elements.projectForm);
   state.pendingProjectFile = null;
   if (state.pendingProjectPreview) URL.revokeObjectURL(state.pendingProjectPreview);
   state.pendingProjectPreview = '';
@@ -1719,6 +1961,7 @@ function onBoardImageChange(event) {
 function removeBoardImageAt(index) {
   if (Number.isNaN(Number(index))) return;
   const i = Number(index);
+  markFormDirty(elements.boardForm);
   if (Array.isArray(state.pendingBoardFiles) && state.pendingBoardFiles.length) {
     state.pendingBoardFiles = state.pendingBoardFiles.filter((_, idx) => idx !== i);
     if (Array.isArray(state.pendingBoardPreviews) && state.pendingBoardPreviews[i]) {
@@ -1742,6 +1985,7 @@ function removeBoardImageAt(index) {
   renderBoardImagePreview();
 }
 function clearBoardImage() {
+  markFormDirty(elements.boardForm);
   state.pendingBoardFiles = [];
   state.boardImageRemoved = true;
   revokeBoardPreviewUrls();
@@ -1793,6 +2037,8 @@ function resetMemberForm() {
   renderMemberExperienceRows([]);
   updateMemberEducationVisibility();
   renderProjectLeadOptions();
+  setMemberEditorTab('basic');
+  markFormClean(elements.memberForm);
 }
 function resetProjectForm() {
   elements.projectForm?.reset();
@@ -1803,6 +2049,7 @@ function resetProjectForm() {
   if (elements.projectTitle) elements.projectTitle.textContent = '과제 추가';
   renderProjectFigurePreview();
   renderProjectLeadOptions();
+  markFormClean(elements.projectForm);
 }
 function resetPublicationForm() {
   elements.publicationForm?.reset();
@@ -1810,6 +2057,7 @@ function resetPublicationForm() {
   state.publicationMemberQuery = '';
   if (elements.publicationTitle) elements.publicationTitle.textContent = '논문 추가';
   renderPublicationMemberPicker([]);
+  markFormClean(elements.publicationForm);
 }
 function resetBoardForm() {
   elements.boardForm?.reset();
@@ -1821,11 +2069,13 @@ function resetBoardForm() {
   state.boardImageRemoved = false;
   if (elements.boardTitle) elements.boardTitle.textContent = '게시판 추가';
   renderBoardImagePreview();
+  markFormClean(elements.boardForm);
 }
 
 async function handleMemberSubmit(event) {
   event.preventDefault();
-  const formData = new FormData(event.currentTarget);
+  const form = event.currentTarget;
+  const formData = new FormData(form);
   const bachelorsSchoolKr = String(formData.get('bachelorsSchoolKr') || '').trim();
   const bachelorsSchoolEn = String(formData.get('bachelorsSchoolEn') || '').trim();
   const bachelorsMajorKr = String(formData.get('bachelorsMajorKr') || '').trim();
@@ -1927,6 +2177,9 @@ async function handleMemberSubmit(event) {
     payload.relatedProjects = '';
   }
   if (!payload.nameKr && !payload.nameEn && !payload.name) return showNotice('이름을 입력해주세요.', 'warning');
+  if (form.dataset.busy === 'true') return;
+  setFormBusy(form, true);
+  showNotice(state.pendingMemberFile ? '멤버 사진을 업로드하고 저장하는 중입니다.' : '멤버 정보를 저장하는 중입니다.', 'info');
   try {
     if (state.pendingMemberFile) {
       const upload = await uploadMemberPhoto(state.pendingMemberFile);
@@ -1966,6 +2219,8 @@ async function handleMemberSubmit(event) {
   } catch (error) {
     console.error(error);
     showNotice(adminErrorMessage(error, '멤버 저장에 실패했습니다.'), 'danger');
+  } finally {
+    setFormBusy(form, false);
   }
 }
 
@@ -1976,7 +2231,8 @@ function extractYearFromPeriod(period = '') {
 
 async function handleProjectSubmit(event) {
   event.preventDefault();
-  const formData = new FormData(event.currentTarget);
+  const form = event.currentTarget;
+  const formData = new FormData(form);
   const period = normalizeProjectPeriod(String(formData.get('period') || '').trim());
   const titleKr = String(formData.get('titleKr') || '').trim();
   const titleEn = String(formData.get('titleEn') || '').trim();
@@ -2007,6 +2263,9 @@ async function handleProjectSubmit(event) {
     sortOrder: state.editingProject?.sortOrder ?? 999
   };
   if (!payload.titleKr && !payload.titleEn) return showNotice('과제 제목을 입력해주세요.', 'warning');
+  if (form.dataset.busy === 'true') return;
+  setFormBusy(form, true);
+  showNotice('과제 정보를 저장하는 중입니다.', 'info');
   try {
     const id = await saveDocument(COLLECTIONS.projects, state.editingProject?.id || null, payload);
     state.projects = activeItems(sortProjects(mergeProjects(state.projects, [{ ...payload, id, updatedAt: new Date().toISOString() }])));
@@ -2018,12 +2277,15 @@ async function handleProjectSubmit(event) {
   } catch (error) {
     console.error(error);
     showNotice(adminErrorMessage(error, '과제 저장에 실패했습니다.'), 'danger');
+  } finally {
+    setFormBusy(form, false);
   }
 }
 
 async function handlePublicationSubmit(event) {
   event.preventDefault();
-  const formData = new FormData(event.currentTarget);
+  const form = event.currentTarget;
+  const formData = new FormData(form);
   const payload = {
     title: String(formData.get('title') || '').trim(),
     authors: String(formData.get('authors') || '').trim(),
@@ -2038,6 +2300,9 @@ async function handlePublicationSubmit(event) {
   };
   const linkedMembers = collectPublicationMemberLinks();
   if (!payload.title) return showNotice('논문 제목을 입력해주세요.', 'warning');
+  if (form.dataset.busy === 'true') return;
+  setFormBusy(form, true);
+  showNotice('논문 정보를 저장하는 중입니다.', 'info');
   try {
     const id = await saveDocument(COLLECTIONS.publications, state.editingPublication?.id || null, payload);
     const savedPublication = { ...payload, id, updatedAt: new Date().toISOString() };
@@ -2052,12 +2317,15 @@ async function handlePublicationSubmit(event) {
   } catch (error) {
     console.error(error);
     showNotice(adminErrorMessage(error, '논문 저장에 실패했습니다.'), 'danger');
+  } finally {
+    setFormBusy(form, false);
   }
 }
 
 async function handleBoardSubmit(event) {
   event.preventDefault();
-  const formData = new FormData(event.currentTarget);
+  const form = event.currentTarget;
+  const formData = new FormData(form);
   let payload = {
     category: normalizeBoardCategory(String(formData.get('category') || 'conference')),
     title: String(formData.get('title') || '').trim(),
@@ -2075,6 +2343,8 @@ async function handleBoardSubmit(event) {
     trashExpired: false
   };
   if (!payload.title) return showNotice('게시판 제목을 입력해주세요.', 'warning');
+  if (form.dataset.busy === 'true') return;
+  setFormBusy(form, true, state.pendingBoardFiles.length ? '업로드 중…' : '저장 중…');
   try {
     const pendingFiles = collectPendingBoardFiles();
     if (pendingFiles.length) {
@@ -2115,6 +2385,8 @@ async function handleBoardSubmit(event) {
       ? 'Firestore 문서 용량 제한에 걸렸습니다. 이미지를 자동 압축했지만 아직 큽니다. 이미지 수를 줄이거나 더 작은 사진으로 다시 시도해주세요.'
       : adminErrorMessage(error, '게시글 저장에 실패했습니다.');
     showNotice(message, 'danger');
+  } finally {
+    setFormBusy(form, false);
   }
 }
 
@@ -2136,40 +2408,42 @@ function renderMemberFilterTabs() {
     ['pi', '지도교수'],
     ['research', '연구교수 · 박사후연구원'],
     ['phd', '박사과정'],
+    ['phdCompleted', '박사수료 후 연구생'],
     ['ms', '석사과정'],
     ['undergrad', '학부연구생'],
     ['alumni', '졸업생']
   ];
   elements.memberFilterTabs.innerHTML = filters.map(([value, label]) => `
-    <button type="button" class="admin-subtab${state.memberFilter === value ? ' is-active' : ''}" data-member-filter="${escapeHTML(value)}">${escapeHTML(label)}</button>
+    <button type="button" class="admin-subtab${state.memberFilter === value ? ' is-active' : ''}" data-member-filter="${escapeHTML(value)}" aria-pressed="${state.memberFilter === value}">${escapeHTML(label)}</button>
   `).join('');
 }
 
 function memberItemMarkup(member) {
+  const showStatusBadge = !['pi', 'researchProfessor'].includes(member.group);
   const detailBits = [
     memberGroupLabel(member.group, 'kr'),
-    (member.group === 'graduateStudent' || member.status === 'alumni') && ['phd', 'ms'].includes(member.course) ? `${memberCourseLabel(member.course, 'kr')}${member.status === 'alumni' ? ' 졸업' : ''}` : '',
-    member.track && member.track !== 'none' ? memberTrackLabel(member.track, 'kr') : '',
+    (member.group === 'graduateStudent' || member.status === 'alumni') && ['phd', 'phdCompleted', 'ms'].includes(member.course) ? `${memberCourseLabel(member.status === 'alumni' && member.course === 'phdCompleted' ? 'phd' : member.course, 'kr')}${member.status === 'alumni' ? ' 졸업' : ''}` : '',
+    member.course !== 'phdCompleted' && member.track && member.track !== 'none' ? memberTrackLabel(member.track, 'kr') : '',
     memberYearLabel(member, 'kr')
   ].filter(Boolean).join(' · ');
   return `
-    <article class="admin-item-card">
+    <article class="admin-item-card admin-item-card--member">
+      <div class="admin-item-actions admin-item-actions--corner" aria-label="${escapeHTML(memberDisplayName(member, 'kr'))} 관리 작업">
+        <button type="button" class="small-button admin-icon-action" data-member-action="edit" data-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member, 'kr'))} 수정" title="수정"><i class="ph ph-pencil-simple" aria-hidden="true"></i></button>
+        <button type="button" class="small-button admin-icon-action is-danger" data-member-action="delete" data-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member, 'kr'))} 삭제" title="삭제"><i class="ph ph-trash" aria-hidden="true"></i></button>
+      </div>
       <div class="admin-item-main">
-        <div class="admin-item-thumb">${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(member.name)}">` : `<span>${escapeHTML(getInitials(member.name))}</span>`}</div>
+        <div class="admin-member-visual">
+          <div class="admin-item-thumb">${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(member.name)}">` : `<span>${escapeHTML(getInitials(member.name))}</span>`}</div>
+          ${showStatusBadge ? `<span class="status-badge ${member.status === 'alumni' ? 'is-alumni' : ''}">${escapeHTML(memberStatusLabel(member, 'kr'))}</span>` : ''}
+        </div>
         <div class="admin-item-content">
           <div class="card-topline">
             <strong>${escapeHTML(memberDisplayName(member, 'kr'))}</strong>${member.nameEn ? `<small class=\"muted\">${escapeHTML(memberDisplayName(member, 'en'))}</small>` : ''}
-            <span class="status-badge ${member.status === 'alumni' ? 'is-alumni' : ''}">${escapeHTML(memberStatusLabel(member, 'kr'))}</span>
           </div>
           ${detailBits ? `<p class="muted">${escapeHTML(detailBits)}</p>` : ''}
-          ${member.email ? `<p>${escapeHTML(member.email)}</p>` : ''}
           ${localizedMemberText(member, 'currentPosition', 'kr') ? `<p>${escapeHTML(localizedMemberText(member, 'currentPosition', 'kr'))}</p>` : ''}
         </div>
-      </div>
-      <div class="admin-item-actions">
-        <button type="button" class="small-button" data-member-action="edit" data-id="${escapeHTML(member.id)}">수정</button>
-        ${member.group === 'pi' ? '' : (member.status === 'alumni' ? `<button type="button" class="small-button" data-member-action="restore" data-id="${escapeHTML(member.id)}">재학전환</button>` : `<button type="button" class="small-button" data-member-action="graduate" data-id="${escapeHTML(member.id)}">졸업처리</button>`)}
-        <button type="button" class="small-button is-danger" data-member-action="delete" data-id="${escapeHTML(member.id)}">삭제</button>
       </div>
     </article>
   `;
@@ -2184,12 +2458,17 @@ function renderMembersList() {
   const alumni = matched.filter((item) => item.status === 'alumni');
   let sections = [];
   elements.memberPagination.innerHTML = '';
+  if (state.memberQuery && !matched.length) {
+    elements.memberList.innerHTML = emptyAdmin(`“${state.memberQuery}” 검색 결과가 없습니다. 이름 또는 소속을 다시 확인해주세요.`);
+    return;
+  }
 
   if (state.memberFilter === 'all') {
     const piItems = enrolled.filter((item) => item.group === 'pi');
     const researchItems = enrolled.filter((item) => item.group === 'researchProfessor');
     const phdFull = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'phd' && item.track === 'fullTime');
     const phdPart = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'phd' && item.track === 'partTime');
+    const phdCompleted = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'phdCompleted');
     const msFull = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'ms' && item.track === 'fullTime');
     const msPart = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'ms' && item.track === 'partTime');
     const undergradItems = enrolled.filter((item) => item.group === 'studentResearcher');
@@ -2199,6 +2478,7 @@ function renderMembersList() {
       adminMemberSection(`연구교수 · 박사후연구원 (${researchItems.length})`, researchItems),
       adminMemberSection(`박사과정 · 풀타임 (${phdFull.length})`, phdFull),
       adminMemberSection(`박사과정 · 파트타임 (${phdPart.length})`, phdPart),
+      adminMemberSection(`박사수료 후 연구생 (${phdCompleted.length})`, phdCompleted),
       adminMemberSection(`석사과정 · 풀타임 (${msFull.length})`, msFull),
       adminMemberSection(`석사과정 · 파트타임 (${msPart.length})`, msPart),
       adminMemberSection(`학부연구생 (${undergradItems.length})`, undergradItems),
@@ -2224,6 +2504,12 @@ function renderMembersList() {
     const part = pageData.items.filter((item) => item.track === 'partTime');
     sections.push(adminMemberSection('박사과정 · 풀타임', full));
     sections.push(adminMemberSection('박사과정 · 파트타임', part));
+    elements.memberPagination.innerHTML = paginationMarkup('member', pageData.page, pageData.pages);
+  } else if (state.memberFilter === 'phdCompleted') {
+    const all = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'phdCompleted');
+    const pageData = paginateItems(all, state.memberPage);
+    state.memberPage = pageData.page;
+    sections.push(adminMemberSection(`박사수료 후 연구생 (${all.length})`, pageData.items));
     elements.memberPagination.innerHTML = paginationMarkup('member', pageData.page, pageData.pages);
   } else if (state.memberFilter === 'ms') {
     const all = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'ms');
@@ -2254,14 +2540,16 @@ function renderMembersList() {
 function renderProjectFilterTabs() {
   const years = [...new Set(state.projects.filter((item) => item.status === 'completed').map((item) => item.year).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
   const filters = [['all', '전체'], ['ongoing', '진행중'], ...years.map((year) => [year, `${year}`])];
-  elements.projectFilterTabs.innerHTML = filters.map(([value, label]) => `<button type="button" class="admin-subtab${state.projectFilter === value ? ' is-active' : ''}" data-project-filter="${escapeHTML(value)}">${escapeHTML(label)}</button>`).join('');
+  elements.projectFilterTabs.innerHTML = filters.map(([value, label]) => `<button type="button" class="admin-subtab${state.projectFilter === value ? ' is-active' : ''}" data-project-filter="${escapeHTML(value)}" aria-pressed="${state.projectFilter === value}">${escapeHTML(label)}</button>`).join('');
 }
 
 function projectItemMarkup(project) {
-  const roleMap = { leadInstitutionInvestigator: '주관연구책임자', coPrincipalInvestigator: '공동연구책임자', principalInvestigator: '주관연구책임자' };
-  const roleLabel = roleMap[project.leadRole] || '주관연구책임자';
   return `
-    <article class="admin-item-card">
+    <article class="admin-item-card admin-item-card--project">
+      <div class="admin-item-actions admin-item-actions--corner" aria-label="${escapeHTML(localizedProjectTitle(project, 'kr'))} 관리 작업">
+        <button type="button" class="small-button admin-icon-action" data-project-action="edit" data-id="${escapeHTML(project.id)}" aria-label="${escapeHTML(localizedProjectTitle(project, 'kr'))} 수정" title="수정"><i class="ph ph-pencil-simple" aria-hidden="true"></i></button>
+        <button type="button" class="small-button admin-icon-action is-danger" data-project-action="delete" data-id="${escapeHTML(project.id)}" aria-label="${escapeHTML(localizedProjectTitle(project, 'kr'))} 삭제" title="삭제"><i class="ph ph-trash" aria-hidden="true"></i></button>
+      </div>
       <div class="admin-item-main admin-item-main--single">
         <div class="admin-item-content">
           <div class="card-topline">
@@ -2269,22 +2557,29 @@ function projectItemMarkup(project) {
             <span class="status-badge ${project.status === 'completed' ? 'is-alumni' : ''}">${escapeHTML(projectStatusLabel(project.status, 'kr'))}</span>
           </div>
           ${project.period ? `<p class="muted">기간 · ${escapeHTML(normalizeProjectPeriod(project.period))}</p>` : ''}
-          ${projectInvestigatorDisplay(project, 'kr') ? `<p class="muted">${escapeHTML(roleLabel)} · ${escapeHTML(projectInvestigatorDisplay(project, 'kr'))}</p>` : ''}
-          ${localizedProjectDescription(project, 'kr') ? `<p>${escapeHTML(localizedProjectDescription(project, 'kr'))}</p>` : ''}
         </div>
-      </div>
-      <div class="admin-item-actions">
-        <button type="button" class="small-button" data-project-action="edit" data-id="${escapeHTML(project.id)}">수정</button>
-        <button type="button" class="small-button is-danger" data-project-action="delete" data-id="${escapeHTML(project.id)}">삭제</button>
       </div>
     </article>
   `;
+}
+
+function adminProjectSection(title, items = []) {
+  const list = Array.isArray(items) ? items : [];
+  const content = list.length
+    ? `<div class="admin-compact-grid admin-compact-grid--2">${list.map(projectItemMarkup).join('')}</div>`
+    : emptyAdmin('없음');
+  return adminSection(title, content, 'admin-list-section--compact');
 }
 
 function renderProjectsList() {
   if (!elements.projectList) return;
   renderProjectFilterTabs();
   const filteredProjects = state.projects.filter((item) => matchesSearch(state.projectQuery, ...projectSearchValues(item)));
+  if (state.projectQuery && !filteredProjects.length) {
+    elements.projectList.innerHTML = emptyAdmin(`“${state.projectQuery}” 검색 결과가 없습니다. 제목, 설명 또는 연구자명을 다시 확인해주세요.`);
+    elements.projectPagination.innerHTML = '';
+    return;
+  }
   const ongoing = filteredProjects.filter((item) => item.status === 'ongoing');
   const completed = filteredProjects.filter((item) => item.status === 'completed');
   let sections = [];
@@ -2294,20 +2589,20 @@ function renderProjectsList() {
     state.projectPage = pageData.page;
     const ongoingPage = pageData.items.filter((item) => item.status === 'ongoing');
     const completedPage = pageData.items.filter((item) => item.status === 'completed');
-    sections.push(adminSection(`진행 중 (${ongoing.length})`, ongoingPage.map(projectItemMarkup).join('') || emptyAdmin('없음')));
+    sections.push(adminProjectSection(`진행 중 (${ongoing.length})`, ongoingPage));
     const grouped = Object.entries(groupBy(completedPage, (item) => item.year || '이전')).sort((a, b) => numericYearSort(b[0]) - numericYearSort(a[0]));
-    sections.push(...grouped.map(([year, items]) => adminSection(`${year} (${items.length})`, items.map(projectItemMarkup).join('') || emptyAdmin('없음'))));
+    sections.push(...grouped.map(([year, items]) => adminProjectSection(`${year} (${items.length})`, items)));
     elements.projectPagination.innerHTML = paginationMarkup('project', pageData.page, pageData.pages);
   } else if (state.projectFilter === 'ongoing') {
     const pageData = paginateItems(ongoing, state.projectPage);
     state.projectPage = pageData.page;
-    sections.push(adminSection(`진행 중 (${ongoing.length})`, pageData.items.map(projectItemMarkup).join('') || emptyAdmin('없음')));
+    sections.push(adminProjectSection(`진행 중 (${ongoing.length})`, pageData.items));
     elements.projectPagination.innerHTML = paginationMarkup('project', pageData.page, pageData.pages);
   } else {
     const items = completed.filter((item) => String(item.year) === String(state.projectFilter));
     const pageData = paginateItems(items, state.projectPage);
     state.projectPage = pageData.page;
-    sections.push(adminSection(`${state.projectFilter} (${items.length})`, pageData.items.map(projectItemMarkup).join('') || emptyAdmin('없음')));
+    sections.push(adminProjectSection(`${state.projectFilter} (${items.length})`, pageData.items));
     elements.projectPagination.innerHTML = paginationMarkup('project', pageData.page, pageData.pages);
   }
   elements.projectList.innerHTML = sections.join('');
@@ -2317,7 +2612,7 @@ function renderProjectsList() {
 function renderPublicationFilterTabs() {
   const years = [...new Set(state.publications.map((item) => item.year).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
   const filters = [['all', '전체'], ...years.map((year) => [year, `${year}`])];
-  elements.publicationFilterTabs.innerHTML = filters.map(([value, label]) => `<button type="button" class="admin-subtab${state.publicationFilter === value ? ' is-active' : ''}" data-publication-filter="${escapeHTML(value)}">${escapeHTML(label)}</button>`).join('');
+  elements.publicationFilterTabs.innerHTML = filters.map(([value, label]) => `<button type="button" class="admin-subtab${state.publicationFilter === value ? ' is-active' : ''}" data-publication-filter="${escapeHTML(value)}" aria-pressed="${state.publicationFilter === value}">${escapeHTML(label)}</button>`).join('');
 }
 
 function publicationItemMarkup(item) {
@@ -2325,7 +2620,11 @@ function publicationItemMarkup(item) {
   const indexing = publicationIndexingLabel(item.indexing, 'kr');
   const indexClass = indexing ? indexing.toLowerCase().replace(/[^a-z]+/g, '') : '';
   return `
-    <article class="admin-item-card">
+    <article class="admin-item-card admin-item-card--publication">
+      <div class="admin-item-actions admin-item-actions--corner" aria-label="논문 관리 작업">
+        <button type="button" class="small-button admin-icon-action" data-publication-action="edit" data-id="${escapeHTML(item.id)}" aria-label="${escapeHTML(item.title)} 수정" title="수정"><i class="ph ph-pencil-simple" aria-hidden="true"></i></button>
+        <button type="button" class="small-button admin-icon-action is-danger" data-publication-action="delete" data-id="${escapeHTML(item.id)}" aria-label="${escapeHTML(item.title)} 삭제" title="삭제"><i class="ph ph-trash" aria-hidden="true"></i></button>
+      </div>
       <div class="admin-item-main admin-item-main--single">
         <div class="admin-item-content">
           <div class="card-topline"><strong>${escapeHTML(item.title)}</strong>${indexing ? `<span class="index-pill ${indexClass ? `index-pill--${escapeHTML(indexClass)}` : ''}">${escapeHTML(indexing)}</span>` : ''}</div>
@@ -2333,10 +2632,6 @@ function publicationItemMarkup(item) {
           <p class="muted">${escapeHTML(item.authors)}</p>
           <p>${escapeHTML(item.journal)}${item.doi || item.url ? ` · ${escapeHTML(item.doi || item.url)}` : ''}</p>
         </div>
-      </div>
-      <div class="admin-item-actions">
-        <button type="button" class="small-button" data-publication-action="edit" data-id="${escapeHTML(item.id)}">수정</button>
-        <button type="button" class="small-button is-danger" data-publication-action="delete" data-id="${escapeHTML(item.id)}">삭제</button>
       </div>
     </article>
   `;
@@ -2346,6 +2641,11 @@ function renderPublicationsList() {
   if (!elements.publicationList) return;
   renderPublicationFilterTabs();
   const filteredPublications = state.publications.filter((item) => matchesSearch(state.publicationQuery, ...publicationSearchValues(item)));
+  if (state.publicationQuery && !filteredPublications.length) {
+    elements.publicationList.innerHTML = emptyAdmin(`“${state.publicationQuery}” 검색 결과가 없습니다. 제목, 저자, 저널 또는 DOI를 다시 확인해주세요.`);
+    elements.publicationPagination.innerHTML = '';
+    return;
+  }
   let groups;
   let pageData;
   if (state.publicationFilter === 'all') {
@@ -2378,25 +2678,25 @@ function boardAdminFilters() {
 function renderBoardFilterTabs() {
   const filters = boardAdminFilters();
   if (!filters.some(([value]) => value === state.boardFilter)) state.boardFilter = 'all';
-  elements.boardFilterTabs.innerHTML = filters.map(([value, label]) => `<button type="button" class="admin-subtab${state.boardFilter === value ? ' is-active' : ''}" data-board-filter="${escapeHTML(value)}">${escapeHTML(label)}</button>`).join('');
+  elements.boardFilterTabs.innerHTML = filters.map(([value, label]) => `<button type="button" class="admin-subtab${state.boardFilter === value ? ' is-active' : ''}" data-board-filter="${escapeHTML(value)}" aria-pressed="${state.boardFilter === value}">${escapeHTML(label)}</button>`).join('');
 }
 
 function boardItemMarkup(item) {
   return `
-    <article class="admin-item-card">
+    <article class="admin-item-card admin-item-card--board">
+      <div class="admin-item-actions admin-item-actions--corner" aria-label="${escapeHTML(item.title)} 관리 작업">
+        <button type="button" class="small-button admin-icon-action" data-board-action="edit" data-id="${escapeHTML(item.id)}" aria-label="${escapeHTML(item.title)} 수정" title="수정"><i class="ph ph-pencil-simple" aria-hidden="true"></i></button>
+        <button type="button" class="small-button admin-icon-action is-danger" data-board-action="delete" data-id="${escapeHTML(item.id)}" aria-label="${escapeHTML(item.title)} 삭제" title="삭제"><i class="ph ph-trash" aria-hidden="true"></i></button>
+      </div>
       <div class="admin-item-main">
         <div class="admin-item-thumb">${boardStoredImageUrls(item)[0] ? `<img src="${escapeHTML(rootAsset(boardStoredImageUrls(item)[0], root))}" alt="${escapeHTML(item.title)}">` : `<span>${escapeHTML(boardCategoryLabel(item.category).slice(0,1) || '소')}</span>`}</div>
         <div class="admin-item-content">
           <div class="card-topline"><strong>${escapeHTML(item.title)}</strong><span class="status-badge">${escapeHTML(boardCategoryLabel(item.category))}</span></div>
-          ${item.date ? `<p class="muted">${escapeHTML(item.date)}</p>` : ''}
+          <p class="admin-item-meta"><span><i class="ph ph-calendar-blank" aria-hidden="true"></i>${escapeHTML(item.date || '작성일 미정')}</span></p>
           ${item.description ? `<p>${escapeHTML(item.description)}</p>` : ''}
           ${item.linkUrl ? `<p class="muted">${escapeHTML(item.linkUrl)}</p>` : ''}
           ${item.youtubeUrl ? `<p class="muted">${escapeHTML(item.youtubeUrl)}</p>` : ''}
         </div>
-      </div>
-      <div class="admin-item-actions">
-        <button type="button" class="small-button" data-board-action="edit" data-id="${escapeHTML(item.id)}">수정</button>
-        <button type="button" class="small-button is-danger" data-board-action="delete" data-id="${escapeHTML(item.id)}">삭제</button>
       </div>
     </article>
   `;
@@ -2411,6 +2711,11 @@ function renderBoardList() {
   if (!elements.boardList) return;
   renderBoardFilterTabs();
   const items = (state.boardFilter === 'all' ? state.board : state.board.filter((item) => normalizeBoardCategory(item.category) === state.boardFilter)).filter((item) => matchesSearch(state.boardQuery, ...boardSearchValues(item)));
+  if (state.boardQuery && !items.length) {
+    elements.boardList.innerHTML = emptyAdmin(`“${state.boardQuery}” 검색 결과가 없습니다. 제목, 설명 또는 링크를 다시 확인해주세요.`);
+    elements.boardPagination.innerHTML = '';
+    return;
+  }
   const pageData = paginateItems(items, state.boardPage);
   state.boardPage = pageData.page;
   elements.boardList.innerHTML = adminSection(`게시판 (${items.length})`, pageData.items.map(boardItemMarkup).join('') || emptyAdmin('없음'));
@@ -2428,7 +2733,7 @@ function renderTrashFilterTabs() {
     ['board', '게시판']
   ];
   elements.trashFilterTabs.innerHTML = filters.map(([value, label]) => `
-    <button type="button" class="admin-subtab${state.trashFilter === value ? ' is-active' : ''}" data-trash-filter="${escapeHTML(value)}">${escapeHTML(label)}</button>
+    <button type="button" class="admin-subtab${state.trashFilter === value ? ' is-active' : ''}" data-trash-filter="${escapeHTML(value)}" aria-pressed="${state.trashFilter === value}">${escapeHTML(label)}</button>
   `).join('');
 }
 
@@ -2436,7 +2741,11 @@ function trashItemMarkup(item) {
   const deletedAt = String(item.deletedAt || '').slice(0, 10);
   const purgeAt = String(item.purgeAfterAt || '').slice(0, 10);
   return `
-    <article class="admin-item-card">
+    <article class="admin-item-card admin-item-card--trash">
+      <div class="admin-item-actions admin-item-actions--corner" aria-label="${escapeHTML(trashTitle(item))} 휴지통 작업">
+        <button type="button" class="small-button admin-icon-action" data-trash-action="restore" data-id="${escapeHTML(item.id)}" aria-label="${escapeHTML(trashTitle(item))} 복원" title="복원"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i></button>
+        <button type="button" class="small-button admin-icon-action is-danger" data-trash-action="purge" data-id="${escapeHTML(item.id)}" aria-label="${escapeHTML(trashTitle(item))} 영구 삭제" title="영구 삭제"><i class="ph ph-trash-simple" aria-hidden="true"></i></button>
+      </div>
       <div class="admin-item-main admin-item-main--single">
         <div class="admin-item-content">
           <div class="card-topline">
@@ -2447,10 +2756,6 @@ function trashItemMarkup(item) {
           <p class="muted">자동 삭제 예정 · ${escapeHTML(purgeAt || '-')}</p>
           <p>${escapeHTML(item.originalId || '')}</p>
         </div>
-      </div>
-      <div class="admin-item-actions">
-        <button type="button" class="small-button" data-trash-action="restore" data-id="${escapeHTML(item.id)}">복원</button>
-        <button type="button" class="small-button is-danger" data-trash-action="purge" data-id="${escapeHTML(item.id)}">영구 삭제</button>
       </div>
     </article>
   `;
@@ -2470,8 +2775,8 @@ function renderTrashList() {
   }
 }
 
-function adminSection(title, content) { return `<section class="admin-list-section"><h3>${escapeHTML(title)}</h3>${content}</section>`; }
-function emptyAdmin(text) { return `<div class="admin-empty">${escapeHTML(text)}</div>`; }
+function adminSection(title, content, className = '') { return `<section class="admin-list-section${className ? ` ${escapeHTML(className)}` : ''}"><h3>${escapeHTML(title)}</h3>${content}</section>`; }
+function emptyAdmin(text) { return `<div class="admin-empty" role="status"><strong>표시할 항목이 없습니다.</strong><span>${escapeHTML(text)}</span></div>`; }
 
 function onMemberListClick(event) {
   const button = event.target.closest('[data-member-action]');
@@ -2518,7 +2823,7 @@ function onTrashListClick(event) {
 }
 
 function loadMemberForm(member) {
-  state.editingMember = member;
+  state.editingMember = structuredClone(member);
   state.memberPhotoRemoved = false;
   elements.memberTitle.textContent = '멤버 수정';
   const form = elements.memberForm;
@@ -2563,10 +2868,11 @@ function loadMemberForm(member) {
   renderMemberPublicationPicker(member.publicationLinks || []);
   renderMemberProjectPicker(member.projectLinks || []);
   updateMemberEducationVisibility();
+  markFormClean(form);
   openEditor('member');
 }
 function loadProjectForm(project) {
-  state.editingProject = project;
+  state.editingProject = structuredClone(project);
   elements.projectTitle.textContent = '과제 수정';
   const form = elements.projectForm;
   setFormValue(form, 'titleKr', project.titleKr || project.title || '');
@@ -2579,19 +2885,21 @@ function loadProjectForm(project) {
   setFormValue(form, 'tagsKr', ((project.tagsKr && project.tagsKr.length) ? project.tagsKr : project.tags || []).join(', '));
   setFormValue(form, 'tagsEn', ((project.tagsEn && project.tagsEn.length) ? project.tagsEn : project.tags || []).join(', '));
   renderProjectFigurePreview();
+  markFormClean(form);
   openEditor('project');
 }
 function loadPublicationForm(item) {
-  state.editingPublication = item;
+  state.editingPublication = structuredClone(item);
   state.publicationMemberQuery = '';
   elements.publicationTitle.textContent = '논문 수정';
   const form = elements.publicationForm;
   ['title','authors','journal','year','month','doi','abstract','indexing'].forEach((field) => setFormValue(form, field, field === 'doi' ? (item.doi || item.url || '') : (item[field] || '')));
   renderPublicationMemberPicker(resolvePublicationMemberLinks(item));
+  markFormClean(form);
   openEditor('publication');
 }
 function loadBoardForm(item) {
-  state.editingBoard = item;
+  state.editingBoard = structuredClone(item);
   elements.boardTitle.textContent = '게시판 수정';
   const form = elements.boardForm;
   setFormValue(form, 'category', normalizeBoardCategory(item.category || 'conference'));
@@ -2602,6 +2910,7 @@ function loadBoardForm(item) {
   state.pendingBoardPreviews = [];
   updateFileInputLabel(elements.boardImageInput, elements.boardImageFileName);
   renderBoardImagePreview();
+  markFormClean(form);
   openEditor('board');
 }
 
@@ -2635,6 +2944,7 @@ function memberFilterFor(member) {
   if (member.group === 'researchProfessor') return 'research';
   if (member.group === 'studentResearcher') return 'undergrad';
   if (member.group === 'alumni' || member.status === 'alumni') return 'alumni';
+  if (member.course === 'phdCompleted') return 'phdCompleted';
   return member.course === 'phd' ? 'phd' : 'ms';
 }
 
@@ -2752,5 +3062,7 @@ function showNotice(message, tone = 'info') {
   target.className = `notice-banner is-${tone}`;
   target.hidden = false;
   window.clearTimeout(showNotice.timer);
-  showNotice.timer = window.setTimeout(() => { if (target !== elements.authNotice) target.hidden = true; }, 3600);
+  if (tone !== 'danger' && target !== elements.authNotice) {
+    showNotice.timer = window.setTimeout(() => { target.hidden = true; }, tone === 'success' ? 4200 : 6000);
+  }
 }

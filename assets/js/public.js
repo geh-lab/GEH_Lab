@@ -1,6 +1,7 @@
-import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=75';
+import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=79';
 import {
   escapeHTML,
+  slugify,
   getInitials,
   groupBy,
   rootAsset,
@@ -23,18 +24,79 @@ import {
   publicationYearMonthLabel,
   normalizeProjectPeriod,
   isActiveItem,
-  formatEnglishName
-} from './utils.js?v=75';
-import { hasFirebaseConfig, fetchCollection, listenCollection, COLLECTIONS } from './firebase.js?v=75';
+  formatEnglishName,
+  setupAdaptiveGlass,
+  setSpatialOrigin
+} from './utils.js?v=110';
+import { hasFirebaseConfig, isLocalDevMode, fetchCollection, listenCollection, COLLECTIONS } from './firebase-public.js?v=82';
+
+document.documentElement.classList.add('js');
 
 const body = document.body;
 const page = body.dataset.page;
 const lang = body.dataset.lang || 'kr';
 const root = body.dataset.root || '.';
 const copy = SITE_COPY[lang];
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+const BOARD_VIEW_STORAGE_KEY = 'geh-board-view-v1';
+const BOARD_SORT_STORAGE_KEY = 'geh-board-sort-v1';
+
+if (page === 'home' || page === 'board' || page === 'members') void import('../css/icons.css');
 
 const qs = (selector) => document.querySelector(selector);
 const qsa = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
+
+function savedBoardView() {
+  try {
+    const value = localStorage.getItem(BOARD_VIEW_STORAGE_KEY);
+    return value === 'list' ? 'list' : 'grid';
+  } catch {
+    return 'grid';
+  }
+}
+
+function saveBoardView(value) {
+  try {
+    localStorage.setItem(BOARD_VIEW_STORAGE_KEY, value);
+  } catch {
+    // Display preferences can remain session-only when storage is unavailable.
+  }
+}
+
+function savedBoardSort() {
+  try {
+    return localStorage.getItem(BOARD_SORT_STORAGE_KEY) === 'oldest' ? 'oldest' : 'newest';
+  } catch {
+    return 'newest';
+  }
+}
+
+function saveBoardSort(value) {
+  try {
+    localStorage.setItem(BOARD_SORT_STORAGE_KEY, value);
+  } catch {
+    // Display preferences can remain session-only when storage is unavailable.
+  }
+}
+
+function showPublicNotice(message, tone = 'warning') {
+  const shell = qs('.site-shell');
+  const header = qs('.site-header');
+  if (!shell || !header) return;
+  let notice = qs('#public-status-notice');
+  if (!notice) {
+    notice = document.createElement('div');
+    notice.id = 'public-status-notice';
+    notice.className = 'notice-banner public-status-notice';
+    notice.setAttribute('role', 'status');
+    notice.setAttribute('aria-live', 'polite');
+    notice.setAttribute('aria-atomic', 'true');
+    header.insertAdjacentElement('afterend', notice);
+  }
+  notice.className = `notice-banner public-status-notice is-${tone}`;
+  notice.textContent = message;
+  notice.hidden = false;
+}
 
 function firstFilled(...values) {
   for (const value of values) {
@@ -42,6 +104,62 @@ function firstFilled(...values) {
     if (text) return text;
   }
   return '';
+}
+
+function memberIdentityKey(member = {}) {
+  const rawName = String(member.name || '').trim();
+  const englishName = String(member.nameEn || (/^[\x00-\x7F]+$/.test(rawName) ? rawName : ''))
+    .trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+  if (englishName) return `name-en:${englishName}`;
+  const email = String(member.email || '').trim().toLowerCase();
+  if (email) return `email:${email}`;
+  const names = [member.nameKr, member.nameEn, member.name]
+    .map((value) => String(value || '').trim().toLowerCase().replace(/\s+/g, ''))
+    .filter(Boolean);
+  return `name:${[...new Set(names)].sort().join('|')}`;
+}
+
+function memberCompletenessScore(member = {}) {
+  const fieldScore = Object.values(member).reduce((score, value) => {
+    if (Array.isArray(value)) return score + value.length * 2;
+    if (value === false || value === 0) return score + 1;
+    return score + (value !== undefined && value !== null && String(value).trim() ? 1 : 0);
+  }, 0);
+  const statusCoherent = member.group === 'alumni' ? member.status === 'alumni' : member.status !== 'alumni';
+  const bilingualName = String(member.nameKr || '').trim() && String(member.nameEn || '').trim();
+  return fieldScore + (statusCoherent ? 100 : 0) + (bilingualName ? 10 : 0);
+}
+
+function dedupeMemberRecords(items = []) {
+  const selected = new Map();
+  (Array.isArray(items) ? items : []).forEach((member) => {
+    const key = memberIdentityKey(member);
+    const current = selected.get(key);
+    if (!current || memberCompletenessScore(member) > memberCompletenessScore(current)) selected.set(key, member);
+  });
+  return [...selected.values()];
+}
+
+const RENDER_VOLATILE_FIELDS = new Set(['createdAt', 'updatedAt', 'deletedAt', 'purgeAfterAt']);
+
+function stableRenderValue(value, key = '') {
+  if (RENDER_VOLATILE_FIELDS.has(key)) return undefined;
+  if (value === null || value === undefined) return value;
+  if (typeof value?.toMillis === 'function') return value.toMillis();
+  if (typeof value?.toDate === 'function') return value.toDate().toISOString();
+  if (Array.isArray(value)) return value.map((item) => stableRenderValue(item));
+  if (typeof value === 'object') {
+    return Object.keys(value).sort().reduce((result, field) => {
+      const next = stableRenderValue(value[field], field);
+      if (next !== undefined) result[field] = next;
+      return result;
+    }, {});
+  }
+  return value;
+}
+
+function collectionRenderSignature(items = []) {
+  return JSON.stringify(stableRenderValue(Array.isArray(items) ? items : []));
 }
 
 function stretchProjectGrid(grid) {
@@ -55,29 +173,100 @@ const focusImages = [
   'assets/images/background/hero-3.jpg'
 ].map((path) => rootAsset(path, root));
 
-const useLiveData = hasFirebaseConfig;
+// Local preview uses fallback data plus localStorage overrides. Only a configured
+// remote deployment should suppress fallback content while Firestore is loading.
+const useLiveData = hasFirebaseConfig && !isLocalDevMode;
+const prerenderedMembers = (() => {
+  const source = document.querySelector('#member-roster-data');
+  if (!source) return [];
+  try {
+    const parsed = JSON.parse(source.textContent || '[]');
+    return Array.isArray(parsed) ? dedupeMemberRecords(sortMembers(parsed).filter(isActiveItem)) : [];
+  } catch (error) {
+    console.warn('초기 멤버 명단을 읽지 못했습니다.', error);
+    return [];
+  }
+})();
 const state = {
-  members: useLiveData ? [] : sortMembers(FALLBACK_MEMBERS).filter(isActiveItem),
+  members: prerenderedMembers.length
+    ? prerenderedMembers
+    : (useLiveData ? [] : dedupeMemberRecords(sortMembers(FALLBACK_MEMBERS).filter(isActiveItem))),
   projects: useLiveData ? [] : sortProjects(FALLBACK_PROJECTS).filter(isActiveItem),
   publications: useLiveData ? [] : sortPublications(FALLBACK_PUBLICATIONS).filter(isActiveItem),
   board: useLiveData ? [] : sortBoardPosts(FALLBACK_BOARD_POSTS).filter(isActiveItem),
-  loadingMembers: useLiveData && (page === 'home' || page === 'members'),
+  loadingMembers: useLiveData && !prerenderedMembers.length && (page === 'home' || page === 'members'),
   loadingProjects: useLiveData && (page === 'home' || page === 'projects'),
   loadingPublications: useLiveData && (page === 'home' || page === 'publications'),
   loadingBoard: useLiveData && (page === 'board' || page === 'home'),
   publicationQuery: '',
   boardTab: 'all',
+  boardView: savedBoardView(),
+  boardSort: savedBoardSort(),
   unsubs: []
 };
+
+let renderedMemberSignature = page === 'members' && prerenderedMembers.length
+  ? collectionRenderSignature(prerenderedMembers)
+  : '';
+
+function replaceCollectionState(key, nextItems, loadingKey) {
+  const previousSignature = collectionRenderSignature(state[key]);
+  const nextSignature = collectionRenderSignature(nextItems);
+  const wasLoading = Boolean(state[loadingKey]);
+  state[key] = nextItems;
+  state[loadingKey] = false;
+  return previousSignature !== nextSignature || wasLoading;
+}
+
+function collectionAffectsCurrentPage(key) {
+  const visibleCollections = {
+    home: new Set(['members', 'projects', 'publications', 'board']),
+    members: new Set(['members']),
+    projects: new Set(['projects']),
+    publications: new Set(['publications']),
+    board: new Set(['board'])
+  };
+  return visibleCollections[page]?.has(key) === true;
+}
 
 const modalState = {
   root: null,
   title: null,
   body: null,
-  closeButtons: []
+  closeButtons: [],
+  closeButton: null,
+  trigger: null,
+  closeTimer: null,
+  instant: false
 };
 
-const PUBLIC_CACHE_KEY = 'geh-public-cache-v75';
+// Firestore의 첫 응답이나 실시간 리스너가 멤버 프로필을 보는 도중 도착하면
+// 카드/사진 전체가 다시 만들어져 프로필이 한 번 더 로딩되는 것처럼 보입니다.
+// 열린 프로필은 그대로 유지하고, 닫은 뒤 최신 명단을 한 번만 반영합니다.
+let pendingMemberPageRender = false;
+
+function memberProfileModalIsOpen() {
+  return page === 'members'
+    && Boolean(modalState.root && !modalState.root.hidden)
+    && Boolean(modalState.body?.querySelector('.detail-modal--member'));
+}
+
+function renderPageWithoutInterruptingMemberProfile() {
+  if (memberProfileModalIsOpen()) {
+    pendingMemberPageRender = true;
+    return;
+  }
+  renderPage();
+}
+
+const PUBLIC_CACHE_KEY = 'geh-public-cache-v81';
+const LEGACY_PUBLIC_CACHE_KEYS = ['geh-public-cache-v75', 'geh-public-cache-v76', 'geh-public-cache-v77', 'geh-public-cache-v80'];
+
+try {
+  LEGACY_PUBLIC_CACHE_KEYS.forEach((key) => localStorage.removeItem(key));
+} catch {
+  // Storage may be unavailable in privacy-restricted browsing contexts.
+}
 
 
 function cacheFresh(cache = {}, minutes = 15) {
@@ -118,15 +307,14 @@ function writePublicCache() {
 }
 
 function applyCachedState() {
-  // Firebase 배포 환경에서는 오래된 공개 캐시/기본 데이터를 먼저 보여주지 않습니다.
-  // Firestore 응답 전에는 로딩 상태를 유지해 예전 홈 화면이 순간적으로 뜨는 문제를 방지합니다.
-  if (useLiveData) return false;
+  // 현재 버전에서 실제로 동기화된 최신 데이터만 먼저 보여주고,
+  // Firestore 서버 응답은 백그라운드에서 다시 확인합니다.
   const cache = readPublicCache();
   if (!cache) return false;
   let applied = false;
   const fresh = cacheFresh(cache, 15);
-  if (Array.isArray(cache.members) && cache.members.length && fresh) {
-    state.members = useLiveData ? sortMembers(cache.members).filter(isActiveItem) : sortMembers(mergeMembers(FALLBACK_MEMBERS, cache.members)).filter(isActiveItem);
+  if (!prerenderedMembers.length && Array.isArray(cache.members) && cache.members.length && fresh) {
+    state.members = dedupeMemberRecords(useLiveData ? sortMembers(cache.members).filter(isActiveItem) : sortMembers(mergeMembers(FALLBACK_MEMBERS, cache.members)).filter(isActiveItem));
     state.loadingMembers = false;
     applied = true;
   }
@@ -226,7 +414,7 @@ function memberSkeletonCard() {
 }
 
 function memberGridSkeleton(count = 3, modifier = '') {
-  return '<div class="member-grid member-grid--skeleton ' + escapeHTML(modifier) + '">' + Array.from({ length: count }, () => memberSkeletonCard()).join('') + '</div>';
+  return '<div class="member-grid member-grid--skeleton ' + escapeHTML(modifier) + '" data-count="' + escapeHTML(count) + '">' + Array.from({ length: count }, () => memberSkeletonCard()).join('') + '</div>';
 }
 
 function piSkeletonCard() {
@@ -297,7 +485,6 @@ function homePublicationSkeletonCard() {
 function homeNewsSkeletonCard() {
   return [
     '<article class="home-news-card home-news-card--skeleton reveal" aria-hidden="true">',
-    '<div class="home-news-card__media skeleton-media"></div>',
     '<div class="home-news-card__copy">',
     '<div class="member-chip-row">',
     '<span class="member-chip member-chip--soft skeleton-pill skeleton-pill--chip"></span>',
@@ -306,6 +493,7 @@ function homeNewsSkeletonCard() {
     '<span class="skeleton-line skeleton-line--home-title"></span>',
     '<span class="skeleton-line skeleton-line--home-text"></span>',
     '</div>',
+    '<div class="home-news-card__media skeleton-media"></div>',
     '</article>'
   ].join('');
 }
@@ -375,12 +563,29 @@ function memberExperienceEntries(member = {}) {
 }
 
 function memberExperienceMarkup(member = {}, locale = lang, variant = 'detail') {
-  const lines = memberExperienceEntries(member).map((entry) => {
+  const entries = memberExperienceEntries(member).map((entry) => {
     const detail = localizedExperienceDetail(entry, locale);
-    return [String(entry.period || '').trim(), detail].filter(Boolean).join(' | ');
-  }).filter(Boolean);
-  if (!lines.length) return '';
-  return `<div class="member-experience-lines member-experience-lines--${escapeHTML(variant)}">${lines.map((line) => `<p>${escapeHTML(line)}</p>`).join('')}</div>`;
+    const detailParts = String(detail || '').split(/\s*\|\s*/).map((part) => part.trim()).filter(Boolean);
+    return {
+      period: String(entry.period || '').trim(),
+      role: detailParts.shift() || '',
+      organization: detailParts.join(' | ')
+    };
+  }).filter((entry) => entry.period || entry.role || entry.organization);
+  if (!entries.length) return '';
+  return `
+    <div class="member-experience-lines member-experience-lines--${escapeHTML(variant)}" role="list">
+      ${entries.map((entry) => `
+        <div class="member-experience-item${entry.period ? '' : ' member-experience-item--plain'}" role="listitem">
+          ${entry.period ? `<span class="member-experience-period">${escapeHTML(entry.period)}</span>` : ''}
+          <span class="member-experience-copy">
+            ${entry.role ? `<strong>${escapeHTML(entry.role)}</strong>` : ''}
+            ${entry.organization ? `<small>${escapeHTML(entry.organization)}</small>` : ''}
+          </span>
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 
 
@@ -408,7 +613,7 @@ function memberEducationValue(member = {}, baseKey = '', locale = lang) {
   );
 }
 
-function memberEducationLines(member = {}, locale = lang) {
+function memberEducationEntries(member = {}, locale = lang) {
   const degreeLabels = locale === 'en'
     ? { bs: 'B.S.', ms: 'M.S.', phd: 'Ph.D.' }
     : { bs: '학사', ms: '석사', phd: '박사' };
@@ -417,25 +622,58 @@ function memberEducationLines(member = {}, locale = lang) {
     ['ms', memberEducationValue(member, 'mastersSchool', locale), memberEducationValue(member, 'mastersMajor', locale)],
     ['phd', memberEducationValue(member, 'doctoralSchool', locale), memberEducationValue(member, 'doctoralMajor', locale)]
   ];
-  const lines = specs
+  const entries = specs
     .filter(([, school, major]) => String(school || '').trim() || String(major || '').trim())
-    .map(([key, school, major]) => [degreeLabels[key], school, major].filter(Boolean).join(' · '));
-  if (lines.length) return lines;
-  return String((locale === 'en' ? (member.educationEn || member.education) : (member.educationKr || member.education)) || '')
+    .map(([key, school, major]) => ({
+      degree: degreeLabels[key],
+      school: String(school || '').trim(),
+      major: String(major || '').trim()
+    }));
+  if (entries.length) return entries;
+
+  const fallback = [];
+  String((locale === 'en' ? (member.educationEn || member.education) : (member.educationKr || member.education)) || '')
     .split(/\n+/)
     .map((line) => line.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .forEach((line) => {
+      const degreeMatch = line.match(/^(학사|석사|박사|B\.?S\.?|M\.?S\.?|Ph\.?D\.?)\s*(?:[·•|]\s*)?(.*)$/i);
+      if (degreeMatch) {
+        const details = String(degreeMatch[2] || '').split(/\s+[·•|]\s+/).map((part) => part.trim()).filter(Boolean);
+        fallback.push({ degree: degreeMatch[1], school: details.shift() || '', major: details.join(' | ') });
+        return;
+      }
+      const details = line.split(/\s+[·•|]\s+/).map((part) => part.trim()).filter(Boolean);
+      if (fallback.length && !fallback[fallback.length - 1].major && details.length === 1) {
+        fallback[fallback.length - 1].major = details[0];
+        return;
+      }
+      fallback.push({ degree: '', school: details.shift() || '', major: details.join(' | ') });
+    });
+  return fallback;
 }
 
 function memberEducationMarkup(member = {}, locale = lang, variant = 'detail') {
-  const lines = memberEducationLines(member, locale);
-  if (!lines.length) return '';
-  return `<div class="member-education-lines member-education-lines--${escapeHTML(variant)}">${lines.map((line) => `<p>${escapeHTML(line)}</p>`).join('')}</div>`;
+  const entries = memberEducationEntries(member, locale);
+  if (!entries.length) return '';
+  return `
+    <div class="member-education-lines member-education-lines--${escapeHTML(variant)}" role="list">
+      ${entries.map((entry) => `
+        <div class="member-education-item${entry.degree ? '' : ' member-education-item--plain'}" role="listitem">
+          ${entry.degree ? `<span class="member-education-degree">${escapeHTML(entry.degree)}</span>` : ''}
+          <span class="member-education-copy">
+            ${entry.school ? `<strong>${escapeHTML(entry.school)}</strong>` : ''}
+            ${entry.major ? `<small>${escapeHTML(entry.major)}</small>` : ''}
+          </span>
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 
 function memberCourseScheduleEntries(member = {}) {
   return (Array.isArray(member.courseSchedule) ? member.courseSchedule : []).filter((entry) => {
-    return ['day', 'time', 'courseName', 'credits', 'description'].some((key) => String(entry?.[key] || '').trim());
+    return ['time', 'courseName', 'credits', 'description'].some((key) => String(entry?.[key] || '').trim());
   });
 }
 
@@ -479,12 +717,16 @@ function memberCourseScheduleMarkup(member = {}, locale = lang) {
 function memberCourseSectionMarkup(member = {}, locale = lang) {
   const title = locale === 'en' ? 'Course schedule' : '수업 시간표';
   const table = member.group === 'pi' ? memberCourseScheduleMarkup(member, locale) : '';
-  const note = member.group === 'pi' ? String(member.coursesInfo || '').trim() : '';
-  const html = [table, note ? `<p class="detail-note">${multilineText(note)}</p>` : ''].filter(Boolean).join('');
-  return html ? detailHtmlSection(title, html) : '';
+  return table ? detailHtmlSection(title, table) : '';
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  if (window.GEH_BOOT_TIMEOUT) window.clearTimeout(window.GEH_BOOT_TIMEOUT);
+  if (document.documentElement.classList.contains('js-fallback')) {
+    qsa('.reveal').forEach((item) => item.classList.add('is-visible'));
+    document.documentElement.classList.remove('js-fallback');
+  }
+  setupAdaptiveGlass(document);
   setupHeader();
   ensureModal();
   setupRevealAnimations();
@@ -505,12 +747,22 @@ async function hydrate() {
       return await fetchCollection(collectionName);
     } catch (error) {
       console.warn(`${collectionName} 컬렉션을 불러오지 못했습니다.`, error);
+      showPublicNotice(lang === 'en'
+        ? 'Some live content could not be loaded. Please try again shortly.'
+        : '일부 실시간 콘텐츠를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.', 'danger');
       return [];
     }
   };
 
-  const collectionNames = [COLLECTIONS.members, COLLECTIONS.projects, COLLECTIONS.publications];
-  if (COLLECTIONS.board && (page === 'board' || page === 'home')) collectionNames.push(COLLECTIONS.board);
+  const pageCollections = {
+    home: [COLLECTIONS.members, COLLECTIONS.projects, COLLECTIONS.publications, COLLECTIONS.board],
+    members: [COLLECTIONS.members, COLLECTIONS.publications],
+    projects: [COLLECTIONS.projects],
+    publications: [COLLECTIONS.publications, COLLECTIONS.members],
+    board: [COLLECTIONS.board]
+  };
+  const collectionNames = (pageCollections[page] || []).filter(Boolean);
+  if (!collectionNames.length) return;
 
   const resultMap = new Map();
   const settled = await Promise.allSettled(collectionNames.map((collectionName) => readSafely(collectionName)));
@@ -523,62 +775,70 @@ async function hydrate() {
   const projects = resultMap.get(COLLECTIONS.projects) || [];
   const publications = resultMap.get(COLLECTIONS.publications) || [];
   const board = COLLECTIONS.board ? (resultMap.get(COLLECTIONS.board) || []) : [];
+  let shouldRender = false;
 
-  state.members = useLiveData ? sortMembers(members).filter(isActiveItem) : sortMembers(mergeMembers(FALLBACK_MEMBERS, members)).filter(isActiveItem);
-  state.loadingMembers = false;
-  state.projects = mergedProjectsForPage(projects);
-  state.loadingProjects = false;
-  state.publications = useLiveData ? sortPublications(publications).filter(isActiveItem) : sortPublications(mergePublications(FALLBACK_PUBLICATIONS, publications)).filter(isActiveItem);
-  state.loadingPublications = false;
-  if (COLLECTIONS.board && (page === 'board' || page === 'home')) {
-    state.board = mergedBoardForPage(board);
-    state.loadingBoard = false;
+  if (resultMap.has(COLLECTIONS.members)) {
+    const nextItems = dedupeMemberRecords(useLiveData ? sortMembers(members).filter(isActiveItem) : sortMembers(mergeMembers(FALLBACK_MEMBERS, members)).filter(isActiveItem));
+    const changed = replaceCollectionState('members', nextItems, 'loadingMembers');
+    shouldRender = shouldRender || (changed && collectionAffectsCurrentPage('members'));
+  }
+  if (resultMap.has(COLLECTIONS.projects)) {
+    const changed = replaceCollectionState('projects', mergedProjectsForPage(projects), 'loadingProjects');
+    shouldRender = shouldRender || (changed && collectionAffectsCurrentPage('projects'));
+  }
+  if (resultMap.has(COLLECTIONS.publications)) {
+    const nextItems = useLiveData ? sortPublications(publications).filter(isActiveItem) : sortPublications(mergePublications(FALLBACK_PUBLICATIONS, publications)).filter(isActiveItem);
+    const changed = replaceCollectionState('publications', nextItems, 'loadingPublications');
+    shouldRender = shouldRender || (changed && collectionAffectsCurrentPage('publications'));
+  }
+  if (resultMap.has(COLLECTIONS.board)) {
+    const changed = replaceCollectionState('board', mergedBoardForPage(board), 'loadingBoard');
+    shouldRender = shouldRender || (changed && collectionAffectsCurrentPage('board'));
   }
 
   writePublicCache();
-  renderPage();
+  if (shouldRender) renderPageWithoutInterruptingMemberProfile();
 
   state.unsubs.forEach((unsub) => { try { unsub(); } catch {} });
   state.unsubs = [];
   const addListener = (collectionName, onItems) => {
     try {
-      state.unsubs.push(listenCollection(collectionName, onItems, (error) => console.warn(`${collectionName} 실시간 동기화 실패`, error)));
+      state.unsubs.push(listenCollection(collectionName, onItems, (error) => {
+        console.warn(`${collectionName} 실시간 동기화 실패`, error);
+        showPublicNotice(lang === 'en'
+          ? 'Live updates are temporarily unavailable. The latest loaded content remains visible.'
+          : '실시간 업데이트 연결이 일시적으로 중단되었습니다. 마지막으로 불러온 내용을 표시합니다.', 'warning');
+      }));
     } catch (error) {
       console.warn(`${collectionName} 리스너 연결 실패`, error);
     }
   };
 
-  addListener(COLLECTIONS.members, (items) => {
-    state.members = useLiveData ? sortMembers(items).filter(isActiveItem) : sortMembers(mergeMembers(FALLBACK_MEMBERS, items)).filter(isActiveItem);
-    state.loadingMembers = false;
+  if (collectionNames.includes(COLLECTIONS.members)) addListener(COLLECTIONS.members, (items) => {
+    const nextItems = dedupeMemberRecords(useLiveData ? sortMembers(items).filter(isActiveItem) : sortMembers(mergeMembers(FALLBACK_MEMBERS, items)).filter(isActiveItem));
+    const changed = replaceCollectionState('members', nextItems, 'loadingMembers');
     writePublicCache();
-    if (page === 'home' || page === 'members') renderPage();
+    if (changed && collectionAffectsCurrentPage('members')) renderPageWithoutInterruptingMemberProfile();
   });
-  addListener(COLLECTIONS.projects, (items) => {
-    state.projects = mergedProjectsForPage(items);
-    state.loadingProjects = false;
+  if (collectionNames.includes(COLLECTIONS.projects)) addListener(COLLECTIONS.projects, (items) => {
+    const changed = replaceCollectionState('projects', mergedProjectsForPage(items), 'loadingProjects');
     writePublicCache();
-    if (page === 'home' || page === 'projects') renderPage();
+    if (changed && collectionAffectsCurrentPage('projects')) renderPage();
   });
-  addListener(COLLECTIONS.publications, (items) => {
-    state.publications = useLiveData ? sortPublications(items).filter(isActiveItem) : sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items)).filter(isActiveItem);
-    state.loadingPublications = false;
+  if (collectionNames.includes(COLLECTIONS.publications)) addListener(COLLECTIONS.publications, (items) => {
+    const nextItems = useLiveData ? sortPublications(items).filter(isActiveItem) : sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items)).filter(isActiveItem);
+    const changed = replaceCollectionState('publications', nextItems, 'loadingPublications');
     writePublicCache();
-    if (page === 'home' || page === 'publications') renderPage();
+    if (changed && collectionAffectsCurrentPage('publications')) renderPage();
   });
-  if (COLLECTIONS.board) {
+  if (collectionNames.includes(COLLECTIONS.board)) {
     addListener(COLLECTIONS.board, (items) => {
-      state.board = mergedBoardForPage(items);
-      state.loadingBoard = false;
+      const changed = replaceCollectionState('board', mergedBoardForPage(items), 'loadingBoard');
       writePublicCache();
-      if (page === 'home' || page === 'board') renderPage();
+      if (changed && collectionAffectsCurrentPage('board')) renderPage();
     });
   }
 }
-
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) renderPage();
-});
 
 function renderPage() {
 
@@ -594,32 +854,209 @@ function renderPage() {
   bindInteractiveCards();
 }
 
+function setupLiquidNavLens(panel) {
+  if (!panel || panel.dataset.liquidLensBound === 'true') return;
+  const links = () => qsa(':scope > a', panel);
+  const lens = document.createElement('span');
+  lens.className = 'site-nav__lens';
+  lens.setAttribute('aria-hidden', 'true');
+  panel.prepend(lens);
+  panel.dataset.liquidLensBound = 'true';
+
+  let currentLink = null;
+  let pressedLink = null;
+  let pointerId = null;
+  let selecting = false;
+  let longPressTimer = 0;
+  let suppressNextClick = false;
+
+  const activeLink = () => links().find((link) => link.classList.contains('is-active') || link.hasAttribute('aria-current')) || links()[0];
+  const moveLens = (link, immediate = false) => {
+    if (!link?.isConnected || !panel.contains(link)) return;
+    if (currentLink === link && !immediate) return;
+    currentLink?.classList.remove('is-lens-target');
+    currentLink = link;
+    currentLink.classList.add('is-lens-target');
+    const linkRect = link.getBoundingClientRect();
+    if (!linkRect.width || !linkRect.height) return;
+    lens.classList.toggle('is-immediate', immediate);
+    lens.style.width = `${linkRect.width}px`;
+    lens.style.height = `${linkRect.height}px`;
+    lens.style.transform = `translate3d(${link.offsetLeft}px, ${link.offsetTop}px, 0)`;
+    lens.classList.add('is-visible');
+    if (immediate) requestAnimationFrame(() => lens.classList.remove('is-immediate'));
+  };
+  const settle = (immediate = false) => moveLens(activeLink(), immediate);
+  const realign = (immediate = false) => moveLens(currentLink || activeLink(), immediate);
+  const linkAtPoint = (x, y) => document.elementFromPoint(x, y)?.closest('.site-nav a');
+
+  links().forEach((link) => {
+    link.addEventListener('pointerenter', (event) => {
+      if (event.pointerType === 'mouse' && !pressedLink) moveLens(link);
+    });
+    link.addEventListener('mouseenter', () => {
+      if (!pressedLink) moveLens(link);
+    });
+    link.addEventListener('focus', () => moveLens(link));
+    link.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'mouse') return;
+      pressedLink = link;
+      pointerId = event.pointerId;
+      selecting = false;
+      moveLens(link);
+      window.clearTimeout(longPressTimer);
+      longPressTimer = window.setTimeout(() => {
+        selecting = true;
+        panel.classList.add('is-touch-selecting');
+      }, 320);
+    });
+  });
+
+  const trackPointer = (event) => {
+    if (!pressedLink || event.pointerId !== pointerId || !selecting) return;
+    event.preventDefault();
+    const target = linkAtPoint(event.clientX, event.clientY);
+    if (target && panel.contains(target)) moveLens(target);
+  };
+
+  const finishPointer = (event, cancelled = false) => {
+    if (!pressedLink || event.pointerId !== pointerId) return;
+    window.clearTimeout(longPressTimer);
+    panel.classList.remove('is-touch-selecting');
+    const destination = selecting && !cancelled ? currentLink : null;
+    const origin = pressedLink;
+    pressedLink = null;
+    pointerId = null;
+    selecting = false;
+    if (destination && destination !== origin) {
+      suppressNextClick = true;
+      window.location.assign(destination.href);
+      return;
+    }
+    window.setTimeout(() => settle(), 90);
+  };
+
+  window.addEventListener('pointermove', trackPointer, { passive: false });
+  window.addEventListener('pointerup', (event) => finishPointer(event));
+  window.addEventListener('pointercancel', (event) => finishPointer(event, true));
+  panel.addEventListener('pointerleave', (event) => {
+    if (!pressedLink && event.pointerType === 'mouse') settle();
+  });
+  panel.addEventListener('mousemove', (event) => {
+    if (pressedLink) return;
+    const target = event.target.closest?.('.site-nav a');
+    if (target && target !== currentLink) moveLens(target);
+  }, { passive: true });
+  panel.addEventListener('contextmenu', (event) => {
+    if (pressedLink || selecting) event.preventDefault();
+  });
+  panel.addEventListener('click', (event) => {
+    if (!suppressNextClick) return;
+    suppressNextClick = false;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+
+  const resizeObserver = new ResizeObserver(() => realign(true));
+  resizeObserver.observe(panel);
+  window.addEventListener('resize', () => realign(true), { passive: true });
+  requestAnimationFrame(() => settle(true));
+}
+
 function setupHeader() {
   const toggle = qs('[data-menu-toggle]');
   const panel = qs('[data-nav-panel]');
   const header = qs('.site-header');
   const adminButton = qs('.site-header .icon-button[href]');
-  qs(`.site-nav a[data-nav-page="${page}"]`)?.classList.add('is-active');
+  const activePage = page === 'member-profile' ? 'members' : page;
+  const activeLink = qs(`.site-nav a[data-nav-page="${activePage}"]`);
+  activeLink?.classList.add('is-active');
+  activeLink?.setAttribute('aria-current', 'page');
+  const languageLabels = {
+    ko: {
+      code: 'KO',
+      name: lang === 'en' ? 'Korean' : '한국어',
+      flag: 'assets/images/flags/kr.svg'
+    },
+    en: {
+      code: 'EN',
+      name: 'English',
+      flag: 'assets/images/flags/us.svg'
+    }
+  };
 
-  if (panel && adminButton && !panel.querySelector('.nav-admin-link')) {
-    const adminLink = document.createElement('a');
-    adminLink.href = adminButton.getAttribute('href');
-    adminLink.className = 'nav-admin-link';
-    adminLink.textContent = lang === 'en' ? 'Admin' : '관리자';
-    panel.appendChild(adminLink);
+  qsa('.lang-switch .lang-link').forEach((link) => {
+    const language = link.textContent.trim().toLowerCase() === 'en' ? 'en' : 'ko';
+    const option = languageLabels[language];
+    const isCurrent = link.classList.contains('is-active');
+    link.dataset.language = language;
+    link.hreflang = language;
+    link.setAttribute('aria-label', isCurrent
+      ? (lang === 'en' ? `Current language: ${option.name}` : `현재 언어: ${option.name}`)
+      : (lang === 'en' ? `Switch to ${option.name}` : `${option.name}로 전환`));
+    if (isCurrent) link.setAttribute('aria-current', 'true');
+    Array.from(link.childNodes).forEach((node) => {
+      if (node.nodeType === 3) node.remove();
+    });
+    let flag = link.querySelector('.lang-flag');
+    if (!flag) {
+      flag = document.createElement('img');
+      flag.className = 'lang-flag';
+      flag.alt = '';
+      flag.width = 24;
+      flag.height = 16;
+      flag.decoding = 'async';
+      flag.setAttribute('aria-hidden', 'true');
+      link.prepend(flag);
+    }
+    flag.src = rootAsset(option.flag, root);
+
+    let code = link.querySelector('.lang-code');
+    if (!code) {
+      code = document.createElement('span');
+      code.className = 'lang-code';
+      link.append(code);
+    }
+    code.textContent = option.code;
+  });
+
+  if (panel && toggle) {
+    panel.id ||= 'site-navigation';
+    toggle.setAttribute('aria-controls', panel.id);
   }
 
-  toggle?.addEventListener('click', () => {
-    const isOpen = panel?.classList.toggle('is-open');
-    toggle.classList.toggle('is-open', Boolean(isOpen));
-    toggle.setAttribute('aria-expanded', String(Boolean(isOpen)));
+  if (adminButton) {
+    const adminLabel = lang === 'en' ? 'Admin settings' : '관리자 설정';
+    adminButton.setAttribute('aria-label', adminLabel);
+    adminButton.setAttribute('title', adminLabel);
+  }
+
+  panel?.querySelectorAll('.nav-admin-link').forEach((link) => link.remove());
+  setupLiquidNavLens(panel);
+
+  const setMenuOpen = (open, { returnFocus = false, focusFirst = false } = {}) => {
+    if (!panel || !toggle) return;
+    const desktop = window.matchMedia('(min-width: 1101px)').matches;
+    panel.classList.toggle('is-open', open);
+    panel.setAttribute('aria-hidden', String(!desktop && !open));
+    toggle.classList.toggle('is-open', open);
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', lang === 'en'
+      ? (open ? 'Close menu' : 'Open menu')
+      : (open ? '메뉴 닫기' : '메뉴 열기'));
+    if (open && focusFirst) panel.querySelector('a')?.focus();
+    if (!open && returnFocus) toggle.focus({ preventScroll: true });
+  };
+
+  setMenuOpen(false);
+  toggle?.addEventListener('click', (event) => {
+    const nextOpen = toggle.getAttribute('aria-expanded') !== 'true';
+    setMenuOpen(nextOpen, { focusFirst: nextOpen && event.detail === 0 });
   });
 
   qsa('.site-nav a').forEach((link) => {
     link.addEventListener('click', () => {
-      panel?.classList.remove('is-open');
-      toggle?.classList.remove('is-open');
-      toggle?.setAttribute('aria-expanded', 'false');
+      setMenuOpen(false);
     });
   });
 
@@ -627,14 +1064,32 @@ function setupHeader() {
     if (!panel?.classList.contains('is-open')) return;
     const target = event.target;
     if (header?.contains(target)) return;
-    panel.classList.remove('is-open');
-    toggle?.classList.remove('is-open');
-    toggle?.setAttribute('aria-expanded', 'false');
+    setMenuOpen(false);
   });
 
-  const onScroll = () => header?.classList.toggle('is-scrolled', window.scrollY > 16);
-  onScroll();
-  window.addEventListener('scroll', onScroll, { passive: true });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !panel?.classList.contains('is-open')) return;
+    event.preventDefault();
+    setMenuOpen(false, { returnFocus: true });
+  });
+
+  window.matchMedia('(min-width: 1101px)').addEventListener?.('change', (event) => {
+    if (event.matches) setMenuOpen(false);
+  });
+
+  if (header) {
+    let sentinel = qs('.header-scroll-sentinel');
+    if (!sentinel) {
+      sentinel = document.createElement('span');
+      sentinel.className = 'header-scroll-sentinel';
+      sentinel.setAttribute('aria-hidden', 'true');
+      document.body.prepend(sentinel);
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      header.classList.toggle('is-scrolled', !entry.isIntersecting);
+    }, { threshold: 0 });
+    observer.observe(sentinel);
+  }
 }
 
 function ensureModal() {
@@ -645,7 +1100,7 @@ function ensureModal() {
   wrapper.innerHTML = `
     <div class="site-modal__backdrop" data-modal-close></div>
     <div class="site-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="site-modal-title">
-      <button type="button" class="site-modal__close" data-modal-close aria-label="close">×</button>
+      <button type="button" class="site-modal__close" data-modal-close aria-label="${lang === 'en' ? 'Close details' : '상세 정보 닫기'}">×</button>
       <div class="site-modal__scroll">
         <div class="site-modal__head">
           <h2 id="site-modal-title"></h2>
@@ -659,29 +1114,75 @@ function ensureModal() {
   modalState.title = wrapper.querySelector('#site-modal-title');
   modalState.body = wrapper.querySelector('.site-modal__content');
   modalState.closeButtons = qsa('[data-modal-close]', wrapper);
+  modalState.closeButton = wrapper.querySelector('.site-modal__close');
   modalState.closeButtons.forEach((button) => button.addEventListener('click', closeModal));
-  wrapper.addEventListener('click', (event) => {
-    if (event.target === wrapper) closeModal();
-  });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !wrapper.hidden) closeModal();
+    if (wrapper.hidden) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeModal();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = qsa('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])', wrapper)
+      .filter((element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true' && element.getClientRects().length > 0);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   });
 }
 
 function openModal(title, html) {
   ensureModal();
+  window.clearTimeout(modalState.closeTimer);
+  const wasOpen = !modalState.root.hidden && modalState.root.classList.contains('is-open');
+  if (!wasOpen) modalState.trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   modalState.title.textContent = title;
   modalState.body.innerHTML = html;
   modalState.root.hidden = false;
+  modalState.root.setAttribute('aria-hidden', 'false');
+  modalState.root.classList.toggle('is-instant', modalState.instant);
   document.body.classList.add('modal-open');
   bindInteractiveCards();
+  setSpatialOrigin(modalState.root.querySelector('.site-modal__dialog'), modalState.trigger);
+  requestAnimationFrame(() => {
+    modalState.root?.classList.add('is-open');
+    modalState.closeButton?.focus({ preventScroll: true });
+  });
 }
 
 function closeModal() {
-  if (!modalState.root) return;
-  modalState.root.hidden = true;
-  modalState.body.innerHTML = '';
-  document.body.classList.remove('modal-open');
+  if (!modalState.root || modalState.root.hidden) return;
+  window.clearTimeout(modalState.closeTimer);
+  modalState.root.classList.remove('is-open');
+  modalState.root.setAttribute('aria-hidden', 'true');
+  const trigger = modalState.trigger;
+  const triggerMemberId = trigger?.dataset?.memberId || trigger?.closest?.('[data-member-id]')?.dataset.memberId || '';
+  const finish = () => {
+    if (!modalState.root || modalState.root.classList.contains('is-open')) return;
+    modalState.root.hidden = true;
+    modalState.body.innerHTML = '';
+    document.body.classList.remove('modal-open');
+    if (pendingMemberPageRender) {
+      pendingMemberPageRender = false;
+      renderPage();
+    }
+    const currentTrigger = trigger?.isConnected
+      ? trigger
+      : (triggerMemberId ? qsa('[data-member-id]').find((item) => item.dataset.memberId === triggerMemberId) : null);
+    if (currentTrigger?.isConnected) currentTrigger.focus({ preventScroll: true });
+    modalState.trigger = null;
+    modalState.instant = false;
+    modalState.root.classList.remove('is-instant');
+  };
+  modalState.closeTimer = window.setTimeout(finish, reducedMotion.matches ? 0 : 160);
 }
 
 function bindInteractiveCards() {
@@ -696,11 +1197,13 @@ function bindInteractiveCards() {
       card.addEventListener('click', (event) => {
         const interactive = event.target.closest('a, button');
         if (interactive && interactive !== card) return;
+        modalState.instant = event.detail === 0;
         open();
       });
       card.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
+          modalState.instant = true;
           open();
         }
       });
@@ -757,8 +1260,8 @@ function bindInteractiveCards() {
 function alumniCourseLabel(member = {}, locale = lang) {
   if (!(member.status === 'alumni' || member.group === 'alumni')) return '';
   const course = String(member.course || member.enrolledCourse || '').trim();
-  if (!['phd', 'ms'].includes(course)) return '';
-  const base = memberCourseLabel(course, locale);
+  if (!['phd', 'phdCompleted', 'ms'].includes(course)) return '';
+  const base = memberCourseLabel(course === 'phdCompleted' ? 'phd' : course, locale);
   if (!base) return '';
   return locale === 'en' ? `${base} alumni` : `${base} 졸업`;
 }
@@ -768,7 +1271,7 @@ function openMemberModal(member) {
   if (member.group !== 'alumni') chips.push(member.group === 'pi' ? copy.pi : (member.group === 'researchProfessor' ? copy.researchProfessor : member.group === 'studentResearcher' ? copy.studentResearcherSection : copy.graduateStudent));
   if (member.group === 'graduateStudent') {
     chips.push(memberCourseLabel(member.course, lang));
-    if (member.track && member.track !== 'none') chips.push(memberTrackLabel(member.track, lang));
+    if (member.course !== 'phdCompleted' && member.track && member.track !== 'none') chips.push(memberTrackLabel(member.track, lang));
   }
   if (member.group === 'studentResearcher') chips.push(memberCourseLabel('undergrad', lang));
   if (member.status === 'alumni') {
@@ -783,26 +1286,34 @@ function openMemberModal(member) {
   const photo = member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}">` : `<div class="modal-avatar__placeholder">${escapeHTML(getInitials(memberDisplayName(member, 'en') || memberDisplayName(member) || member.name))}</div>`;
   const currentLabel = copy.currentPosition;
   const relatedProjectSection = renderMemberProjectBlock(member);
+  const experienceMarkup = memberExperienceMarkup(member, lang, 'detail');
+  const interestSection = detailSection(copy.interest, localizedMemberText(member, 'researchInterest'));
+  const coreDetailSections = [
+    detailHtmlSection(copy.education, memberEducationMarkup(member, lang, 'detail')),
+    experienceMarkup ? detailHtmlSection(copy.experience, experienceMarkup) : detailSection(copy.experience, localizedMemberText(member, 'experience')),
+    detailSection(currentLabel, localizedMemberText(member, 'currentPosition')),
+    memberCourseSectionMarkup(member, lang),
+  ].filter(Boolean).join('');
+  const extendedDetailSections = [
+    relatedProjectSection,
+    renderMemberPublicationBlock(member)
+  ].filter(Boolean).join('');
   openModal(title, `
     <div class="detail-modal detail-modal--member">
       <div class="detail-modal__hero">
-        <div class="detail-modal__media">${photo}</div>
+        <div class="detail-modal__aside">
+          <div class="detail-modal__media">${photo}</div>
+          ${interestSection ? `<div class="detail-modal__interest">${interestSection}</div>` : ''}
+        </div>
         <div class="detail-modal__summary">
           <div class="member-chip-row">${chips.map((chip) => `<span class="member-chip member-chip--soft">${escapeHTML(chip)}</span>`).join('')}</div>
           <h3>${escapeHTML(displayName)}</h3>
           ${localizedMemberText(member, 'bio') ? `<p class="detail-lead">${escapeHTML(localizedMemberText(member, 'bio'))}</p>` : ''}
-          ${member.email ? `<a class="member-link" href="mailto:${escapeHTML(member.email)}">${escapeHTML(member.email)}</a>` : ''}
+          ${memberEmailLink(member.email, 'detail-member-email')}
+          ${coreDetailSections ? `<div class="detail-grid detail-grid--member-core">${coreDetailSections}</div>` : ''}
         </div>
       </div>
-      <div class="detail-grid">
-        ${detailHtmlSection(copy.education, memberEducationMarkup(member, lang, 'detail'))}
-        ${memberExperienceMarkup(member, lang, 'detail') ? detailHtmlSection(copy.experience, memberExperienceMarkup(member, lang, 'detail')) : detailSection(copy.experience, localizedMemberText(member, 'experience'))}
-        ${detailSection(copy.interest, localizedMemberText(member, 'researchInterest'))}
-        ${detailSection(currentLabel, localizedMemberText(member, 'currentPosition'))}
-        ${memberCourseSectionMarkup(member, lang)}
-        ${relatedProjectSection}
-        ${renderMemberPublicationBlock(member)}
-      </div>
+      ${extendedDetailSections ? `<div class="detail-grid detail-grid--member-extended">${extendedDetailSections}</div>` : ''}
     </div>
   `);
 }
@@ -838,8 +1349,8 @@ function openBoardModal(post) {
     <div class="detail-modal detail-modal--board">
       <div class="member-chip-row">
         <span class="member-chip member-chip--soft">${escapeHTML(tag)}</span>
-        ${post.date ? `<span class="member-chip member-chip--soft">${escapeHTML(post.date)}</span>` : ''}
       </div>
+      ${boardMetaMarkup(post, 'board-detail-meta')}
       ${leadMedia}
       ${gallery}
       <p class="detail-lead">${escapeHTML(post.description || '')}</p>
@@ -1043,7 +1554,7 @@ function renderMemberPublicationBlock(member = {}) {
             const roles = Array.isArray(item.roles) ? item.roles : [];
             const linkLabel = copy.doi;
             return `
-              <article class="member-publication-item">
+              <article class="member-publication-item${item.url ? ' member-publication-item--linked' : ''}">
                 <div class="member-publication-main">
                   <strong>${escapeHTML(item.title)}</strong>
                   ${meta ? `<div class="member-publication-meta">${escapeHTML(meta)}</div>` : ''}
@@ -1065,11 +1576,17 @@ function renderMemberPublicationBlock(member = {}) {
 }
 
 function setupRevealAnimations() {
+  if (reducedMotion.matches || !('IntersectionObserver' in window)) {
+    qsa('.reveal').forEach((item) => item.classList.add('is-visible'));
+    return;
+  }
   if (!setupRevealAnimations.observer) {
     setupRevealAnimations.observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          entry.target.classList.toggle('is-visible', entry.isIntersecting);
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add('is-visible');
+          setupRevealAnimations.observer.unobserve(entry.target);
         });
       },
       { threshold: 0.14, rootMargin: '0px 0px -8% 0px' }
@@ -1083,27 +1600,31 @@ function setupRevealAnimations() {
 }
 
 function setupCountAnimations() {
+  if (reducedMotion.matches || !('IntersectionObserver' in window)) {
+    qsa('.count-up').forEach((item) => {
+      item.textContent = String(Number(item.dataset.target || '0'));
+      item.dataset.counted = 'true';
+    });
+    return;
+  }
   if (!setupCountAnimations.observer) {
     setupCountAnimations.observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           const el = entry.target;
           const target = Number(el.dataset.target || '0');
-          if (entry.isIntersecting) {
-            if (el.dataset.counting === 'true') return;
-            el.dataset.counting = 'true';
-            animateCount(el, target);
-          } else {
-            el.dataset.counting = 'false';
-            el.textContent = '0';
-          }
+          if (!entry.isIntersecting || el.dataset.counted === 'true') return;
+          el.dataset.counting = 'true';
+          el.dataset.counted = 'true';
+          setupCountAnimations.observer.unobserve(el);
+          animateCount(el, target);
         });
       },
       { threshold: 0.25 }
     );
   }
   qsa('.count-up').forEach((item) => {
-    item.textContent = '0';
+    if (item.dataset.counted !== 'true') item.textContent = '0';
     if (item.dataset.countBound) return;
     item.dataset.countBound = 'true';
     setupCountAnimations.observer.observe(item);
@@ -1130,15 +1651,55 @@ function setupHeroSlider() {
   const slides = qsa('[data-hero-slide]');
   if (!slides.length) return;
   let index = 0;
+  let timer = null;
   slides.forEach((slide, order) => {
-    slide.style.backgroundImage = `url('${focusImages[order % focusImages.length]}')`;
+    const imageUrl = focusImages[order % focusImages.length];
+    if (order === 0 && !slide.style.backgroundImage) slide.style.backgroundImage = `url('${imageUrl}')`;
+    if (order > 0) slide.dataset.backgroundImage = imageUrl;
     slide.classList.toggle('is-active', order === 0);
   });
-  window.setInterval(() => {
+
+  const loadDeferredSlides = () => {
+    slides.slice(1).forEach((slide) => {
+      const imageUrl = slide.dataset.backgroundImage;
+      if (!imageUrl || slide.style.backgroundImage) return;
+      const preloader = new Image();
+      preloader.decoding = 'async';
+      preloader.onload = () => { slide.style.backgroundImage = `url('${imageUrl}')`; };
+      preloader.src = imageUrl;
+    });
+  };
+  if ('requestIdleCallback' in window) window.requestIdleCallback(loadDeferredSlides, { timeout: 1800 });
+  else window.setTimeout(loadDeferredSlides, 700);
+
+  const stop = () => {
+    window.clearTimeout(timer);
+    timer = null;
+  };
+  const schedule = () => {
+    stop();
+    if (document.hidden || reducedMotion.matches) return;
+    timer = window.setTimeout(advance, 6200);
+  };
+  const advance = () => {
+    if (document.hidden || reducedMotion.matches) return stop();
     slides[index].classList.remove('is-active');
     index = (index + 1) % slides.length;
     slides[index].classList.add('is-active');
-  }, 5200);
+    schedule();
+  };
+
+  document.addEventListener('visibilitychange', schedule);
+  reducedMotion.addEventListener?.('change', () => {
+    if (reducedMotion.matches) {
+      stop();
+      slides.forEach((slide, order) => slide.classList.toggle('is-active', order === 0));
+      index = 0;
+    } else {
+      schedule();
+    }
+  });
+  schedule();
 }
 
 function publicationIndexCount(items = [], label = '') {
@@ -1195,7 +1756,7 @@ function homePublicationCard(item = {}) {
   const journalTone = journalToneClass(item.journal);
   const yearPill = publicationYearMonthLabel(item);
   const actionAttrs = link ? `data-link="${escapeHTML(link)}" tabindex="0" role="button"` : '';
-  return `<article class="home-publication-card reveal interactive-card" ${actionAttrs} aria-label="${escapeHTML(item.title || '')}">
+  return `<article class="home-publication-card reveal${link ? ' interactive-card' : ''}" ${actionAttrs}${link ? ` aria-label="${escapeHTML(item.title || '')}"` : ''}>
     <div class="publication-topline home-publication-card__topline">
       ${yearPill ? `<span class="year-pill">${escapeHTML(yearPill)}</span>` : ''}
       <div class="publication-source-group">
@@ -1210,14 +1771,26 @@ function homePublicationCard(item = {}) {
 }
 
 function homeNewsCard(item = {}) {
-  const cover = boardMediaUrls(item)[0] || '';
-  return `<article class="home-news-card reveal interactive-card" data-board-id="${escapeHTML(item.id)}">
-    ${cover ? `<div class="home-news-card__media"><img src="${escapeHTML(rootAsset(cover, root))}" alt="${escapeHTML(item.title || '')}"></div>` : ''}
+  const images = boardMediaUrls(item);
+  const cover = images[0] || '';
+  const youtube = youtubeEmbedUrl(item.youtubeUrl || '');
+  const indicators = [];
+  if (images.length) {
+    const imageLabel = lang === 'en'
+      ? `${images.length} ${images.length === 1 ? 'photo' : 'photos'}`
+      : `사진 ${images.length}장`;
+    indicators.push(`<span class="home-news-indicator"><i class="ph ph-images" aria-hidden="true"></i>${escapeHTML(imageLabel)}</span>`);
+  }
+  if (youtube) indicators.push(`<span class="home-news-indicator"><i class="ph ph-youtube-logo" aria-hidden="true"></i>YouTube</span>`);
+  if (item.linkUrl) indicators.push(`<span class="home-news-indicator"><i class="ph ph-arrow-square-out" aria-hidden="true"></i>${lang === 'en' ? 'Link' : '링크'}</span>`);
+  return `<article class="home-news-card reveal interactive-card" data-board-id="${escapeHTML(item.id)}" tabindex="0" role="button" aria-label="${escapeHTML(item.title || '')}">
     <div class="home-news-card__copy">
-      <div class="member-chip-row"><span class="member-chip member-chip--soft">${escapeHTML(boardCategoryLabel(item.category))}</span>${item.date ? `<span class="member-chip member-chip--soft">${escapeHTML(item.date)}</span>` : ''}</div>
+      <div class="member-chip-row home-news-card__topline"><span class="member-chip member-chip--soft">${escapeHTML(boardCategoryLabel(item.category))}</span>${indicators.join('')}</div>
+      ${boardMetaMarkup(item, 'board-card__metadata--home')}
       <h3>${escapeHTML(item.title || '')}</h3>
       ${item.description ? `<p>${escapeHTML(item.description)}</p>` : ''}
     </div>
+    ${cover ? `<div class="home-news-card__media"><img src="${escapeHTML(rootAsset(cover, root))}" alt="" loading="lazy" decoding="async"></div>` : `<div class="home-news-card__media home-news-card__media--placeholder" aria-hidden="true"><i class="ph ${youtube ? 'ph-youtube-logo' : 'ph-article'}"></i></div>`}
   </article>`;
 }
 
@@ -1329,7 +1902,25 @@ function renderHome() {
     const lines = lang === 'en'
       ? ['GEH Lab', 'Room 1332, College of Agriculture and Life Sciences 1 (E10-1)', '+82 42-821-7825']
       : ['충남대학교 원예학과 시설환경원예학 연구실', '농업생명과학대학 1호관(E10-1) 1332호', '042-821-7825'];
-    contactGrid.innerHTML = `<article class="home-contact-card reveal"><h3>${escapeHTML(lang === 'en' ? 'Contact' : '오시는 길')}</h3><p>${escapeHTML(lines[0])}</p><p class="muted">${escapeHTML(lines[1])}</p><a class="member-link" href="${lang === 'en' ? 'contact.html' : 'contact.html'}">${escapeHTML(lang === 'en' ? 'Open contact page' : '오시는 길 보기')}</a><p class="muted">${escapeHTML(lines[2])}</p></article>`;
+    const labels = lang === 'en'
+      ? ['Lab', 'Address', 'Phone']
+      : ['연구실', '주소', '전화'];
+    contactGrid.innerHTML = `
+      <article class="home-contact-card reveal">
+        <div class="home-contact-item home-contact-item--lab">
+          <span class="home-contact-label">${escapeHTML(labels[0])}</span>
+          <strong>${escapeHTML(lines[0])}</strong>
+        </div>
+        <div class="home-contact-item home-contact-item--address">
+          <span class="home-contact-label">${escapeHTML(labels[1])}</span>
+          <p>${escapeHTML(lines[1])}</p>
+        </div>
+        <div class="home-contact-item home-contact-item--phone">
+          <span class="home-contact-label">${escapeHTML(labels[2])}</span>
+          <a href="tel:${lang === 'en' ? '+82428217825' : '0428217825'}">${escapeHTML(lines[2])}</a>
+        </div>
+      </article>
+    `;
   }
 }
 
@@ -1343,6 +1934,14 @@ function renderMembers() {
   const undergrads = memberCounts.undergradMembers;
   const alumni = members.filter((item) => item.status === 'alumni');
   const membersLoading = state.loadingMembers && useLiveData && !state.members.length;
+  const initialPiCard = qs('#pi-card');
+  if (initialPiCard && pi) {
+    initialPiCard.classList.add('pi-card--clickable');
+    initialPiCard.dataset.memberId = pi.id;
+  }
+  const nextRenderSignature = membersLoading ? '__loading__' : collectionRenderSignature(members);
+  if (nextRenderSignature === renderedMemberSignature) return;
+  renderedMemberSignature = nextRenderSignature;
 
   if (membersLoading) {
     const pageStats = qs('#page-stat-grid');
@@ -1353,12 +1952,13 @@ function renderMembers() {
     const piCard = qs('#pi-card');
     if (piCard) piCard.innerHTML = piSkeletonCard();
     const researchList = qs('#research-professor-list');
-    if (researchList) researchList.innerHTML = memberGridSkeleton(2, 'member-grid--wide');
+    if (researchList) researchList.innerHTML = memberGridSkeleton(3, 'member-grid--wide');
     const graduateAccordion = qs('#graduate-accordion');
     if (graduateAccordion) {
       graduateAccordion.innerHTML = [
         accordionMarkup(copy.phdFullTime, '…', memberGridSkeleton(3), true),
         accordionMarkup(copy.phdPartTime, '…', memberGridSkeleton(2), false),
+        accordionMarkup(copy.phdCompleted, '…', memberGridSkeleton(2), false),
         accordionMarkup(copy.msFullTime, '…', memberGridSkeleton(2), false),
         accordionMarkup(copy.msPartTime, '…', memberGridSkeleton(2), false)
       ].join('');
@@ -1373,6 +1973,7 @@ function renderMembers() {
   const pageStats = qs('#page-stat-grid');
   if (pageStats) {
     const phdStudents = graduateStudents.filter((item) => ['phd','doctoral'].includes(String(item.course || '').toLowerCase())).length;
+    const phdCompletedStudents = graduateStudents.filter((item) => String(item.course || '').toLowerCase() === 'phdcompleted').length;
     const msStudents = graduateStudents.filter((item) => ['ms','masters'].includes(String(item.course || '').toLowerCase())).length;
     const activeBreakdown = [
       `${copy.pi} ${piCount}`,
@@ -1381,11 +1982,12 @@ function renderMembers() {
       `${copy.studentResearcher} ${undergrads.length}`
     ];
     const alumniBreakdown = [
-      `${lang === 'en' ? 'Ph.D.' : '박사'} ${alumni.filter((item) => ['phd','doctoral'].includes(String(item.course || '').toLowerCase())).length}`,
+      `${lang === 'en' ? 'Ph.D.' : '박사'} ${alumni.filter((item) => ['phd','doctoral','phdcompleted'].includes(String(item.course || '').toLowerCase())).length}`,
       `${lang === 'en' ? 'M.S.' : '석사'} ${alumni.filter((item) => ['ms','masters'].includes(String(item.course || '').toLowerCase())).length}`
     ];
     const gradBreakdown = [
       `${lang === 'en' ? 'Ph.D.' : '박사'} ${phdStudents}`,
+      `${lang === 'en' ? 'Ph.D. completion research' : '박사수료 후 연구생'} ${phdCompletedStudents}`,
       `${lang === 'en' ? 'M.S.' : '석사'} ${msStudents}`
     ];
     pageStats.innerHTML = [
@@ -1405,29 +2007,33 @@ function renderMembers() {
   const piCard = qs('#pi-card');
   if (piCard) {
     if (!pi) {
+      piCard.classList.remove('pi-card--clickable');
+      piCard.removeAttribute('data-member-id');
       piCard.innerHTML = emptyState(copy.noMembers);
     } else {
+      piCard.classList.add('pi-card--clickable');
+      piCard.dataset.memberId = pi.id;
+      const piInterest = localizedMemberText(pi, 'researchInterest');
+      const piSchedule = memberCourseScheduleEntries(pi);
       piCard.innerHTML = `
         <div class="pi-card-layout">
           <button type="button" class="pi-photo pi-photo-button" data-member-id="${escapeHTML(pi.id)}">
-            ${pi.photoUrl ? `<img src="${escapeHTML(rootAsset(pi.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(pi))}">` : `<span>${escapeHTML(getInitials(memberDisplayName(pi, 'en') || pi.name))}</span>`}
+            ${pi.photoUrl ? `<img src="${escapeHTML(rootAsset(pi.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(pi))}" width="480" height="575" decoding="async" fetchpriority="high">` : `<span>${escapeHTML(getInitials(memberDisplayName(pi, 'en') || pi.name))}</span>`}
           </button>
           <div class="pi-card-main">
             <div class="pi-card-head">
               <span class="eyebrow">${escapeHTML(copy.pi)}</span>
-              <div class="pi-name-row"><h2>${escapeHTML(memberDisplayName(pi))}</h2>${memberYearLabel(pi, lang) ? `<span class="member-chip member-chip--soft">${escapeHTML(memberYearLabel(pi, lang))}</span>` : ''}</div>
+              <div class="pi-name-row"><h2>${escapeHTML(memberDisplayName(pi))}</h2>${memberYearLabel(pi, lang) ? `<span class="member-chip member-chip--soft">${escapeHTML(memberYearLabel(pi, lang))}</span>` : ''}${memberEmailLink(pi.email, 'pi-card-email')}</div>
               <p class="pi-title">${escapeHTML(localizedMemberText(pi, 'bio') || (lang === 'en' ? 'Professor, Chungnam National University' : '충남대학교 교수'))}</p>
-              <div class="pi-head-actions"><button type="button" class="button secondary detail-open-button" data-member-id="${escapeHTML(pi.id)}">${lang === 'en' ? 'View profile' : '상세 보기'}</button></div>
             </div>
-            <div class="pi-card-grid">
+            <div class="pi-card-grid pi-card-grid--core">
               <article><h3>${escapeHTML(copy.education)}</h3>${memberEducationMarkup(pi, lang, 'panel')}</article>
               <article><h3>${escapeHTML(copy.experience)}</h3>${memberExperienceMarkup(pi, lang, 'panel') || `<p>${multilineText(localizedMemberText(pi, 'experience') || '')}</p>`}</article>
-              <article><h3>${escapeHTML(copy.interest)}</h3><p>${multilineText(localizedMemberText(pi, 'researchInterest') || '')}</p></article>
-              <article><h3>${escapeHTML(copy.contact)}</h3><p>${pi.email ? `<a class="member-link" href="mailto:${escapeHTML(pi.email)}">${escapeHTML(pi.email)}</a>` : ''}</p></article>
-              ${memberCourseScheduleEntries(pi).length ? `<article class="pi-card-grid__full"><h3>${escapeHTML(lang === 'en' ? 'Course schedule' : '수업 시간표')}</h3>${memberCourseScheduleMarkup(pi, lang)}</article>` : ''}
             </div>
+            ${piInterest ? `<article class="pi-card-interest"><h3>${escapeHTML(copy.interest)}</h3><p>${multilineText(piInterest)}</p></article>` : ''}
           </div>
         </div>
+        ${piSchedule.length ? `<div class="pi-card-grid pi-card-grid--schedule"><article class="pi-card-grid__full"><h3>${escapeHTML(lang === 'en' ? 'Course schedule' : '수업 시간표')}</h3>${memberCourseScheduleMarkup(pi, lang)}</article></div>` : ''}
       `;
     }
   }
@@ -1435,7 +2041,7 @@ function renderMembers() {
   const researchList = qs('#research-professor-list');
   if (researchList) {
     researchList.innerHTML = researchProfessors.length
-      ? `<div class="member-grid member-grid--wide">${researchProfessors.map((item) => memberCard(item)).join('')}</div>`
+      ? `<div class="member-grid member-grid--wide" data-count="${researchProfessors.length}">${researchProfessors.map((item) => memberCard(item)).join('')}</div>`
       : emptyState(copy.noMembers);
   }
 
@@ -1444,11 +2050,12 @@ function renderMembers() {
     const gradSections = [
       { title: copy.phdFullTime, items: graduateStudents.filter((item) => item.course === 'phd' && item.track === 'fullTime') },
       { title: copy.phdPartTime, items: graduateStudents.filter((item) => item.course === 'phd' && item.track === 'partTime') },
+      { title: copy.phdCompleted, items: graduateStudents.filter((item) => item.course === 'phdCompleted') },
       { title: copy.msFullTime, items: graduateStudents.filter((item) => item.course === 'ms' && item.track === 'fullTime') },
       { title: copy.msPartTime, items: graduateStudents.filter((item) => item.course === 'ms' && item.track === 'partTime') }
     ];
     graduateAccordion.innerHTML = gradSections.map((section, index) => {
-      const content = section.items.length ? `<div class="member-grid">${section.items.map((item) => memberCard(item)).join('')}</div>` : emptyState(copy.noMembers);
+      const content = section.items.length ? `<div class="member-grid" data-count="${section.items.length}">${section.items.map((item) => memberCard(item)).join('')}</div>` : emptyState(copy.noMembers);
       return accordionMarkup(section.title, section.items.length, content, index === 0);
     }).join('');
   }
@@ -1458,7 +2065,7 @@ function renderMembers() {
     researcherAccordion.innerHTML = undergrads.length ? accordionMarkup(
       copy.studentResearcherSection,
       undergrads.length,
-      `<div class="member-grid member-grid--wide">${undergrads.map((item) => memberCard(item)).join('')}</div>`,
+      `<div class="member-grid member-grid--wide" data-count="${undergrads.length}">${undergrads.map((item) => memberCard(item)).join('')}</div>`,
       true
     ) : '';
   }
@@ -1470,7 +2077,7 @@ function renderMembers() {
     alumniAccordion.innerHTML = alumniByYear.map(([year, items], index) => accordionMarkup(
       year,
       items.length,
-      `<div class="member-grid member-grid--alumni">${items.map((item) => alumniCard(item)).join('')}</div>`,
+      `<div class="member-grid member-grid--alumni" data-count="${items.length}">${items.map((item) => alumniCard(item)).join('')}</div>`,
       index === 0
     )).join('');
   }
@@ -1567,7 +2174,7 @@ function renderPublications() {
 }
 
 function boardSkeletonMarkup() {
-  const cards = Array.from({ length: 4 }).map(() => `
+  return Array.from({ length: 4 }).map(() => `
     <article class="board-card board-card--skeleton">
       <div class="board-card__media"></div>
       <div class="board-card__copy">
@@ -1576,24 +2183,67 @@ function boardSkeletonMarkup() {
         <div class="skeleton-line skeleton-line--text"></div>
       </div>
     </article>`).join('');
-  return `<div class="board-grid board-grid--skeleton">${cards}</div>`;
 }
 
-function renderBoard() {
+function renderBoard({ skipReveal = false } = {}) {
   const filters = boardFilterConfig();
   const validFilters = filters.map(([value]) => value);
   if (!validFilters.includes(state.boardTab)) state.boardTab = 'all';
 
   const summary = qs('#board-summary');
-  if (summary) summary.textContent = lang === 'en' ? `${state.board.length} board posts` : `게시판 ${state.board.length}건`;
+  if (summary) {
+    summary.textContent = state.loadingBoard && !state.board.length
+      ? (lang === 'en' ? 'Loading board…' : '게시판 불러오는 중…')
+      : (lang === 'en' ? `${state.board.length} board posts` : `게시판 ${state.board.length}건`);
+  }
 
   const grid = qs('#board-tab-grid');
-  const tabCount = qs('#board-tab-count');
   const tabTitle = qs('#board-tab-title');
   const tabEyebrow = qs('#board-tab-eyebrow');
 
+  if (grid) {
+    grid.dataset.view = state.boardView;
+    grid.classList.toggle('board-grid--list', state.boardView === 'list');
+    grid.classList.toggle('board-grid--cards', state.boardView === 'grid');
+  }
+
+  qsa('[data-board-view]').forEach((button) => {
+    const view = button.dataset.boardView;
+    const isActive = view === state.boardView;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-pressed', String(isActive));
+    if (button.dataset.bound === 'true') return;
+    button.dataset.bound = 'true';
+    button.addEventListener('click', () => {
+      state.boardView = view === 'list' ? 'list' : 'grid';
+      saveBoardView(state.boardView);
+      renderBoard({ skipReveal: true });
+      bindInteractiveCards();
+    });
+  });
+
+  qsa('[data-board-sort]').forEach((button) => {
+    const oldestFirst = state.boardSort === 'oldest';
+    button.setAttribute('aria-pressed', String(oldestFirst));
+    button.setAttribute('aria-label', lang === 'en'
+      ? (oldestFirst ? 'Sort by newest posts first' : 'Sort by oldest posts first')
+      : (oldestFirst ? '작성일 최신순으로 정렬' : '작성일 오래된순으로 정렬'));
+    button.classList.toggle('is-ascending', oldestFirst);
+    const label = button.querySelector('[data-board-sort-label]');
+    if (label) label.textContent = lang === 'en'
+      ? (oldestFirst ? 'Oldest first' : 'Newest first')
+      : (oldestFirst ? '작성일 오래된순' : '작성일 최신순');
+    if (button.dataset.bound === 'true') return;
+    button.dataset.bound = 'true';
+    button.addEventListener('click', () => {
+      state.boardSort = state.boardSort === 'oldest' ? 'newest' : 'oldest';
+      saveBoardSort(state.boardSort);
+      renderBoard({ skipReveal: true });
+      bindInteractiveCards();
+    });
+  });
+
   if (state.loadingBoard && !state.board.length) {
-    if (tabCount) tabCount.textContent = lang === 'en' ? 'Loading…' : '불러오는 중…';
     if (tabTitle) tabTitle.textContent = lang === 'en' ? 'Board' : '게시판';
     if (tabEyebrow) tabEyebrow.textContent = '';
     if (grid) grid.innerHTML = boardSkeletonMarkup();
@@ -1602,14 +2252,15 @@ function renderBoard() {
 
   const activeFilter = state.boardTab || 'all';
   const activeLabel = filters.find(([value]) => value === activeFilter)?.[1] || (lang === 'en' ? 'All' : '전체');
-  const activePosts = activeFilter === 'all'
+  const filteredPosts = activeFilter === 'all'
     ? state.board
     : state.board.filter((item) => normalizeBoardCategory(item.category) === activeFilter);
+  const activePosts = state.boardSort === 'oldest' ? [...filteredPosts].reverse() : filteredPosts;
 
-  if (tabCount) tabCount.textContent = lang === 'en' ? `${activePosts.length} items` : `${activePosts.length}건`;
   if (tabTitle) tabTitle.textContent = activeFilter === 'all' ? (lang === 'en' ? 'All board posts' : '전체 게시글') : activeLabel;
   if (tabEyebrow) tabEyebrow.textContent = lang === 'en' ? 'Board' : '게시판';
   if (grid) {
+    grid.setAttribute('role', 'tabpanel');
     const emptyMessage = lang === 'en' ? `No ${activeLabel.toLowerCase()} posts yet.` : `${activeLabel} 게시글이 아직 없습니다.`;
     grid.innerHTML = activePosts.length ? activePosts.map((post) => boardCard(post)).join('') : emptyState(emptyMessage);
   }
@@ -1617,6 +2268,12 @@ function renderBoard() {
   qsa('[data-board-tab]').forEach((button) => {
     const isActive = button.dataset.boardTab === activeFilter;
     button.classList.toggle('is-active', isActive);
+    button.setAttribute('role', 'tab');
+    button.id ||= `board-tab-${button.dataset.boardTab}`;
+    button.setAttribute('aria-controls', 'board-tab-grid');
+    button.setAttribute('aria-selected', String(isActive));
+    button.tabIndex = isActive ? 0 : -1;
+    if (isActive && grid) grid.setAttribute('aria-labelledby', button.id);
     if (button.dataset.bound === 'true') return;
     button.dataset.bound = 'true';
     button.addEventListener('click', () => {
@@ -1625,7 +2282,26 @@ function renderBoard() {
       setupRevealAnimations();
       bindInteractiveCards();
     });
+    button.addEventListener('keydown', (event) => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const tabs = qsa('[data-board-tab]');
+      const currentIndex = tabs.indexOf(button);
+      let nextIndex = currentIndex;
+      if (event.key === 'Home') nextIndex = 0;
+      if (event.key === 'End') nextIndex = tabs.length - 1;
+      if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+      if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+      const nextTab = tabs[nextIndex];
+      state.boardTab = nextTab.dataset.boardTab;
+      renderBoard({ skipReveal: true });
+      qsa('#board-tab-grid .reveal').forEach((item) => item.classList.add('is-visible'));
+      bindInteractiveCards();
+      nextTab.focus();
+    });
   });
+
+  if (skipReveal) qsa('#board-tab-grid .reveal').forEach((item) => item.classList.add('is-visible'));
 }
 
 function setupSearch() {
@@ -1764,25 +2440,39 @@ function memberMetaChips(member) {
     if (completedCourse) chips.push({ text: completedCourse });
   } else if (member.group === 'graduateStudent') {
     if (member.course) chips.push({ text: memberCourseLabel(member.course, lang) });
-    if (member.track && member.track !== 'none') chips.push({ text: memberTrackLabel(member.track, lang) });
+    if (member.course !== 'phdCompleted' && member.track && member.track !== 'none') chips.push({ text: memberTrackLabel(member.track, lang) });
   }
   if (member.group === 'studentResearcher') chips.push({ text: memberCourseLabel('undergrad', lang) });
   const years = memberYearLabel(member, lang);
   if (years) chips.push({ text: years, academic: true });
   return chips.map((chip) => `<span class="member-chip member-chip--soft${chip.academic ? ' member-chip--academic' : ''}">${escapeHTML(chip.text)}</span>`).join('');
 }
+
+function memberEmailLink(email = '', extraClass = '') {
+  if (!email) return '';
+  const label = lang === 'en' ? 'Send email' : '이메일 보내기';
+  return `<a class="member-email${extraClass ? ` ${escapeHTML(extraClass)}` : ''}" href="mailto:${escapeHTML(email)}" aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><i class="ph ph-envelope-simple" aria-hidden="true"></i></a>`;
+}
+
 function memberCard(member) {
   const education = memberEducationMarkup(member, lang, 'compact');
+  const chips = memberMetaChips(member);
   return `
     <article class="member-card reveal interactive-card" data-member-id="${escapeHTML(member.id)}" tabindex="0" role="button" aria-label="${escapeHTML(memberDisplayName(member))}">
-      <div class="member-thumb">
-        ${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}">` : `<span>${escapeHTML(getInitials(memberDisplayName(member, 'en') || memberDisplayName(member) || member.name))}</span>`}
+      <div class="member-card__profile">
+        <div class="member-thumb">
+          ${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}" width="96" height="96" loading="lazy" decoding="async">` : `<span>${escapeHTML(getInitials(memberDisplayName(member, 'en') || memberDisplayName(member) || member.name))}</span>`}
+        </div>
+        <div class="member-card__identity">
+          ${chips ? `<div class="member-chip-row">${chips}</div>` : ''}
+          <div class="member-card__name-row">
+            <h3>${escapeHTML(memberDisplayName(member))}</h3>
+            ${memberEmailLink(member.email, 'member-card__email')}
+          </div>
+        </div>
       </div>
       <div class="member-copy">
-        ${memberMetaChips(member) ? `<div class="member-chip-row">${memberMetaChips(member)}</div>` : ''}
-        <h3>${escapeHTML(memberDisplayName(member))}</h3>
         ${education || ''}
-        ${member.email ? `<a class="member-link" href="mailto:${escapeHTML(member.email)}">${escapeHTML(member.email)}</a>` : ''}
       </div>
     </article>
   `;
@@ -1794,12 +2484,16 @@ function alumniCard(member) {
   const chips = [member.graduationYear || '', alumniCourseLabel(member, lang)].filter(Boolean);
   return `
     <article class="member-card member-card--alumni reveal interactive-card" data-member-id="${escapeHTML(member.id)}" tabindex="0" role="button" aria-label="${escapeHTML(memberDisplayName(member))}">
-      <div class="member-thumb">
-        ${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}">` : `<span>${escapeHTML(getInitials(memberDisplayName(member, 'en') || memberDisplayName(member) || member.name))}</span>`}
+      <div class="member-card__profile">
+        <div class="member-thumb">
+          ${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}" width="80" height="80" loading="lazy" decoding="async">` : `<span>${escapeHTML(getInitials(memberDisplayName(member, 'en') || memberDisplayName(member) || member.name))}</span>`}
+        </div>
+        <div class="member-card__identity">
+          ${chips.length ? `<div class="member-chip-row">${chips.map((chip) => `<span class="member-chip">${escapeHTML(chip)}</span>`).join('')}</div>` : ''}
+          <h3>${escapeHTML(memberDisplayName(member))}</h3>
+        </div>
       </div>
       <div class="member-copy">
-        ${chips.length ? `<div class="member-chip-row">${chips.map((chip) => `<span class="member-chip">${escapeHTML(chip)}</span>`).join('')}</div>` : ''}
-        <h3>${escapeHTML(memberDisplayName(member))}</h3>
         ${education || (localizedMemberText(member, 'bio') ? `<p>${escapeHTML(localizedMemberText(member, 'bio'))}</p>` : '')}
         ${localizedMemberText(member, 'currentPosition') ? `<p class="muted"><strong>${escapeHTML(copy.currentPosition)}:</strong> ${escapeHTML(localizedMemberText(member, 'currentPosition'))}</p>` : ''}
       </div>
@@ -1957,22 +2651,43 @@ function boardCategoryLabel(category = '') {
   return map[String(category || '').trim().toLowerCase()] || (lang === 'en' ? 'Other' : '기타');
 }
 
+function boardDateLabel(value = '') {
+  if (!value) return lang === 'en' ? 'Date not set' : '작성일 미정';
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) return String(value);
+  try {
+    return new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'ko-KR', lang === 'en'
+      ? { year: 'numeric', month: 'short', day: 'numeric' }
+      : { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(parsed));
+  } catch {
+    return String(value);
+  }
+}
+
+function boardMetaMarkup(post = {}, extraClass = '') {
+  const dateLabel = boardDateLabel(post.date);
+  const datePrefix = lang === 'en' ? 'Posted' : '작성일';
+  return `<div class="board-card__metadata${extraClass ? ` ${escapeHTML(extraClass)}` : ''}">
+    <span title="${escapeHTML(datePrefix)}"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span class="sr-only">${escapeHTML(datePrefix)} </span>${escapeHTML(dateLabel)}</span>
+  </div>`;
+}
+
 function boardCard(post) {
   const youtube = youtubeEmbedUrl(post.youtubeUrl || '');
   const images = boardMediaUrls(post);
   const cover = images[0] || '';
   const media = youtube
     ? `<div class="board-card__media board-card__media--video"><iframe src="${escapeHTML(youtube)}" title="${escapeHTML(post.title)}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>`
-    : (cover ? `<div class="board-card__media board-card__media--contain"><img src="${escapeHTML(rootAsset(cover, root))}" alt="${escapeHTML(post.title)}"></div>` : '');
+    : (cover ? `<div class="board-card__media board-card__media--contain"><img src="${escapeHTML(rootAsset(cover, root))}" alt="${escapeHTML(post.title)}" loading="lazy" decoding="async"></div>` : '');
   return `
-    <article class="board-card reveal interactive-card" data-board-id="${escapeHTML(post.id)}">
+    <article class="board-card${media ? '' : ' board-card--no-media'} reveal interactive-card" data-board-id="${escapeHTML(post.id)}" tabindex="0" role="button" aria-label="${escapeHTML(post.title)}">
       ${media}
       <div class="board-card__copy">
         <div class="member-chip-row">
           <span class="member-chip member-chip--soft">${escapeHTML(boardCategoryLabel(post.category))}</span>
-          ${post.date ? `<span class="member-chip member-chip--soft">${escapeHTML(post.date)}</span>` : ''}
           ${images.length > 1 ? `<span class="member-chip member-chip--soft">${escapeHTML(lang === 'en' ? `${images.length} photos` : `사진 ${images.length}장`)}</span>` : ''}
         </div>
+        ${boardMetaMarkup(post)}
         <h3>${escapeHTML(post.title)}</h3>
         ${post.description ? `<p>${escapeHTML(post.description)}</p>` : ''}
         ${post.linkUrl ? `<a class="member-link" href="${escapeHTML(post.linkUrl)}" target="_blank" rel="noreferrer">${lang === 'en' ? 'Open link' : '링크 열기'}</a>` : ''}
@@ -1981,18 +2696,23 @@ function boardCard(post) {
   `;
 }
 
+let accordionId = 0;
+
 function accordionMarkup(title, count, content, open = false) {
+  accordionId += 1;
+  const triggerId = `accordion-trigger-${accordionId}`;
+  const panelId = `accordion-panel-${accordionId}`;
   return `
     <article class="accordion${open ? ' is-open' : ''}">
-      <button class="accordion-trigger" type="button" aria-expanded="${open ? 'true' : 'false'}">
+      <button class="accordion-trigger" id="${triggerId}" type="button" aria-expanded="${open ? 'true' : 'false'}" aria-controls="${panelId}">
         <span class="accordion-copy">
           <span>${escapeHTML(title)}</span>
           <span class="accordion-meta">${escapeHTML(count)} ${escapeHTML(copy.countItems)}</span>
         </span>
-        <span class="accordion-icon" aria-hidden="true">${open ? '−' : '+'}</span>
+        <span class="accordion-icon" aria-hidden="true"></span>
       </button>
-      <div class="accordion-panel" ${open ? '' : 'hidden'}>
-        ${content}
+      <div class="accordion-panel" id="${panelId}" role="region" aria-labelledby="${triggerId}" aria-hidden="${open ? 'false' : 'true'}"${open ? '' : ' inert'}>
+        <div class="accordion-panel__inner">${content}</div>
       </div>
     </article>
   `;
@@ -2012,10 +2732,9 @@ function setupAccordions() {
       if (!article || !panel) return;
       const isOpen = !article.classList.contains('is-open');
       article.classList.toggle('is-open', isOpen);
-      panel.hidden = !isOpen;
+      panel.setAttribute('aria-hidden', String(!isOpen));
+      panel.toggleAttribute('inert', !isOpen);
       button.setAttribute('aria-expanded', String(isOpen));
-      const icon = button.querySelector('.accordion-icon');
-      if (icon) icon.textContent = isOpen ? '−' : '+';
     });
   });
 }

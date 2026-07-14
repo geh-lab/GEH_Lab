@@ -99,7 +99,12 @@ export function groupBy(items = [], keyGetter) {
 export function rootAsset(path = '', root = '.') {
   if (!path) return '';
   if (/^(https?:|data:|blob:)/.test(path)) return path;
-  const normalized = path.replace(/^\.\//, '');
+  const aliases = {
+    'assets/images/members/jongseok-park.png': 'assets/images/members/jongseok-park.webp',
+    'assets/images/members/kwangya-lee.png': 'assets/images/members/kwangya-lee.webp'
+  };
+  const source = path.replace(/^\.\//, '');
+  const normalized = aliases[source] || source;
   return root === '.' ? normalized : `${root}/${normalized}`;
 }
 
@@ -266,8 +271,10 @@ function mapTrack(value = '') {
 
 function mapCourse(value = '', group = '') {
   const text = normalizeString(value);
+  const compact = text.replace(/[\s_-]+/g, '');
   if (text.includes('교수') || text === 'professor' || text === 'faculty') return 'professor';
   if (text.includes('박사후') || text.includes('postdoc') || text.includes('postdoctoral')) return 'postdoc';
+  if (compact === 'phdcompleted' || compact.includes('박사수료') || compact.includes('수료후연구생') || compact.includes('postcompletion') || compact.includes('courseworkcompleted') || text === 'abd') return 'phdCompleted';
   if (text.includes('학부연구생') || text.includes('undergrad') || text.includes('intern') || text.includes('researcher') || text.includes('학생연구원')) return 'undergrad';
   if (text.includes('졸업') || text === 'alumni') return 'alumni';
   if (text.includes('박사') || text === 'phd' || text === 'ph.d') return 'phd';
@@ -662,7 +669,7 @@ export function mergeBoardPosts(fallbackItems = [], remoteItems = []) {
 
 const GROUP_ORDER = { pi: 0, researchProfessor: 1, graduateStudent: 2, studentResearcher: 3, alumni: 4 };
 const TRACK_ORDER = { fullTime: 0, partTime: 1, none: 2 };
-const COURSE_ORDER = { professor: 0, postdoc: 1, phd: 2, ms: 3, undergrad: 4, alumni: 5 };
+const COURSE_ORDER = { professor: 0, postdoc: 1, phd: 2, phdCompleted: 3, ms: 4, undergrad: 5, alumni: 6 };
 
 function yearValue(value = '') {
   const match = String(value).match(/(?:19|20)\d{2}/);
@@ -737,8 +744,10 @@ export function sortBoardPosts(items = []) {
   return [...items]
     .map((item) => normalizeBoardPost(item))
     .sort((a, b) => {
-      const byDate = yearValue(b.date) - yearValue(a.date);
+      const byDate = toTimeValue(b.date) - toTimeValue(a.date);
       if (byDate) return byDate;
+      const byDateYear = yearValue(b.date) - yearValue(a.date);
+      if (byDateYear) return byDateYear;
       return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
     });
 }
@@ -789,6 +798,7 @@ export function memberCourseLabel(course, lang = 'kr') {
     professor: { kr: '교수', en: 'Professor' },
     postdoc: { kr: '박사후연구원', en: 'Postdoc' },
     phd: { kr: '박사과정', en: 'Ph.D.' },
+    phdCompleted: { kr: '박사수료 후 연구생', en: 'Ph.D. Completion Research Student' },
     ms: { kr: '석사과정', en: 'M.S.' },
     undergrad: { kr: '학부연구생', en: 'Undergraduate Researcher' },
     alumni: { kr: '졸업생', en: 'Alumni' }
@@ -916,10 +926,11 @@ function shouldShowAcademicProgress(member = {}) {
   if (status === 'alumni' || group === 'alumni' || course === 'alumni') return false;
   if (group === 'pi' || group === 'researchprofessor') return false;
   if (course === 'professor' || course === 'postdoc') return false;
+  if (course === 'phdcompleted') return false;
 
   return group === 'graduatestudent'
     || group === 'studentresearcher'
-    || ['phd', 'doctoral', 'doctor', 'ms', 'masters', 'master', 'undergrad', 'undergraduate'].includes(course);
+    || ['phd', 'doctoral', 'doctor', 'phdcompleted', 'ms', 'masters', 'master', 'undergrad', 'undergraduate'].includes(course);
 }
 
 function activeAcademicStandingLabel(member = {}, startYear, startSemester, lang = 'kr') {
@@ -961,4 +972,114 @@ export function memberYearLabel(member = {}, lang = 'kr') {
   // No short "N년차" fallback: the site now uses the precise
   // "N년차 M학기 (총 X학기)" format only when semester data exists.
   return '';
+}
+
+const GLASS_SURFACE_SELECTOR = [
+  '.site-header',
+  '.admin-topbar',
+  '.filter-field input',
+  '.admin-search-field input',
+  '.admin-tabs',
+  '.site-modal__dialog',
+  '.admin-editor-modal[role="dialog"]',
+  '.admin-dialog__panel'
+].join(',');
+
+const GLASS_CONTROL_SELECTOR = [
+  '.site-nav a',
+  '.admin-topbar-links a',
+  '.admin-topbar-auth .button',
+  '.lang-link',
+  '.icon-button',
+  '.menu-toggle',
+  '.button.secondary',
+  '.small-button',
+  '.admin-tab',
+  '.admin-subtab',
+  '.member-editor-tab',
+  '.site-modal__close'
+].join(',');
+
+function glassElements(node, selector) {
+  if (!(node instanceof Element) && !(node instanceof Document)) return [];
+  const elements = [];
+  if (node instanceof Element && node.matches(selector)) elements.push(node);
+  elements.push(...node.querySelectorAll(selector));
+  return elements;
+}
+
+/**
+ * Applies one restrained Clear Glass interaction system to shared UI chrome.
+ * Content cards are intentionally excluded so academic information remains crisp.
+ */
+export function setupAdaptiveGlass(root = document) {
+  const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
+  const reducedTransparency = window.matchMedia('(prefers-reduced-transparency: reduce)');
+  let pointerFrame = 0;
+  let pendingPointer = null;
+
+  const resetPointer = (element) => {
+    element.style.removeProperty('--glass-pointer-x');
+    element.style.removeProperty('--glass-pointer-y');
+    element.style.setProperty('--glass-pointer-alpha', '0');
+    element.removeAttribute('data-glass-pressed');
+  };
+
+  const bindElement = (element, className) => {
+    element.classList.add(className);
+    if (element.dataset.glassBound === 'true') return;
+    element.dataset.glassBound = 'true';
+
+    element.addEventListener('pointermove', (event) => {
+      if (!finePointer.matches || reducedTransparency.matches) return;
+      pendingPointer = { element, clientX: event.clientX, clientY: event.clientY };
+      if (pointerFrame) return;
+      pointerFrame = window.requestAnimationFrame(() => {
+        pointerFrame = 0;
+        if (!pendingPointer) return;
+        const { element: target, clientX, clientY } = pendingPointer;
+        pendingPointer = null;
+        const rect = target.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        target.style.setProperty('--glass-pointer-x', `${clientX - rect.left}px`);
+        target.style.setProperty('--glass-pointer-y', `${clientY - rect.top}px`);
+        target.style.setProperty('--glass-pointer-alpha', '1');
+      });
+    }, { passive: true });
+
+    element.addEventListener('pointerdown', () => {
+      element.setAttribute('data-glass-pressed', 'true');
+    }, { passive: true });
+    element.addEventListener('pointerup', () => element.removeAttribute('data-glass-pressed'), { passive: true });
+    element.addEventListener('pointercancel', () => resetPointer(element), { passive: true });
+    element.addEventListener('pointerleave', () => resetPointer(element), { passive: true });
+  };
+
+  const bindTree = (node) => {
+    glassElements(node, GLASS_SURFACE_SELECTOR).forEach((element) => bindElement(element, 'glass-surface'));
+    glassElements(node, GLASS_CONTROL_SELECTOR).forEach((element) => bindElement(element, 'glass-control'));
+  };
+
+  bindTree(root);
+  const observer = new MutationObserver((records) => {
+    records.forEach((record) => record.addedNodes.forEach((node) => bindTree(node)));
+  });
+  observer.observe(root === document ? document.documentElement : root, { childList: true, subtree: true });
+  return () => observer.disconnect();
+}
+
+/** Keeps a floating surface visually anchored to the control that opened it. */
+export function setSpatialOrigin(target, source) {
+  if (!(target instanceof HTMLElement)) return;
+  const targetRect = target.getBoundingClientRect();
+  if (!(source instanceof Element) || !source.isConnected || !targetRect.width || !targetRect.height) {
+    target.style.setProperty('--surface-origin-x', '50%');
+    target.style.setProperty('--surface-origin-y', '50%');
+    return;
+  }
+  const sourceRect = source.getBoundingClientRect();
+  const x = Math.max(0, Math.min(targetRect.width, sourceRect.left + (sourceRect.width / 2) - targetRect.left));
+  const y = Math.max(0, Math.min(targetRect.height, sourceRect.top + (sourceRect.height / 2) - targetRect.top));
+  target.style.setProperty('--surface-origin-x', `${x}px`);
+  target.style.setProperty('--surface-origin-y', `${y}px`);
 }

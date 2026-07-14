@@ -67,6 +67,7 @@ export const SITE_COPY = {
     "alumni": "졸업생",
     "phdFullTime": "박사과정 · 풀타임",
     "phdPartTime": "박사과정 · 파트타임",
+    "phdCompleted": "박사수료 후 연구생",
     "msFullTime": "석사과정 · 풀타임",
     "msPartTime": "석사과정 · 파트타임",
     "studentResearcherSection": "학부연구생",
@@ -160,6 +161,7 @@ export const SITE_COPY = {
     "alumni": "Alumni",
     "phdFullTime": "Ph.D. · Full-time",
     "phdPartTime": "Ph.D. · Part-time",
+    "phdCompleted": "Ph.D. Completion Research Students",
     "msFullTime": "M.S. · Full-time",
     "msPartTime": "M.S. · Part-time",
     "studentResearcherSection": "Undergraduate Researchers",
@@ -217,7 +219,7 @@ export const FALLBACK_MEMBERS = [
     "photoPath": "",
     "updatedAt": "2026-04-06",
     "startYear": "2013",
-    "coursesInfo": "관리자에서 교수 수업 정보를 추가할 수 있습니다.",
+    "coursesInfo": "",
     "relatedProjects": "",
     "authorshipNote": ""
   },
@@ -1848,4 +1850,3 @@ export const FALLBACK_PUBLICATIONS = [
 ];
 
 export const FALLBACK_BOARD_POSTS = [];
-

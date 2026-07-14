@@ -39,9 +39,12 @@ export const COLLECTIONS = {
 
 const firebaseConfig = window.GEH_FIREBASE_CONFIG?.apiKey ? window.GEH_FIREBASE_CONFIG : null;
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
-export const isLocalDevMode = window.GEH_LOCAL_DEV_MODE === false
-  ? false
-  : (window.GEH_LOCAL_DEV_MODE === true || LOCAL_HOSTS.has(window.location.hostname) || window.location.protocol === 'file:');
+const isLocalRuntime = LOCAL_HOSTS.has(window.location.hostname) || window.location.protocol === 'file:';
+export const isLocalDevMode = window.GEH_LOCAL_DEV_MODE === true
+  ? true
+  : window.GEH_LOCAL_DEV_MODE === false
+    ? false
+    : (!firebaseConfig && isLocalRuntime);
 export const hasFirebaseConfig = Boolean(firebaseConfig) || isLocalDevMode;
 export const ADMIN_EMAILS = Array.isArray(window.GEH_ADMIN_EMAILS)
   ? window.GEH_ADMIN_EMAILS.map((email) => String(email).trim().toLowerCase()).filter(Boolean)
