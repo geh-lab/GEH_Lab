@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 24" role="img" aria-label="Flag of South Korea">
+  <rect width="36" height="24" fill="#fff"/>
+  <g transform="rotate(-33.69 18 12)">
+    <path fill="#cd2e3a" d="M18 6a6 6 0 0 1 0 12 3 3 0 0 0 0-6 3 3 0 0 1 0-6Z"/>
+    <path fill="#0047a0" d="M18 18a6 6 0 0 1 0-12 3 3 0 0 0 0 6 3 3 0 0 1 0 6Z"/>
+  </g>
+  <g fill="#111">
+    <g transform="translate(7 5.2) rotate(-34)">
+      <rect x="-3.5" y="-1.9" width="7" height=".8" rx=".1"/>
+      <rect x="-3.5" y="-.4" width="7" height=".8" rx=".1"/>
+      <rect x="-3.5" y="1.1" width="7" height=".8" rx=".1"/>
+    </g>
+    <g transform="translate(29 18.8) rotate(-34)">
+      <rect x="-3.5" y="-1.9" width="7" height=".8" rx=".1"/>
+      <rect x="-3.5" y="1.1" width="7" height=".8" rx=".1"/>
+      <path d="M-3.5-.4h2.8v.8h-2.8zm4.2 0h2.8v.8H.7z"/>
+    </g>
+    <g transform="translate(29 5.2) rotate(34)">
+      <rect x="-3.5" y="-.4" width="7" height=".8" rx=".1"/>
+      <path d="M-3.5-1.9h2.8v.8h-2.8zm4.2 0h2.8v.8H.7zM-3.5 1.1h2.8v.8h-2.8zm4.2 0h2.8v.8H.7z"/>
+    </g>
+    <g transform="translate(7 18.8) rotate(34)">
+      <path d="M-3.5-1.9h2.8v.8h-2.8zm4.2 0h2.8v.8H.7zM-3.5-.4h2.8v.8h-2.8zm4.2 0h2.8v.8H.7zM-3.5 1.1h2.8v.8h-2.8zm4.2 0h2.8v.8H.7z"/>
+    </g>
+  </g>
+</svg>

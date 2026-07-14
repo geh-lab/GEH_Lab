@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 24" role="img" aria-label="Flag of the United States">
+  <rect width="36" height="24" fill="#fff"/>
+  <g fill="#b22234">
+    <rect width="36" height="1.846"/>
+    <rect y="3.692" width="36" height="1.846"/>
+    <rect y="7.384" width="36" height="1.846"/>
+    <rect y="11.076" width="36" height="1.846"/>
+    <rect y="14.768" width="36" height="1.846"/>
+    <rect y="18.46" width="36" height="1.846"/>
+    <rect y="22.152" width="36" height="1.848"/>
+  </g>
+  <rect width="14.4" height="12.923" fill="#3c3b6e"/>
+  <g fill="#fff">
+    <path id="star-row-a" d="M1.2 1.05l.16.5h.52l-.42.3.16.5-.42-.3-.42.3.16-.5-.42-.3h.52zm2.4 0 .16.5h.52l-.42.3.16.5-.42-.3-.42.3.16-.5-.42-.3h.52zm2.4 0 .16.5h.52l-.42.3.16.5-.42-.3-.42.3.16-.5-.42-.3h.52zm2.4 0 .16.5h.52l-.42.3.16.5-.42-.3-.42.3.16-.5-.42-.3h.52zm2.4 0 .16.5h.52l-.42.3.16.5-.42-.3-.42.3.16-.5-.42-.3h.52zm2.4 0 .16.5h.52l-.42.3.16.5-.42-.3-.42.3.16-.5-.42-.3h.52z"/>
+    <path id="star-row-b" d="M2.4 2.15l.16.5h.52l-.42.3.16.5-.42-.3-.42.3.16-.5-.42-.3h.52zm2.4 0 .16.5h.52l-.42.3.16.5-.42-.3-.42.3.16-.5-.42-.3h.52zm2.4 0 .16.5h.52l-.42.3.16.5-.42-.3-.42.3.16-.5-.42-.3h.52zm2.4 0 .16.5h.52l-.42.3.16.5-.42-.3-.42.3.16-.5-.42-.3h.52zm2.4 0 .16.5h.52l-.42.3.16.5-.42-.3-.42.3.16-.5-.42-.3h.52z"/>
+    <use href="#star-row-a" y="2.2"/><use href="#star-row-b" y="2.2"/>
+    <use href="#star-row-a" y="4.4"/><use href="#star-row-b" y="4.4"/>
+    <use href="#star-row-a" y="6.6"/><use href="#star-row-b" y="6.6"/>
+    <use href="#star-row-a" y="8.8"/>
+  </g>
+</svg>
