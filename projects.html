@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
   <title>연구 과제 | 충남대학교 GEH Lab</title>
   <meta name="description" content="충남대학교 GEH Lab 연구 과제. 식물공장, 스마트팜, 기능성 작물, AI 기반 환경 제어 관련 프로젝트를 소개합니다.">
   <link rel="canonical" href="https://geh-lab.vercel.app/projects.html">
@@ -21,14 +23,15 @@
   <meta name="twitter:title" content="연구 과제 | 충남대학교 GEH Lab">
   <meta name="twitter:description" content="충남대학교 GEH Lab 연구 과제. 식물공장, 스마트팜, 기능성 작물, AI 기반 환경 제어 관련 프로젝트를 소개합니다.">
   <meta name="twitter:image" content="https://geh-lab.vercel.app/assets/images/logos/geh-logo.png">
-  <link rel="stylesheet" href="assets/css/styles.css?v=75">
+  <script>document.documentElement.classList.add('js');window.GEH_BOOT_TIMEOUT=window.setTimeout(function(){document.documentElement.classList.add('js-fallback')},3000);</script>
+  <link rel="stylesheet" href="assets/css/styles.css?v=139">
 </head>
 <body class="public-body" data-page="projects" data-lang="kr" data-root=".">
 <div class="site-shell">
 
 <header class="site-header">
   <a href="index.html" class="brand">
-    <span class="brand-mark"><img src="assets/images/logos/geh-logo.png" alt="GEH Lab"></span>
+    <span class="brand-mark"><img src="assets/images/logos/geh-logo-ui.webp" alt="GEH Lab" width="42" height="42" decoding="async" fetchpriority="high"></span>
     <span class="brand-text"><strong>GEH Lab</strong><small>Greenhouse & Environmental Horticulture Lab</small></span>
   </a>
   <button class="menu-toggle" type="button" aria-label="menu" aria-expanded="false" data-menu-toggle><span></span><span></span></button>
@@ -41,7 +44,7 @@
     <a href="contact.html" data-nav-page="contact">오시는 길</a>
   </nav>
   <div class="header-tools">
-    <div class="lang-switch"><a class="lang-link is-active" href="projects.html">Ko</a><span class="lang-divider">|</span><a class="lang-link" href="en/projects.html">En</a></div>
+    <div class="lang-switch" aria-label="언어 선택"><a class="lang-link is-active" href="projects.html" hreflang="ko" aria-current="true" aria-label="현재 언어: 한국어"><img class="lang-flag" src="assets/images/flags/kr.svg" alt="" width="24" height="16" aria-hidden="true"><span class="lang-code">KO</span></a><span class="lang-divider" aria-hidden="true">|</span><a class="lang-link" href="en/projects.html" hreflang="en" aria-label="English로 전환"><img class="lang-flag" src="assets/images/flags/us.svg" alt="" width="24" height="16" aria-hidden="true"><span class="lang-code">EN</span></a></div>
     <a class="icon-button" href="admin.html" aria-label="Admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="M19.4 15a1.6 1.6 0 0 0 .32 1.76l.06.06a2 2 0 1 1-2.82 2.82l-.06-.06a1.6 1.6 0 0 0-1.76-.32 1.6 1.6 0 0 0-.98 1.46V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-.98-1.46 1.6 1.6 0 0 0-1.76.32l-.06.06a2 2 0 1 1-2.82-2.82l.06-.06A1.6 1.6 0 0 0 4.6 15a1.6 1.6 0 0 0-1.46-.98H3a2 2 0 1 1 0-4h.14A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.32-1.76l-.06-.06a2 2 0 1 1 2.82-2.82l.06.06A1.6 1.6 0 0 0 8.86 4.6a1.6 1.6 0 0 0 .98-1.46V3a2 2 0 1 1 4 0v.14a1.6 1.6 0 0 0 .98 1.46 1.6 1.6 0 0 0 1.76-.32l.06-.06a2 2 0 1 1 2.82 2.82l-.06.06A1.6 1.6 0 0 0 19.4 9c.23.35.35.77.35 1.2s-.12.85-.35 1.2Z"></path></svg></a>
   </div>
 </header>
@@ -70,18 +73,18 @@
 
 <footer class="site-footer">
   <div class="footer-brand">
-    <img src="assets/images/logos/cnu-emblem-blue.jpg" alt="CNU">
+    <img src="assets/images/logos/cnu-emblem-blue-ui.webp" alt="CNU" width="42" height="42" loading="lazy" decoding="async">
     <div><strong>GEH Lab</strong><br><small>Greenhouse & Environmental Horticulture Lab</small></div>
   </div>
   <div class="footer-meta">COPYRIGHT © Chungnam National University Greenhouse & Environmental Horticulture Lab</div>
 </footer>
 
 </div>
-<script src="firebase-config.js"></script>
-<script type="module" src="assets/js/public.js?v=75"></script>
+<script vite-ignore src="firebase-config.js?v=80"></script>
+<script type="module" src="assets/js/public.js?v=139"></script>
 <script>
   window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
 </script>
-<script defer src="/_vercel/insights/script.js"></script>
+<script vite-ignore defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>

@@ -1,87 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-  <url>
-    <loc>https://geh-lab.vercel.app/</loc>
-    <lastmod>2026-04-13</lastmod>
-    <xhtml:link rel="alternate" hreflang="ko" href="https://geh-lab.vercel.app/" />
-    <xhtml:link rel="alternate" hreflang="en" href="https://geh-lab.vercel.app/en/" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://geh-lab.vercel.app/" />
-  </url>
-  <url>
-    <loc>https://geh-lab.vercel.app/members.html</loc>
-    <lastmod>2026-04-13</lastmod>
-    <xhtml:link rel="alternate" hreflang="ko" href="https://geh-lab.vercel.app/members.html" />
-    <xhtml:link rel="alternate" hreflang="en" href="https://geh-lab.vercel.app/en/members.html" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://geh-lab.vercel.app/members.html" />
-  </url>
-  <url>
-    <loc>https://geh-lab.vercel.app/projects.html</loc>
-    <lastmod>2026-04-13</lastmod>
-    <xhtml:link rel="alternate" hreflang="ko" href="https://geh-lab.vercel.app/projects.html" />
-    <xhtml:link rel="alternate" hreflang="en" href="https://geh-lab.vercel.app/en/projects.html" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://geh-lab.vercel.app/projects.html" />
-  </url>
-  <url>
-    <loc>https://geh-lab.vercel.app/publications.html</loc>
-    <lastmod>2026-04-13</lastmod>
-    <xhtml:link rel="alternate" hreflang="ko" href="https://geh-lab.vercel.app/publications.html" />
-    <xhtml:link rel="alternate" hreflang="en" href="https://geh-lab.vercel.app/en/publications.html" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://geh-lab.vercel.app/publications.html" />
-  </url>
-  <url>
-    <loc>https://geh-lab.vercel.app/news.html</loc>
-    <lastmod>2026-04-13</lastmod>
-    <xhtml:link rel="alternate" hreflang="ko" href="https://geh-lab.vercel.app/news.html" />
-    <xhtml:link rel="alternate" hreflang="en" href="https://geh-lab.vercel.app/en/news.html" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://geh-lab.vercel.app/news.html" />
-  </url>
-  <url>
-    <loc>https://geh-lab.vercel.app/contact.html</loc>
-    <lastmod>2026-04-13</lastmod>
-    <xhtml:link rel="alternate" hreflang="ko" href="https://geh-lab.vercel.app/contact.html" />
-    <xhtml:link rel="alternate" hreflang="en" href="https://geh-lab.vercel.app/en/contact.html" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://geh-lab.vercel.app/contact.html" />
-  </url>
-  <url>
-    <loc>https://geh-lab.vercel.app/en/</loc>
-    <lastmod>2026-04-13</lastmod>
-    <xhtml:link rel="alternate" hreflang="en" href="https://geh-lab.vercel.app/en/" />
-    <xhtml:link rel="alternate" hreflang="ko" href="https://geh-lab.vercel.app/" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://geh-lab.vercel.app/" />
-  </url>
-  <url>
-    <loc>https://geh-lab.vercel.app/en/members.html</loc>
-    <lastmod>2026-04-13</lastmod>
-    <xhtml:link rel="alternate" hreflang="en" href="https://geh-lab.vercel.app/en/members.html" />
-    <xhtml:link rel="alternate" hreflang="ko" href="https://geh-lab.vercel.app/members.html" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://geh-lab.vercel.app/members.html" />
-  </url>
-  <url>
-    <loc>https://geh-lab.vercel.app/en/projects.html</loc>
-    <lastmod>2026-04-13</lastmod>
-    <xhtml:link rel="alternate" hreflang="en" href="https://geh-lab.vercel.app/en/projects.html" />
-    <xhtml:link rel="alternate" hreflang="ko" href="https://geh-lab.vercel.app/projects.html" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://geh-lab.vercel.app/projects.html" />
-  </url>
-  <url>
-    <loc>https://geh-lab.vercel.app/en/publications.html</loc>
-    <lastmod>2026-04-13</lastmod>
-    <xhtml:link rel="alternate" hreflang="en" href="https://geh-lab.vercel.app/en/publications.html" />
-    <xhtml:link rel="alternate" hreflang="ko" href="https://geh-lab.vercel.app/publications.html" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://geh-lab.vercel.app/publications.html" />
-  </url>
-  <url>
-    <loc>https://geh-lab.vercel.app/en/news.html</loc>
-    <lastmod>2026-04-13</lastmod>
-    <xhtml:link rel="alternate" hreflang="en" href="https://geh-lab.vercel.app/en/news.html" />
-    <xhtml:link rel="alternate" hreflang="ko" href="https://geh-lab.vercel.app/news.html" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://geh-lab.vercel.app/news.html" />
-  </url>
-  <url>
-    <loc>https://geh-lab.vercel.app/en/contact.html</loc>
-    <lastmod>2026-04-13</lastmod>
-    <xhtml:link rel="alternate" hreflang="en" href="https://geh-lab.vercel.app/en/contact.html" />
-    <xhtml:link rel="alternate" hreflang="ko" href="https://geh-lab.vercel.app/contact.html" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://geh-lab.vercel.app/contact.html" />
-  </url>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://geh-lab.vercel.app/</loc><lastmod>2026-07-12</lastmod></url>
+  <url><loc>https://geh-lab.vercel.app/members.html</loc><lastmod>2026-07-12</lastmod></url>
+  <url><loc>https://geh-lab.vercel.app/projects.html</loc><lastmod>2026-07-12</lastmod></url>
+  <url><loc>https://geh-lab.vercel.app/publications.html</loc><lastmod>2026-07-12</lastmod></url>
+  <url><loc>https://geh-lab.vercel.app/news.html</loc><lastmod>2026-07-12</lastmod></url>
+  <url><loc>https://geh-lab.vercel.app/contact.html</loc><lastmod>2026-07-12</lastmod></url>
+  <url><loc>https://geh-lab.vercel.app/en/</loc><lastmod>2026-07-12</lastmod></url>
+  <url><loc>https://geh-lab.vercel.app/en/members.html</loc><lastmod>2026-07-12</lastmod></url>
+  <url><loc>https://geh-lab.vercel.app/en/projects.html</loc><lastmod>2026-07-12</lastmod></url>
+  <url><loc>https://geh-lab.vercel.app/en/publications.html</loc><lastmod>2026-07-12</lastmod></url>
+  <url><loc>https://geh-lab.vercel.app/en/news.html</loc><lastmod>2026-07-12</lastmod></url>
+  <url><loc>https://geh-lab.vercel.app/en/contact.html</loc><lastmod>2026-07-12</lastmod></url>
 </urlset>

@@ -3,16 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
   <title>GEH Lab 관리자</title>
   <meta name="description" content="GEH Lab Firebase 관리자 페이지">
   <meta name="robots" content="noindex,nofollow,noarchive">
-  <link rel="stylesheet" href="assets/css/styles.css?v=75">
+  <link rel="stylesheet" href="assets/css/styles.css?v=139">
+  <link rel="stylesheet" href="assets/css/icons.css?v=3">
 </head>
 <body class="admin-body" data-root=".">
   <div class="admin-shell">
     <header class="admin-topbar">
       <div class="brand">
-        <span class="brand-mark"><img src="assets/images/logos/geh-logo.png" alt="GEH Lab"></span>
+        <span class="brand-mark"><img src="assets/images/logos/geh-logo-ui.webp" alt="GEH Lab" width="42" height="42" decoding="async" fetchpriority="high"></span>
         <span class="brand-text"><strong>GEH Lab</strong><small>관리자 페이지</small></span>
       </div>
       <nav class="admin-topbar-links" aria-label="관리자 상단 메뉴">
@@ -24,14 +27,14 @@
         <a href="contact.html">오시는 길</a>
         <a href="admin.html" class="is-active" aria-current="page">관리자</a>
       </nav>
-      <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;">
-        <span class="user-chip" id="current-user-label">로그인 필요</span>
+      <div class="admin-topbar-auth">
+        <span class="user-chip" id="current-user-label">확인 중</span>
         <button class="button secondary" id="login-shortcut-button">로그인</button>
         <button class="button secondary" id="logout-button" hidden style="display:none;">로그아웃</button>
       </div>
     </header>
 
-    <section class="login-panel" id="auth-loading" hidden>
+    <section class="login-panel" id="auth-loading">
       <div class="login-card loading-card">
         <span class="eyebrow">관리자</span>
         <h1>CNU GEH Lab CMS</h1>
@@ -39,12 +42,12 @@
       </div>
     </section>
 
-    <section class="login-panel" id="login-view">
+    <section class="login-panel" id="login-view" hidden>
       <div class="login-card">
         <span class="eyebrow">관리자</span>
         <h1>CNU GEH Lab CMS</h1>
         <p class="muted">관리자 페이지는 Google 계정 로그인으로만 접근할 수 있습니다. 로그인 후 멤버, 과제, 논문, 게시판을 바로 추가·수정·삭제할 수 있습니다.</p>
-        <div id="auth-notice" class="notice-banner is-info"></div>
+        <div id="auth-notice" class="notice-banner is-info" role="status" aria-live="polite" aria-atomic="true"></div>
         <button type="button" class="google-button" id="google-login-button">
           <svg class="google-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.6 3.9-5.4 3.9-3.2 0-5.9-2.7-5.9-6s2.7-6 5.9-6c1.8 0 3.1.8 3.8 1.4l2.6-2.5C16.7 3.4 14.6 2.5 12 2.5 6.8 2.5 2.5 6.8 2.5 12S6.8 21.5 12 21.5c6.9 0 9.1-4.8 9.1-7.3 0-.5-.1-.9-.1-1.3H12z"></path><path fill="#34A853" d="M3.6 7l3.2 2.3C7.7 7.7 9.7 6 12 6c1.8 0 3.1.8 3.8 1.4l2.6-2.5C16.7 3.4 14.6 2.5 12 2.5 8.3 2.5 5 4.6 3.6 7z"></path><path fill="#4A90E2" d="M12 21.5c2.5 0 4.6-.8 6.1-2.3l-2.8-2.3c-.8.6-1.8 1-3.3 1-3.7 0-5.1-2.5-5.4-3.8l-3.1 2.4c1.4 2.8 4.7 5 8.5 5z"></path><path fill="#FBBC05" d="M6.6 14.1c-.2-.6-.3-1.3-.3-2.1s.1-1.5.3-2.1L3.5 7.5C2.9 8.8 2.5 10.4 2.5 12s.4 3.2 1 4.5l3.1-2.4z"></path></svg>
           Google 계정으로 로그인
@@ -53,7 +56,7 @@
     </section>
 
     <main class="admin-main" id="dashboard-view" hidden>
-      <div id="notice-area" class="notice-banner is-info" hidden></div>
+      <div id="notice-area" class="notice-banner is-info" role="status" aria-live="polite" aria-atomic="true" hidden></div>
       <div class="admin-head admin-card">
         <div>
           <span class="eyebrow">관리자</span>
@@ -68,7 +71,7 @@
         <article class="summary-card"><strong id="summary-board">0</strong><span>게시판</span></article>
         <article class="summary-card summary-card--trash"><strong id="summary-trash">0</strong><span>휴지통</span></article>
       </div>
-      <div class="admin-tabs">
+      <div class="admin-tabs" role="tablist" aria-label="콘텐츠 관리 분류">
         <button type="button" class="admin-tab is-active" data-admin-tab="members">멤버 관리</button>
         <button type="button" class="admin-tab" data-admin-tab="projects">과제 관리</button>
         <button type="button" class="admin-tab" data-admin-tab="publications">논문 관리</button>
@@ -77,91 +80,114 @@
       </div>
 
       <section class="admin-stage" data-panel="members">
-        <article class="admin-card admin-editor-modal" id="member-editor-card" hidden>
+        <article class="admin-card admin-editor-modal" id="member-editor-card" role="dialog" aria-modal="true" aria-labelledby="member-form-title" tabindex="-1" hidden>
           <div class="editor-title-row"><h2 id="member-form-title">멤버 추가</h2><button type="button" class="small-button editor-close-button" data-editor-close="member">닫기</button></div>
+          <nav class="member-editor-tabs" role="tablist" aria-label="멤버 정보 편집 구역">
+            <button type="button" class="member-editor-tab is-active" id="member-editor-tab-basic" role="tab" aria-selected="true" aria-controls="member-editor-panel-basic" tabindex="0" data-member-editor-tab="basic">기본 정보</button>
+            <button type="button" class="member-editor-tab" id="member-editor-tab-academic" role="tab" aria-selected="false" aria-controls="member-editor-panel-academic" tabindex="-1" data-member-editor-tab="academic">학력 · 경력</button>
+            <button type="button" class="member-editor-tab" id="member-editor-tab-research" role="tab" aria-selected="false" aria-controls="member-editor-panel-research" tabindex="-1" data-member-editor-tab="research">연구 연결</button>
+            <button type="button" class="member-editor-tab" id="member-editor-tab-media" role="tab" aria-selected="false" aria-controls="member-editor-panel-media" tabindex="-1" data-member-editor-tab="media">소속 · 사진</button>
+          </nav>
           <form id="member-form" class="editor-form">
-            <div class="form-grid form-grid--double">
-              <label class="field"><span>한국 이름 (성, 이름) *</span><input name="nameKr" type="text" required></label>
-              <label class="field"><span>영문 이름 (이름 성)</span><input name="nameEn" type="text"></label>
-              <label class="field"><span>이메일</span><input name="email" type="email"></label>
-              <label class="field"><span>그룹</span><select name="group"><option value="pi">지도교수</option><option value="researchProfessor">연구교수 / 박사후연구원</option><option value="graduateStudent" selected>대학원생</option><option value="studentResearcher">학부연구생</option><option value="alumni">졸업생</option></select></label>
-              <label class="field"><span>트랙</span><select name="track"><option value="none">해당 없음</option><option value="fullTime" selected>풀타임</option><option value="partTime">파트타임</option></select></label>
-              <label class="field" id="member-course-field"><span>과정 / 직위</span><select name="course"><option value="professor">교수</option><option value="postdoc">박사후연구원</option><option value="phd">박사과정</option><option value="ms" selected>석사과정</option><option value="undergrad">학부연구생</option><option value="alumni">졸업생</option></select></label>
-              <label class="field"><span>입학/입사 연도</span><input name="startYear" type="text" placeholder="2024"></label>
-              <label class="field"><span>입학/입사 학기</span><select name="startSemester"><option value="">선택 안 함</option><option value="1">1학기</option><option value="2">2학기</option></select></label>
-              <label class="field" id="member-status-field"><span>상태</span><select name="status"><option value="enrolled" selected>재학중</option><option value="alumni">졸업</option></select></label>
-              <label class="field"><span>졸업 연도</span><input name="graduationYear" type="text" placeholder="2026"></label>
-            </div>
-            <div class="form-grid form-grid--double bilingual-field-grid">
-              <label class="field"><span>소개 / 역할 (한국어)</span><textarea name="bioKr"></textarea></label>
-              <label class="field"><span>Introduction / Role (English)</span><textarea name="bioEn"></textarea></label>
-            </div>
-            <section class="field experience-field" id="member-experience-wrap">
-              <div class="field-heading-row">
-                <span>경력</span>
-                <button type="button" class="small-button" id="member-experience-add">경력 추가</button>
-              </div>
-              <div class="experience-editor" id="member-experience-list"></div>
-            </section>
-            <div class="form-grid form-grid--double bilingual-field-grid">
-              <label class="field"><span>연구 관심 분야 (한국어)</span><textarea name="researchInterestKr"></textarea></label>
-              <label class="field"><span>Research Interests (English)</span><textarea name="researchInterestEn"></textarea></label>
-            </div>
-            <div class="degree-sections" id="member-degree-grid">
-              <section class="degree-section degree-field" data-degree-level="bs">
-                <div class="degree-section__head"><strong>학사</strong><small>B.S.</small></div>
-                <div class="form-grid form-grid--double degree-section__grid">
-                  <label class="field"><span>학교 (한국어)</span><input name="bachelorsSchoolKr" type="text"></label>
-                  <label class="field"><span>School (English)</span><input name="bachelorsSchoolEn" type="text"></label>
-                  <label class="field"><span>전공 (한국어)</span><input name="bachelorsMajorKr" type="text"></label>
-                  <label class="field"><span>Major (English)</span><input name="bachelorsMajorEn" type="text"></label>
+            <div class="member-editor-panels">
+              <section class="member-editor-panel is-active" id="member-editor-panel-basic" role="tabpanel" aria-labelledby="member-editor-tab-basic" tabindex="0" data-member-editor-panel="basic">
+                <div class="member-editor-section-head"><h3>기본 정보</h3><p>이름, 소속 그룹, 재학 상태와 소개를 입력합니다.</p></div>
+                <div class="form-grid form-grid--double">
+                  <label class="field"><span>한국 이름 (성, 이름) *</span><input name="nameKr" type="text" required></label>
+                  <label class="field"><span>영문 이름 (이름 성)</span><input name="nameEn" type="text"></label>
+                  <label class="field"><span>이메일</span><input name="email" type="email"></label>
+                  <label class="field"><span>그룹</span><select name="group"><option value="pi">지도교수</option><option value="researchProfessor">연구교수 / 박사후연구원</option><option value="graduateStudent" selected>대학원생</option><option value="studentResearcher">학부연구생</option><option value="alumni">졸업생</option></select></label>
+                  <label class="field"><span>트랙</span><select name="track"><option value="none">해당 없음</option><option value="fullTime" selected>풀타임</option><option value="partTime">파트타임</option></select></label>
+                  <label class="field" id="member-course-field"><span>과정 / 직위</span><select name="course"><option value="professor">교수</option><option value="postdoc">박사후연구원</option><option value="phd">박사과정</option><option value="phdCompleted">박사수료 후 연구생</option><option value="ms" selected>석사과정</option><option value="undergrad">학부연구생</option><option value="alumni">졸업생</option></select></label>
+                  <label class="field"><span>입학/입사 연도</span><input name="startYear" type="text" placeholder="2024"></label>
+                  <label class="field"><span>입학/입사 학기</span><select name="startSemester"><option value="">선택 안 함</option><option value="1">1학기</option><option value="2">2학기</option></select></label>
+                  <label class="field" id="member-status-field"><span>상태</span><select name="status"><option value="enrolled" selected>재학중</option><option value="alumni">졸업</option></select></label>
+                  <label class="field"><span>졸업 연도</span><input name="graduationYear" type="text" placeholder="2026"></label>
+                </div>
+                <div class="form-grid form-grid--double bilingual-field-grid">
+                  <label class="field"><span>소개 / 역할 (한국어)</span><textarea name="bioKr"></textarea></label>
+                  <label class="field"><span>Introduction / Role (English)</span><textarea name="bioEn"></textarea></label>
                 </div>
               </section>
-              <section class="degree-section degree-field" data-degree-level="ms">
-                <div class="degree-section__head"><strong>석사</strong><small>M.S.</small></div>
-                <div class="form-grid form-grid--double degree-section__grid">
-                  <label class="field"><span>학교 (한국어)</span><input name="mastersSchoolKr" type="text"></label>
-                  <label class="field"><span>School (English)</span><input name="mastersSchoolEn" type="text"></label>
-                  <label class="field"><span>전공 (한국어)</span><input name="mastersMajorKr" type="text"></label>
-                  <label class="field"><span>Major (English)</span><input name="mastersMajorEn" type="text"></label>
+
+              <section class="member-editor-panel" id="member-editor-panel-academic" role="tabpanel" aria-labelledby="member-editor-tab-academic" tabindex="0" data-member-editor-panel="academic" hidden>
+                <div class="member-editor-section-head"><h3>학력 · 경력</h3><p>경력과 연구 분야, 학위별 학교와 전공을 관리합니다.</p></div>
+                <section class="field experience-field" id="member-experience-wrap">
+                  <div class="field-heading-row">
+                    <span>경력</span>
+                    <button type="button" class="small-button" id="member-experience-add">경력 추가</button>
+                  </div>
+                  <div class="experience-editor" id="member-experience-list"></div>
+                </section>
+                <div class="form-grid form-grid--double bilingual-field-grid">
+                  <label class="field"><span>연구 관심 분야 (한국어)</span><textarea name="researchInterestKr"></textarea></label>
+                  <label class="field"><span>Research Interests (English)</span><textarea name="researchInterestEn"></textarea></label>
+                </div>
+                <div class="degree-sections" id="member-degree-grid">
+                  <section class="degree-section degree-field" data-degree-level="bs">
+                    <div class="degree-section__head"><strong>학사</strong><small>B.S.</small></div>
+                    <div class="form-grid form-grid--double degree-section__grid">
+                      <label class="field"><span>학교 (한국어)</span><input name="bachelorsSchoolKr" type="text"></label>
+                      <label class="field"><span>School (English)</span><input name="bachelorsSchoolEn" type="text"></label>
+                      <label class="field"><span>전공 (한국어)</span><input name="bachelorsMajorKr" type="text"></label>
+                      <label class="field"><span>Major (English)</span><input name="bachelorsMajorEn" type="text"></label>
+                    </div>
+                  </section>
+                  <section class="degree-section degree-field" data-degree-level="ms">
+                    <div class="degree-section__head"><strong>석사</strong><small>M.S.</small></div>
+                    <div class="form-grid form-grid--double degree-section__grid">
+                      <label class="field"><span>학교 (한국어)</span><input name="mastersSchoolKr" type="text"></label>
+                      <label class="field"><span>School (English)</span><input name="mastersSchoolEn" type="text"></label>
+                      <label class="field"><span>전공 (한국어)</span><input name="mastersMajorKr" type="text"></label>
+                      <label class="field"><span>Major (English)</span><input name="mastersMajorEn" type="text"></label>
+                    </div>
+                  </section>
+                  <section class="degree-section degree-field" data-degree-level="phd">
+                    <div class="degree-section__head"><strong>박사</strong><small>Ph.D.</small></div>
+                    <div class="form-grid form-grid--double degree-section__grid">
+                      <label class="field"><span>학교 (한국어)</span><input name="doctoralSchoolKr" type="text"></label>
+                      <label class="field"><span>School (English)</span><input name="doctoralSchoolEn" type="text"></label>
+                      <label class="field"><span>전공 (한국어)</span><input name="doctoralMajorKr" type="text"></label>
+                      <label class="field"><span>Major (English)</span><input name="doctoralMajorEn" type="text"></label>
+                    </div>
+                  </section>
                 </div>
               </section>
-              <section class="degree-section degree-field" data-degree-level="phd">
-                <div class="degree-section__head"><strong>박사</strong><small>Ph.D.</small></div>
-                <div class="form-grid form-grid--double degree-section__grid">
-                  <label class="field"><span>학교 (한국어)</span><input name="doctoralSchoolKr" type="text"></label>
-                  <label class="field"><span>School (English)</span><input name="doctoralSchoolEn" type="text"></label>
-                  <label class="field"><span>전공 (한국어)</span><input name="doctoralMajorKr" type="text"></label>
-                  <label class="field"><span>Major (English)</span><input name="doctoralMajorEn" type="text"></label>
+
+              <section class="member-editor-panel" id="member-editor-panel-research" role="tabpanel" aria-labelledby="member-editor-tab-research" tabindex="0" data-member-editor-panel="research" hidden>
+                <div class="member-editor-section-head"><h3>연구 연결</h3><p>수업, 진행 과제와 논문 저자 정보를 연결합니다.</p></div>
+                <section class="field schedule-field" id="member-course-schedule-wrap" hidden>
+                  <div class="field-heading-row">
+                    <span>수업 시간표 (지도교수용)</span>
+                    <button type="button" class="small-button" id="member-course-schedule-add">수업 추가</button>
+                  </div>
+                  <div class="course-schedule-editor" id="member-course-schedule-list"></div>
+                </section>
+                <label class="field" id="member-courses-note-field" hidden><span>수업 안내 메모 (선택)</span><textarea name="coursesInfo"></textarea></label>
+                <section class="field project-selector-field" id="member-related-projects-field" hidden><div class="field-heading-row"><span id="member-project-picker-label">관련 과제 연결</span><small class="muted">현재 진행 중인 과제만 표시됩니다.</small></div><div class="project-picker" id="member-project-picker"></div></section>
+                <section class="field publication-selector-field">
+                  <span>논문 연결</span>
+                  <div class="publication-picker" id="member-publication-picker"></div>
+                </section>
+              </section>
+
+              <section class="member-editor-panel" id="member-editor-panel-media" role="tabpanel" aria-labelledby="member-editor-tab-media" tabindex="0" data-member-editor-panel="media" hidden>
+                <div class="member-editor-section-head"><h3>소속 · 사진</h3><p>현재 소속과 멤버 카드에 사용할 사진을 관리합니다.</p></div>
+                <div class="form-grid form-grid--double bilingual-field-grid">
+                  <label class="field"><span>현재 소속 (한국어)</span><input name="currentPositionKr" type="text"></label>
+                  <label class="field"><span>Current Affiliation (English)</span><input name="currentPositionEn" type="text"></label>
                 </div>
+                <div class="member-photo-box member-photo-box--compact"><span class="field-label">사진</span><div class="photo-preview" id="member-photo-preview"></div><div class="form-actions form-actions--upload"><label class="file-picker"><input id="member-photo-input" type="file" accept="image/*"><span class="file-picker__button">파일 선택</span><span class="file-picker__name" id="member-photo-file-name">선택된 파일 없음</span></label><button type="button" class="small-button" id="member-photo-remove">사진 제거</button></div></div>
               </section>
             </div>
-            <section class="field schedule-field" id="member-course-schedule-wrap" hidden>
-              <div class="field-heading-row">
-                <span>수업 시간표 (지도교수용)</span>
-                <button type="button" class="small-button" id="member-course-schedule-add">수업 추가</button>
-              </div>
-              <div class="course-schedule-editor" id="member-course-schedule-list"></div>
-            </section>
-            <label class="field" id="member-courses-note-field" hidden><span>수업 안내 메모 (선택)</span><textarea name="coursesInfo"></textarea></label>
-            <section class="field project-selector-field" id="member-related-projects-field" hidden><div class="field-heading-row"><span id="member-project-picker-label">관련 과제 연결</span><small class="muted">현재 진행 중인 과제만 표시됩니다.</small></div><div class="project-picker" id="member-project-picker"></div></section>
-            <section class="field publication-selector-field">
-              <span>논문 연결</span>
-              <div class="publication-picker" id="member-publication-picker"></div>
-            </section>
-            <div class="form-grid form-grid--double bilingual-field-grid">
-              <label class="field"><span>현재 소속 (한국어)</span><input name="currentPositionKr" type="text"></label>
-              <label class="field"><span>Current Affiliation (English)</span><input name="currentPositionEn" type="text"></label>
-            </div>
-            <div class="member-photo-box member-photo-box--compact"><span class="field-label">사진</span><div class="photo-preview" id="member-photo-preview"></div><div class="form-actions form-actions--upload"><label class="file-picker"><input id="member-photo-input" type="file" accept="image/*"><span class="file-picker__button">파일 선택</span><span class="file-picker__name" id="member-photo-file-name">선택된 파일 없음</span></label><button type="button" class="small-button" id="member-photo-remove">사진 제거</button></div></div>
-            <div class="form-actions"><button class="button primary" type="submit">저장</button><button class="button secondary" type="button" id="member-reset">초기화</button></div>
+            <div class="form-actions member-editor-actions"><button class="button primary" type="submit">저장</button><button class="button secondary" type="button" id="member-reset">초기화</button></div>
           </form>
         </article>
-        <article class="admin-card"><div class="admin-card-head"><span class="eyebrow">저장된 멤버</span><button type="button" class="button primary button-sm" id="member-add-button">멤버 추가</button></div><div class="admin-subtabs" id="member-filter-tabs"></div><label class="field admin-search-field"><span>검색</span><input id="member-search" type="search" placeholder="이름, 영문 이름, 이메일, 현재 소속 검색"></label><div class="admin-list-stack" id="member-list"></div><div class="admin-pagination" id="member-pagination"></div></article>
+        <article class="admin-card"><div class="admin-card-head"><span class="eyebrow">저장된 멤버</span><button type="button" class="button primary button-sm" id="member-add-button">멤버 추가</button></div><div class="admin-subtabs" id="member-filter-tabs"></div><label class="field admin-search-field"><span>검색</span><input id="member-search" type="search" placeholder="이름, 영문 이름, 현재 소속 검색"></label><div class="admin-list-stack" id="member-list"></div><div class="admin-pagination" id="member-pagination"></div></article>
       </section>
 
       <section class="admin-stage" data-panel="projects" hidden>
-        <article class="admin-card admin-editor-modal" id="project-editor-card" hidden>
+        <article class="admin-card admin-editor-modal" id="project-editor-card" role="dialog" aria-modal="true" aria-labelledby="project-form-title" tabindex="-1" hidden>
           <div class="editor-title-row"><h2 id="project-form-title">과제 추가</h2><button type="button" class="small-button editor-close-button" data-editor-close="project">닫기</button></div>
           <form id="project-form" class="editor-form">
             <div class="form-grid form-grid--double">
@@ -183,7 +209,7 @@
       </section>
 
       <section class="admin-stage" data-panel="publications" hidden>
-        <article class="admin-card admin-editor-modal" id="publication-editor-card" hidden>
+        <article class="admin-card admin-editor-modal" id="publication-editor-card" role="dialog" aria-modal="true" aria-labelledby="publication-form-title" tabindex="-1" hidden>
           <div class="editor-title-row"><h2 id="publication-form-title">논문 추가</h2><button type="button" class="small-button editor-close-button" data-editor-close="publication">닫기</button></div>
           <form id="publication-form" class="editor-form">
             <label class="field"><span>논문 제목 *</span><input name="title" type="text" required></label>
@@ -207,10 +233,10 @@
       </section>
 
       <section class="admin-stage" data-panel="board" hidden>
-        <article class="admin-card admin-editor-modal" id="board-editor-card" hidden>
+        <article class="admin-card admin-editor-modal" id="board-editor-card" role="dialog" aria-modal="true" aria-labelledby="board-form-title" tabindex="-1" hidden>
           <div class="editor-title-row"><h2 id="board-form-title">게시판 추가</h2><button type="button" class="small-button editor-close-button" data-editor-close="board">닫기</button></div>
           <form id="board-form" class="editor-form">
-            <div class="form-grid form-grid--double">
+            <div class="form-grid form-grid--double form-grid--board-meta">
               <label class="field"><span>분류</span><select name="category"><option value="conference" selected>학회</option><option value="workshop">워크숍</option><option value="equipment">실험실 장비 목록</option><option value="other">기타</option></select></label>
               <label class="field"><span>날짜</span><input name="date" type="date"></label>
             </div>
@@ -246,7 +272,7 @@
   
   <div class="admin-dialog" id="admin-dialog" hidden>
     <div class="admin-dialog__backdrop" data-dialog-close></div>
-    <div class="admin-dialog__panel" role="dialog" aria-modal="true" aria-labelledby="admin-dialog-title">
+    <div class="admin-dialog__panel" role="dialog" aria-modal="true" aria-labelledby="admin-dialog-title" aria-describedby="admin-dialog-message">
       <div class="admin-dialog__head">
         <h3 id="admin-dialog-title">확인</h3>
       </div>
@@ -259,7 +285,7 @@
     </div>
   </div>
 
-<script src="firebase-config.js"></script>
-  <script type="module" src="assets/js/admin.js?v=75"></script>
+  <script vite-ignore src="firebase-config.js?v=80"></script>
+  <script type="module" src="assets/js/admin.js?v=114"></script>
 </body>
 </html>

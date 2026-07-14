@@ -1,1 +1,1 @@
-import './assets/js/admin.js?v=75';
+import './assets/js/admin.js?v=110';

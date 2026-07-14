@@ -1,1 +1,1 @@
-import './assets/js/public.js?v=75';
+import './assets/js/public.js?v=120';

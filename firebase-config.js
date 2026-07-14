@@ -11,5 +11,3 @@ window.GEH_FIREBASE_CONFIG = {
 window.GEH_ADMIN_EMAILS = [
   "envlab1315@gmail.com"
 ];
-
-window.GEH_LOCAL_DEV_MODE = false;
