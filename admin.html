@@ -8,7 +8,7 @@
   <title>GEH Lab 관리자</title>
   <meta name="description" content="GEH Lab Firebase 관리자 페이지">
   <meta name="robots" content="noindex,nofollow,noarchive">
-  <link rel="stylesheet" href="assets/css/styles.css?v=142">
+  <link rel="stylesheet" href="assets/css/styles.css?v=139">
   <link rel="stylesheet" href="assets/css/icons.css?v=3">
 </head>
 <body class="admin-body" data-root=".">
@@ -28,23 +28,25 @@
         <a href="admin.html" class="is-active" aria-current="page">관리자</a>
       </nav>
       <div class="admin-topbar-auth">
-        <span class="user-chip" id="current-user-label" hidden style="display:none;" aria-hidden="true"></span>
-        <button type="button" class="button secondary" id="login-shortcut-button" hidden style="display:none;" aria-hidden="true" tabindex="-1">로그인</button>
+        <span class="user-chip" id="current-user-label">확인 중</span>
+        <button class="button secondary" id="login-shortcut-button">로그인</button>
         <button class="button secondary" id="logout-button" hidden style="display:none;">로그아웃</button>
       </div>
     </header>
 
     <section class="login-panel" id="auth-loading">
       <div class="login-card loading-card">
-        <h1>콘텐츠 관리</h1>
-        <p class="muted">로그인 상태를 확인하고 있습니다.</p>
+        <span class="eyebrow">관리자</span>
+        <h1>CNU GEH Lab CMS</h1>
+        <p class="muted">로그인 상태를 확인하는 중입니다.</p>
       </div>
     </section>
 
     <section class="login-panel" id="login-view" hidden>
       <div class="login-card">
-        <h1>콘텐츠 관리</h1>
-        <p class="muted">승인된 Google 계정으로 연구실 콘텐츠를 관리할 수 있습니다.</p>
+        <span class="eyebrow">관리자</span>
+        <h1>CNU GEH Lab CMS</h1>
+        <p class="muted">관리자 페이지는 Google 계정 로그인으로만 접근할 수 있습니다. 로그인 후 멤버, 과제, 논문, 게시판을 바로 추가·수정·삭제할 수 있습니다.</p>
         <div id="auth-notice" class="notice-banner is-info" role="status" aria-live="polite" aria-atomic="true"></div>
         <button type="button" class="google-button" id="google-login-button">
           <svg class="google-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.6 3.9-5.4 3.9-3.2 0-5.9-2.7-5.9-6s2.7-6 5.9-6c1.8 0 3.1.8 3.8 1.4l2.6-2.5C16.7 3.4 14.6 2.5 12 2.5 6.8 2.5 2.5 6.8 2.5 12S6.8 21.5 12 21.5c6.9 0 9.1-4.8 9.1-7.3 0-.5-.1-.9-.1-1.3H12z"></path><path fill="#34A853" d="M3.6 7l3.2 2.3C7.7 7.7 9.7 6 12 6c1.8 0 3.1.8 3.8 1.4l2.6-2.5C16.7 3.4 14.6 2.5 12 2.5 8.3 2.5 5 4.6 3.6 7z"></path><path fill="#4A90E2" d="M12 21.5c2.5 0 4.6-.8 6.1-2.3l-2.8-2.3c-.8.6-1.8 1-3.3 1-3.7 0-5.1-2.5-5.4-3.8l-3.1 2.4c1.4 2.8 4.7 5 8.5 5z"></path><path fill="#FBBC05" d="M6.6 14.1c-.2-.6-.3-1.3-.3-2.1s.1-1.5.3-2.1L3.5 7.5C2.9 8.8 2.5 10.4 2.5 12s.4 3.2 1 4.5l3.1-2.4z"></path></svg>
@@ -57,6 +59,7 @@
       <div id="notice-area" class="notice-banner is-info" role="status" aria-live="polite" aria-atomic="true" hidden></div>
       <div class="admin-head admin-card">
         <div>
+          <span class="eyebrow">관리자</span>
           <h1>콘텐츠 관리</h1>
           <p>탭을 눌러 멤버, 과제, 논문, 게시판을 분리해서 관리할 수 있습니다.</p>
         </div>
@@ -234,7 +237,7 @@
           <div class="editor-title-row"><h2 id="board-form-title">게시판 추가</h2><button type="button" class="small-button editor-close-button" data-editor-close="board">닫기</button></div>
           <form id="board-form" class="editor-form">
             <div class="form-grid form-grid--double form-grid--board-meta">
-              <label class="field"><span>분류</span><select name="category"><option value="updates" selected>소식</option><option value="conference">학회</option><option value="workshop">워크숍</option><option value="equipment">실험실 장비 목록</option><option value="other">기타</option></select></label>
+              <label class="field"><span>분류</span><select name="category"><option value="conference" selected>학회</option><option value="workshop">워크숍</option><option value="equipment">실험실 장비 목록</option><option value="other">기타</option></select></label>
               <label class="field"><span>날짜</span><input name="date" type="date"></label>
             </div>
             <label class="field"><span>제목 *</span><input name="title" type="text" required></label>
@@ -283,6 +286,6 @@
   </div>
 
   <script vite-ignore src="firebase-config.js?v=80"></script>
-  <script type="module" src="assets/js/admin.js?v=116"></script>
+  <script type="module" src="assets/js/admin.js?v=114"></script>
 </body>
 </html>
