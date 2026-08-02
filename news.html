@@ -24,7 +24,7 @@
   <meta name="twitter:description" content="충남대학교 GEH Lab 게시판에서 학회, 워크숍, 실험실 장비 목록과 기타 게시글을 확인할 수 있습니다.">
   <meta name="twitter:image" content="https://geh-lab.vercel.app/assets/images/logos/geh-logo.png">
   <script>document.documentElement.classList.add('js');window.GEH_BOOT_TIMEOUT=window.setTimeout(function(){document.documentElement.classList.add('js-fallback')},3000);</script>
-  <link rel="stylesheet" href="assets/css/styles.css?v=139">
+  <link rel="stylesheet" href="assets/css/styles.css?v=142">
 </head>
 <body class="public-body" data-page="board" data-lang="kr" data-root=".">
 <div class="site-shell">
@@ -51,7 +51,8 @@
 <section class="page-hero" id="board-page"><div class="page-hero-card page-hero-card--overview reveal"><h1>게시판</h1><div class="page-hero-meta"><span id="board-summary"></span><span id="page-updated"></span></div></div></section>
 <section class="page-section container board-tab-section">
   <div class="board-tabs" id="board-tablist" role="tablist" aria-label="게시판 분류">
-    <button type="button" class="board-tab is-active" data-board-tab="all">전체</button>
+          <button type="button" class="board-tab is-active" data-board-tab="all">전체</button>
+          <button type="button" class="board-tab" data-board-tab="updates">소식</button>
     <button type="button" class="board-tab" data-board-tab="conference">학회</button>
     <button type="button" class="board-tab" data-board-tab="workshop">워크숍</button>
     <button type="button" class="board-tab" data-board-tab="equipment">실험실 장비 목록</button>
@@ -73,5 +74,5 @@
 <footer class="site-footer"><div class="footer-brand"><img src="assets/images/logos/cnu-emblem-blue-ui.webp" alt="CNU" width="42" height="42" loading="lazy" decoding="async"><div><strong>GEH Lab</strong><br><small>Greenhouse & Environmental Horticulture Lab</small></div></div><div class="footer-meta">COPYRIGHT © Chungnam National University Greenhouse & Environmental Horticulture Lab</div></footer>
 </div>
 <script vite-ignore src="firebase-config.js?v=80"></script>
-<script type="module" src="assets/js/public.js?v=139"></script>
+<script type="module" src="assets/js/public.js?v=141"></script>
 </body></html>
