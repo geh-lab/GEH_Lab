@@ -340,8 +340,8 @@ function structuredData(sections, lang) {
   return {
     '@context': 'https://schema.org',
     '@graph': [
-      { '@type': 'WebPage', '@id': `${canonical}#webpage`, url: canonical, name: lang === 'en' ? 'Members | GEH Lab at Chungnam National University' : '멤버 | 충남대학교 GEH Lab', inLanguage: lang === 'en' ? 'en' : 'ko', about: { '@id': `${siteUrl}/#organization` } },
-      { '@type': 'Organization', '@id': `${siteUrl}/#organization`, name: 'GEH Lab', alternateName: 'Greenhouse & Environmental Horticulture Lab', url: `${siteUrl}/`, logo: `${siteUrl}/assets/images/logos/geh-logo.png`, parentOrganization: { '@type': 'CollegeOrUniversity', name: 'Chungnam National University' } },
+      { '@type': 'WebPage', '@id': `${canonical}#webpage`, url: canonical, name: lang === 'en' ? 'Members | Greenhouse & Environmental Horticulture Lab' : '멤버 | 충남대학교 시설환경원예학연구실', inLanguage: lang === 'en' ? 'en' : 'ko', isPartOf: { '@id': `${siteUrl}/#website` }, about: { '@id': `${siteUrl}/#organization` } },
+      { '@type': 'Organization', '@id': `${siteUrl}/#organization`, name: '충남대학교 시설환경원예학연구실', alternateName: ['GEH Lab', 'Greenhouse & Environmental Horticulture Lab', 'CNU GEH Lab'], url: `${siteUrl}/`, logo: `${siteUrl}/assets/images/logos/geh-logo.png`, parentOrganization: { '@type': 'CollegeOrUniversity', name: '충남대학교', alternateName: 'Chungnam National University' } },
       { '@type': 'ItemList', '@id': `${canonical}#current-members`, name: lang === 'en' ? 'Current GEH Lab members' : 'GEH Lab 현재 구성원', numberOfItems: sections.current.length, itemListElement: sections.current.map((member, index) => personItem(member, lang, index + 1, canonical)) },
       { '@type': 'ItemList', '@id': `${canonical}#alumni`, name: lang === 'en' ? 'GEH Lab alumni' : 'GEH Lab 졸업생', numberOfItems: sections.alumniMembers.length, itemListElement: sections.alumniMembers.map((member, index) => personItem(member, lang, index + 1, canonical)) }
     ]
