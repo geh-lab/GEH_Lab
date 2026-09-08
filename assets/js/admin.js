@@ -1,4 +1,4 @@
-import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=79';
+import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=80';
 import {
   escapeHTML,
   getInitials,
@@ -33,7 +33,7 @@ import {
   isActiveItem,
   setupAdaptiveGlass,
   setSpatialOrigin
-} from './utils.js?v=110';
+} from './utils.js?v=111';
 import {
   auth,
   hasFirebaseConfig,
@@ -345,7 +345,7 @@ function matchesSearch(query = '', ...values) {
 }
 
 function memberProjectPickerTitle(group = '', course = '') {
-  const isParticipant = group === 'graduateStudent' || group === 'studentResearcher' || ['phd', 'phdCompleted', 'ms', 'undergrad'].includes(course);
+  const isParticipant = group === 'graduateStudent' || group === 'studentResearcher' || ['phd', 'ms', 'undergrad'].includes(course);
   return isParticipant ? '참여 과제 연결' : '관련 과제 연결';
 }
 
@@ -356,7 +356,7 @@ function memberProjectSectionVisible(group = '', course = '', status = '') {
 const MEMBER_COURSE_OPTIONS = {
   pi: ['professor'],
   researchProfessor: ['postdoc'],
-  graduateStudent: ['phd', 'phdCompleted', 'ms'],
+  graduateStudent: ['phd', 'ms'],
   studentResearcher: ['undergrad'],
   alumni: ['phd', 'ms']
 };
@@ -367,7 +367,6 @@ function memberCourseOptionLabel(value = '', group = '') {
     professor: '교수',
     postdoc: '박사후연구원',
     phd: isAlumni ? '박사과정 졸업' : '박사과정',
-    phdCompleted: '박사수료 후 연구생',
     ms: isAlumni ? '석사과정 졸업' : '석사과정',
     undergrad: '학부연구생',
     alumni: '졸업생'
@@ -384,7 +383,6 @@ function syncMemberCourseAndStatus(form) {
   const group = String(groupSelect?.value || '').trim();
   const allowed = MEMBER_COURSE_OPTIONS[group] || MEMBER_COURSE_OPTIONS.graduateStudent;
   if (courseSelect) {
-    if (group === 'alumni' && courseSelect.value === 'phdCompleted') courseSelect.value = 'phd';
     Array.from(courseSelect.options).forEach((option) => {
       const enabled = allowed.includes(option.value);
       option.hidden = !enabled;
@@ -400,9 +398,7 @@ function syncMemberCourseAndStatus(form) {
   }
   if (trackSelect) {
     const trackField = trackSelect.closest?.('.field');
-    const isPostCompletionResearcher = courseSelect?.value === 'phdCompleted';
-    if (isPostCompletionResearcher) trackSelect.value = 'none';
-    if (trackField) trackField.hidden = isPostCompletionResearcher;
+    if (trackField) trackField.hidden = false;
   }
   const isAlumniGroup = group === 'alumni';
   if (statusSelect) {
@@ -788,7 +784,6 @@ function resolveMemberFilter(member = {}) {
   if (member.group === 'pi') return 'pi';
   if (member.group === 'researchProfessor') return 'research';
   if (member.group === 'studentResearcher') return 'undergrad';
-  if (member.group === 'graduateStudent' && member.course === 'phdCompleted') return 'phdCompleted';
   if (member.group === 'graduateStudent' && member.course === 'phd') return 'phd';
   return 'ms';
 }
@@ -1187,12 +1182,12 @@ function educationLevelForMember(formOrMember = {}) {
   const course = String(formOrMember.course || formOrMember.enrolledCourse || formOrMember.restoreCourse || '').trim();
   const isAlumni = group === 'alumni' || status === 'alumni';
   if (isAlumni) {
-    if (course === 'phd' || course === 'phdCompleted') return 'phd';
+    if (course === 'phd') return 'phd';
     if (course === 'ms') return 'ms';
     return 'ms';
   }
   if (group === 'pi' || group === 'researchProfessor' || course === 'professor' || course === 'postdoc') return 'phd';
-  if (course === 'phd' || course === 'phdCompleted') return 'ms';
+  if (course === 'phd') return 'ms';
   if (course === 'ms') return 'bs';
   return 'phd';
 }
@@ -2408,7 +2403,6 @@ function renderMemberFilterTabs() {
     ['pi', '지도교수'],
     ['research', '연구교수 · 박사후연구원'],
     ['phd', '박사과정'],
-    ['phdCompleted', '박사수료 후 연구생'],
     ['ms', '석사과정'],
     ['undergrad', '학부연구생'],
     ['alumni', '졸업생']
@@ -2422,8 +2416,8 @@ function memberItemMarkup(member) {
   const showStatusBadge = !['pi', 'researchProfessor'].includes(member.group);
   const detailBits = [
     memberGroupLabel(member.group, 'kr'),
-    (member.group === 'graduateStudent' || member.status === 'alumni') && ['phd', 'phdCompleted', 'ms'].includes(member.course) ? `${memberCourseLabel(member.status === 'alumni' && member.course === 'phdCompleted' ? 'phd' : member.course, 'kr')}${member.status === 'alumni' ? ' 졸업' : ''}` : '',
-    member.course !== 'phdCompleted' && member.track && member.track !== 'none' ? memberTrackLabel(member.track, 'kr') : '',
+    (member.group === 'graduateStudent' || member.status === 'alumni') && ['phd', 'ms'].includes(member.course) ? `${memberCourseLabel(member.course, 'kr')}${member.status === 'alumni' ? ' 졸업' : ''}` : '',
+    member.track && member.track !== 'none' ? memberTrackLabel(member.track, 'kr') : '',
     memberYearLabel(member, 'kr')
   ].filter(Boolean).join(' · ');
   return `
@@ -2468,7 +2462,6 @@ function renderMembersList() {
     const researchItems = enrolled.filter((item) => item.group === 'researchProfessor');
     const phdFull = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'phd' && item.track === 'fullTime');
     const phdPart = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'phd' && item.track === 'partTime');
-    const phdCompleted = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'phdCompleted');
     const msFull = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'ms' && item.track === 'fullTime');
     const msPart = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'ms' && item.track === 'partTime');
     const undergradItems = enrolled.filter((item) => item.group === 'studentResearcher');
@@ -2478,7 +2471,6 @@ function renderMembersList() {
       adminMemberSection(`연구교수 · 박사후연구원 (${researchItems.length})`, researchItems),
       adminMemberSection(`박사과정 · 풀타임 (${phdFull.length})`, phdFull),
       adminMemberSection(`박사과정 · 파트타임 (${phdPart.length})`, phdPart),
-      adminMemberSection(`박사수료 후 연구생 (${phdCompleted.length})`, phdCompleted),
       adminMemberSection(`석사과정 · 풀타임 (${msFull.length})`, msFull),
       adminMemberSection(`석사과정 · 파트타임 (${msPart.length})`, msPart),
       adminMemberSection(`학부연구생 (${undergradItems.length})`, undergradItems),
@@ -2504,12 +2496,6 @@ function renderMembersList() {
     const part = pageData.items.filter((item) => item.track === 'partTime');
     sections.push(adminMemberSection('박사과정 · 풀타임', full));
     sections.push(adminMemberSection('박사과정 · 파트타임', part));
-    elements.memberPagination.innerHTML = paginationMarkup('member', pageData.page, pageData.pages);
-  } else if (state.memberFilter === 'phdCompleted') {
-    const all = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'phdCompleted');
-    const pageData = paginateItems(all, state.memberPage);
-    state.memberPage = pageData.page;
-    sections.push(adminMemberSection(`박사수료 후 연구생 (${all.length})`, pageData.items));
     elements.memberPagination.innerHTML = paginationMarkup('member', pageData.page, pageData.pages);
   } else if (state.memberFilter === 'ms') {
     const all = enrolled.filter((item) => item.group === 'graduateStudent' && item.course === 'ms');
@@ -2944,7 +2930,6 @@ function memberFilterFor(member) {
   if (member.group === 'researchProfessor') return 'research';
   if (member.group === 'studentResearcher') return 'undergrad';
   if (member.group === 'alumni' || member.status === 'alumni') return 'alumni';
-  if (member.course === 'phdCompleted') return 'phdCompleted';
   return member.course === 'phd' ? 'phd' : 'ms';
 }
 

@@ -72,7 +72,30 @@ function semanticKey(value = '') {
 }
 
 export function memberSemanticKey(item = {}) {
-  return semanticKey(item.id || item.email || item.nameKr || item.nameEn || item.name || '');
+  return semanticKey(item.id || item.documentId || item.email || item.nameKr || item.nameEn || item.name || '');
+}
+
+function memberCompletenessScore(member = {}) {
+  return Object.values(member).reduce((score, value) => {
+    if (Array.isArray(value)) return score + value.length * 2;
+    if (value === false || value === 0) return score + 1;
+    return score + (value !== undefined && value !== null && String(value).trim() ? 1 : 0);
+  }, 0);
+}
+
+// Firestore document IDs are the stable identity of a member. Names are editable
+// display fields and must never make an otherwise valid member collide with or
+// disappear behind another record.
+export function dedupeMembers(items = []) {
+  const selected = new Map();
+  (Array.isArray(items) ? items : []).forEach((member, index) => {
+    const key = memberSemanticKey(member) || `member-index-${index}`;
+    const current = selected.get(key);
+    if (!current || memberCompletenessScore(member) > memberCompletenessScore(current)) {
+      selected.set(key, member);
+    }
+  });
+  return [...selected.values()];
 }
 
 export function projectSemanticKey(item = {}) {
@@ -274,7 +297,9 @@ function mapCourse(value = '', group = '') {
   const compact = text.replace(/[\s_-]+/g, '');
   if (text.includes('교수') || text === 'professor' || text === 'faculty') return 'professor';
   if (text.includes('박사후') || text.includes('postdoc') || text.includes('postdoctoral')) return 'postdoc';
-  if (compact === 'phdcompleted' || compact.includes('박사수료') || compact.includes('수료후연구생') || compact.includes('postcompletion') || compact.includes('courseworkcompleted') || text === 'abd') return 'phdCompleted';
+  // Older records used a separate post-completion category. Treat those values
+  // as the regular Ph.D. course so legacy data remains visible after its removal.
+  if (compact === 'phdcompleted' || compact.includes('박사수료') || compact.includes('수료후연구생') || compact.includes('postcompletion') || compact.includes('courseworkcompleted') || text === 'abd') return 'phd';
   if (text.includes('학부연구생') || text.includes('undergrad') || text.includes('intern') || text.includes('researcher') || text.includes('학생연구원')) return 'undergrad';
   if (text.includes('졸업') || text === 'alumni') return 'alumni';
   if (text.includes('박사') || text === 'phd' || text === 'ph.d') return 'phd';
@@ -400,7 +425,16 @@ export function normalizeMember(item = {}, options = {}) {
     ? (explicitGroup || (status === 'alumni' ? 'alumni' : undefined))
     : mapGroup(item.group, status || 'enrolled', explicitCourse || courseSource || '');
   const course = preserveMissing ? explicitCourse : mapCourse(item.course || item.degree || '', group || '');
-  const track = preserveMissing ? explicitTrack : mapTrack(item.track || '');
+  let track = preserveMissing ? explicitTrack : mapTrack(item.track || '');
+  // Graduate roster sections are full-time or part-time. Older and incomplete
+  // records without a track should still be visible instead of falling between
+  // both sections.
+  if (group === 'graduateStudent' && ['phd', 'ms'].includes(course) && track !== 'partTime' && (!preserveMissing || explicitTrack !== undefined)) {
+    track = 'fullTime';
+  }
+  const enrolledCourse = hasExplicitKey(item, 'enrolledCourse')
+    ? mapCourse(item.enrolledCourse, item.enrolledGroup || group || '')
+    : course;
   const sortOrder = hasExplicitKey(item, 'sortOrder') ? Number(item.sortOrder) : (preserveMissing ? undefined : 999);
 
   return {
@@ -467,7 +501,7 @@ export function normalizeMember(item = {}, options = {}) {
     startYear: item.startYear || item.admissionYear || item.entranceYear || item.entryYear || item.enrollmentYear || item.enterYear || item.startTerm || item.admissionTerm || item.entranceTerm || item.entryTerm || item.enrollmentTerm || item.startDate || item.admissionDate || item.entranceDate || item.entryDate || '',
     startSemester: item.startSemester || item.admissionSemester || item.entranceSemester || item.entrySemester || item.enrollmentSemester || item.enterSemester || item.semester || item.startTerm || item.admissionTerm || item.entranceTerm || item.entryTerm || item.enrollmentTerm || item.startSeason || item.admissionSeason || item.entranceSeason || item.entrySeason || item.startDate || item.admissionDate || item.entranceDate || item.entryDate || '',
     enrolledGroup: item.enrolledGroup || group || '',
-    enrolledCourse: item.enrolledCourse || course || '',
+    enrolledCourse: enrolledCourse || '',
     enrolledTrack: item.enrolledTrack || track || '',
     sortOrder,
     photoUrl: item.photoUrl || item.image || '',
@@ -669,7 +703,7 @@ export function mergeBoardPosts(fallbackItems = [], remoteItems = []) {
 
 const GROUP_ORDER = { pi: 0, researchProfessor: 1, graduateStudent: 2, studentResearcher: 3, alumni: 4 };
 const TRACK_ORDER = { fullTime: 0, partTime: 1, none: 2 };
-const COURSE_ORDER = { professor: 0, postdoc: 1, phd: 2, phdCompleted: 3, ms: 4, undergrad: 5, alumni: 6 };
+const COURSE_ORDER = { professor: 0, postdoc: 1, phd: 2, ms: 3, undergrad: 4, alumni: 5 };
 
 function yearValue(value = '') {
   const match = String(value).match(/(?:19|20)\d{2}/);
@@ -798,7 +832,6 @@ export function memberCourseLabel(course, lang = 'kr') {
     professor: { kr: '교수', en: 'Professor' },
     postdoc: { kr: '박사후연구원', en: 'Postdoc' },
     phd: { kr: '박사과정', en: 'Ph.D.' },
-    phdCompleted: { kr: '박사수료 후 연구생', en: 'Ph.D. Completion Research Student' },
     ms: { kr: '석사과정', en: 'M.S.' },
     undergrad: { kr: '학부연구생', en: 'Undergraduate Researcher' },
     alumni: { kr: '졸업생', en: 'Alumni' }

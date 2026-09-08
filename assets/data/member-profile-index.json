@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-07-12T15:11:18.407Z",
+  "generatedAt": "2026-09-08T01:49:14.392Z",
   "source": "projects/cnu-geh-lab/databases/(default)",
   "canonicalPages": {
     "ko": "/members.html",
     "en": "/en/members.html"
   },
-  "memberCount": 40,
-  "currentCount": 20,
-  "alumniCount": 20,
+  "memberCount": 44,
+  "currentCount": 21,
+  "alumniCount": 23,
   "members": [
     {
       "id": "jongseok-park",
@@ -115,16 +115,23 @@
       "status": "enrolled"
     },
     {
-      "id": "vang-a-me",
-      "nameKr": "방아메",
-      "nameEn": "Vang A Me",
+      "id": "inseong-choi",
+      "nameKr": "최인성",
+      "nameEn": "Inseong Choi",
       "group": "graduateStudent",
       "status": "enrolled"
     },
     {
-      "id": "inseong-choi",
-      "nameKr": "최인성",
-      "nameEn": "Inseong Choi",
+      "id": "hyunsoo-ha",
+      "nameKr": "하현수",
+      "nameEn": "Hyunsoo Ha",
+      "group": "graduateStudent",
+      "status": "enrolled"
+    },
+    {
+      "id": "vang-a-me",
+      "nameKr": "방아메",
+      "nameEn": "Vang A Me",
       "group": "graduateStudent",
       "status": "enrolled"
     },
@@ -143,18 +150,32 @@
       "status": "enrolled"
     },
     {
-      "id": "hyunsoo-ha",
-      "nameKr": "하현수",
-      "nameEn": "Hyunsoo Ha",
+      "id": "rNQ1EXzwtNlJypoEy3sx",
+      "nameKr": "오준형",
+      "nameEn": "오준형",
       "group": "studentResearcher",
       "status": "enrolled"
     },
     {
-      "id": "3iQTq8tvyUtDY5UHenJZ",
-      "nameKr": "전주석",
+      "id": "giju-eoh",
+      "nameKr": "Giju Eoh",
+      "nameEn": "Giju Eoh",
+      "group": "alumni",
+      "status": "enrolled"
+    },
+    {
+      "id": "jiyeon-hwang",
+      "nameKr": "Jiyeon Hwang",
+      "nameEn": "Jiyeon Hwang",
+      "group": "alumni",
+      "status": "enrolled"
+    },
+    {
+      "id": "juseok-jeon",
+      "nameKr": "Juseok Jeon",
       "nameEn": "Juseok Jeon",
       "group": "alumni",
-      "status": "alumni"
+      "status": "enrolled"
     },
     {
       "id": "to-kang",
@@ -195,6 +216,13 @@
       "id": "yfvb6pGdVNWv3GZyAEvf",
       "nameKr": "손경민",
       "nameEn": "손경민",
+      "group": "alumni",
+      "status": "alumni"
+    },
+    {
+      "id": "3iQTq8tvyUtDY5UHenJZ",
+      "nameKr": "전주석",
+      "nameEn": "Juseok Jeon",
       "group": "alumni",
       "status": "alumni"
     },

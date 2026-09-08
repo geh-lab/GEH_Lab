@@ -1,4 +1,4 @@
-import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=79';
+import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=80';
 import {
   escapeHTML,
   slugify,
@@ -19,6 +19,7 @@ import {
   mergeProjects,
   mergePublications,
   mergeBoardPosts,
+  dedupeMembers,
   memberYearLabel,
   publicationIndexingLabel,
   publicationYearMonthLabel,
@@ -27,7 +28,7 @@ import {
   formatEnglishName,
   setupAdaptiveGlass,
   setSpatialOrigin
-} from './utils.js?v=110';
+} from './utils.js?v=111';
 import { hasFirebaseConfig, isLocalDevMode, fetchCollection, listenCollection, COLLECTIONS } from './firebase-public.js?v=82';
 
 document.documentElement.classList.add('js');
@@ -106,40 +107,6 @@ function firstFilled(...values) {
   return '';
 }
 
-function memberIdentityKey(member = {}) {
-  const rawName = String(member.name || '').trim();
-  const englishName = String(member.nameEn || (/^[\x00-\x7F]+$/.test(rawName) ? rawName : ''))
-    .trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
-  if (englishName) return `name-en:${englishName}`;
-  const email = String(member.email || '').trim().toLowerCase();
-  if (email) return `email:${email}`;
-  const names = [member.nameKr, member.nameEn, member.name]
-    .map((value) => String(value || '').trim().toLowerCase().replace(/\s+/g, ''))
-    .filter(Boolean);
-  return `name:${[...new Set(names)].sort().join('|')}`;
-}
-
-function memberCompletenessScore(member = {}) {
-  const fieldScore = Object.values(member).reduce((score, value) => {
-    if (Array.isArray(value)) return score + value.length * 2;
-    if (value === false || value === 0) return score + 1;
-    return score + (value !== undefined && value !== null && String(value).trim() ? 1 : 0);
-  }, 0);
-  const statusCoherent = member.group === 'alumni' ? member.status === 'alumni' : member.status !== 'alumni';
-  const bilingualName = String(member.nameKr || '').trim() && String(member.nameEn || '').trim();
-  return fieldScore + (statusCoherent ? 100 : 0) + (bilingualName ? 10 : 0);
-}
-
-function dedupeMemberRecords(items = []) {
-  const selected = new Map();
-  (Array.isArray(items) ? items : []).forEach((member) => {
-    const key = memberIdentityKey(member);
-    const current = selected.get(key);
-    if (!current || memberCompletenessScore(member) > memberCompletenessScore(current)) selected.set(key, member);
-  });
-  return [...selected.values()];
-}
-
 const RENDER_VOLATILE_FIELDS = new Set(['createdAt', 'updatedAt', 'deletedAt', 'purgeAfterAt']);
 
 function stableRenderValue(value, key = '') {
@@ -181,7 +148,7 @@ const prerenderedMembers = (() => {
   if (!source) return [];
   try {
     const parsed = JSON.parse(source.textContent || '[]');
-    return Array.isArray(parsed) ? dedupeMemberRecords(sortMembers(parsed).filter(isActiveItem)) : [];
+    return Array.isArray(parsed) ? dedupeMembers(sortMembers(parsed).filter(isActiveItem)) : [];
   } catch (error) {
     console.warn('초기 멤버 명단을 읽지 못했습니다.', error);
     return [];
@@ -190,7 +157,7 @@ const prerenderedMembers = (() => {
 const state = {
   members: prerenderedMembers.length
     ? prerenderedMembers
-    : (useLiveData ? [] : dedupeMemberRecords(sortMembers(FALLBACK_MEMBERS).filter(isActiveItem))),
+    : (useLiveData ? [] : dedupeMembers(sortMembers(FALLBACK_MEMBERS).filter(isActiveItem))),
   projects: useLiveData ? [] : sortProjects(FALLBACK_PROJECTS).filter(isActiveItem),
   publications: useLiveData ? [] : sortPublications(FALLBACK_PUBLICATIONS).filter(isActiveItem),
   board: useLiveData ? [] : sortBoardPosts(FALLBACK_BOARD_POSTS).filter(isActiveItem),
@@ -314,7 +281,7 @@ function applyCachedState() {
   let applied = false;
   const fresh = cacheFresh(cache, 15);
   if (!prerenderedMembers.length && Array.isArray(cache.members) && cache.members.length && fresh) {
-    state.members = dedupeMemberRecords(useLiveData ? sortMembers(cache.members).filter(isActiveItem) : sortMembers(mergeMembers(FALLBACK_MEMBERS, cache.members)).filter(isActiveItem));
+    state.members = dedupeMembers(useLiveData ? sortMembers(cache.members).filter(isActiveItem) : sortMembers(mergeMembers(FALLBACK_MEMBERS, cache.members)).filter(isActiveItem));
     state.loadingMembers = false;
     applied = true;
   }
@@ -778,7 +745,7 @@ async function hydrate() {
   let shouldRender = false;
 
   if (resultMap.has(COLLECTIONS.members)) {
-    const nextItems = dedupeMemberRecords(useLiveData ? sortMembers(members).filter(isActiveItem) : sortMembers(mergeMembers(FALLBACK_MEMBERS, members)).filter(isActiveItem));
+    const nextItems = dedupeMembers(useLiveData ? sortMembers(members).filter(isActiveItem) : sortMembers(mergeMembers(FALLBACK_MEMBERS, members)).filter(isActiveItem));
     const changed = replaceCollectionState('members', nextItems, 'loadingMembers');
     shouldRender = shouldRender || (changed && collectionAffectsCurrentPage('members'));
   }
@@ -815,7 +782,7 @@ async function hydrate() {
   };
 
   if (collectionNames.includes(COLLECTIONS.members)) addListener(COLLECTIONS.members, (items) => {
-    const nextItems = dedupeMemberRecords(useLiveData ? sortMembers(items).filter(isActiveItem) : sortMembers(mergeMembers(FALLBACK_MEMBERS, items)).filter(isActiveItem));
+    const nextItems = dedupeMembers(useLiveData ? sortMembers(items).filter(isActiveItem) : sortMembers(mergeMembers(FALLBACK_MEMBERS, items)).filter(isActiveItem));
     const changed = replaceCollectionState('members', nextItems, 'loadingMembers');
     writePublicCache();
     if (changed && collectionAffectsCurrentPage('members')) renderPageWithoutInterruptingMemberProfile();
@@ -1260,8 +1227,8 @@ function bindInteractiveCards() {
 function alumniCourseLabel(member = {}, locale = lang) {
   if (!(member.status === 'alumni' || member.group === 'alumni')) return '';
   const course = String(member.course || member.enrolledCourse || '').trim();
-  if (!['phd', 'phdCompleted', 'ms'].includes(course)) return '';
-  const base = memberCourseLabel(course === 'phdCompleted' ? 'phd' : course, locale);
+  if (!['phd', 'ms'].includes(course)) return '';
+  const base = memberCourseLabel(course, locale);
   if (!base) return '';
   return locale === 'en' ? `${base} alumni` : `${base} 졸업`;
 }
@@ -1271,7 +1238,7 @@ function openMemberModal(member) {
   if (member.group !== 'alumni') chips.push(member.group === 'pi' ? copy.pi : (member.group === 'researchProfessor' ? copy.researchProfessor : member.group === 'studentResearcher' ? copy.studentResearcherSection : copy.graduateStudent));
   if (member.group === 'graduateStudent') {
     chips.push(memberCourseLabel(member.course, lang));
-    if (member.course !== 'phdCompleted' && member.track && member.track !== 'none') chips.push(memberTrackLabel(member.track, lang));
+    if (member.track && member.track !== 'none') chips.push(memberTrackLabel(member.track, lang));
   }
   if (member.group === 'studentResearcher') chips.push(memberCourseLabel('undergrad', lang));
   if (member.status === 'alumni') {
@@ -1958,7 +1925,6 @@ function renderMembers() {
       graduateAccordion.innerHTML = [
         accordionMarkup(copy.phdFullTime, '…', memberGridSkeleton(3), true),
         accordionMarkup(copy.phdPartTime, '…', memberGridSkeleton(2), false),
-        accordionMarkup(copy.phdCompleted, '…', memberGridSkeleton(2), false),
         accordionMarkup(copy.msFullTime, '…', memberGridSkeleton(2), false),
         accordionMarkup(copy.msPartTime, '…', memberGridSkeleton(2), false)
       ].join('');
@@ -1973,7 +1939,6 @@ function renderMembers() {
   const pageStats = qs('#page-stat-grid');
   if (pageStats) {
     const phdStudents = graduateStudents.filter((item) => ['phd','doctoral'].includes(String(item.course || '').toLowerCase())).length;
-    const phdCompletedStudents = graduateStudents.filter((item) => String(item.course || '').toLowerCase() === 'phdcompleted').length;
     const msStudents = graduateStudents.filter((item) => ['ms','masters'].includes(String(item.course || '').toLowerCase())).length;
     const activeBreakdown = [
       `${copy.pi} ${piCount}`,
@@ -1982,12 +1947,11 @@ function renderMembers() {
       `${copy.studentResearcher} ${undergrads.length}`
     ];
     const alumniBreakdown = [
-      `${lang === 'en' ? 'Ph.D.' : '박사'} ${alumni.filter((item) => ['phd','doctoral','phdcompleted'].includes(String(item.course || '').toLowerCase())).length}`,
+      `${lang === 'en' ? 'Ph.D.' : '박사'} ${alumni.filter((item) => ['phd','doctoral'].includes(String(item.course || '').toLowerCase())).length}`,
       `${lang === 'en' ? 'M.S.' : '석사'} ${alumni.filter((item) => ['ms','masters'].includes(String(item.course || '').toLowerCase())).length}`
     ];
     const gradBreakdown = [
       `${lang === 'en' ? 'Ph.D.' : '박사'} ${phdStudents}`,
-      `${lang === 'en' ? 'Ph.D. completion research' : '박사수료 후 연구생'} ${phdCompletedStudents}`,
       `${lang === 'en' ? 'M.S.' : '석사'} ${msStudents}`
     ];
     pageStats.innerHTML = [
@@ -2050,7 +2014,6 @@ function renderMembers() {
     const gradSections = [
       { title: copy.phdFullTime, items: graduateStudents.filter((item) => item.course === 'phd' && item.track === 'fullTime') },
       { title: copy.phdPartTime, items: graduateStudents.filter((item) => item.course === 'phd' && item.track === 'partTime') },
-      { title: copy.phdCompleted, items: graduateStudents.filter((item) => item.course === 'phdCompleted') },
       { title: copy.msFullTime, items: graduateStudents.filter((item) => item.course === 'ms' && item.track === 'fullTime') },
       { title: copy.msPartTime, items: graduateStudents.filter((item) => item.course === 'ms' && item.track === 'partTime') }
     ];
@@ -2440,7 +2403,7 @@ function memberMetaChips(member) {
     if (completedCourse) chips.push({ text: completedCourse });
   } else if (member.group === 'graduateStudent') {
     if (member.course) chips.push({ text: memberCourseLabel(member.course, lang) });
-    if (member.course !== 'phdCompleted' && member.track && member.track !== 'none') chips.push({ text: memberTrackLabel(member.track, lang) });
+    if (member.track && member.track !== 'none') chips.push({ text: memberTrackLabel(member.track, lang) });
   }
   if (member.group === 'studentResearcher') chips.push({ text: memberCourseLabel('undergrad', lang) });
   const years = memberYearLabel(member, lang);
