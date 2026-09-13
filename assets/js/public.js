@@ -178,7 +178,7 @@ const state = {
   loadingBoard: useLiveData && (page === 'board' || page === 'home'),
   publicationQuery: '',
   patents: [],
-  loadingPatents: useLiveData && page === 'patents',
+  loadingPatents: useLiveData && (page === 'home' || page === 'patents'),
   patentsError: false,
   patentQuery: '',
   patentFilter: 'all',
@@ -203,7 +203,7 @@ function replaceCollectionState(key, nextItems, loadingKey) {
 
 function collectionAffectsCurrentPage(key) {
   const visibleCollections = {
-    home: new Set(['members', 'projects', 'publications', 'board']),
+    home: new Set(['members', 'projects', 'publications', 'patents', 'board']),
     members: new Set(['members']),
     projects: new Set(['projects', 'members']),
     patents: new Set(['patents']),
@@ -318,7 +318,8 @@ function applyCachedState() {
     state.loadingBoard = false;
     applied = true;
   }
-  if (Array.isArray(cache.patents) && fresh) {
+  // Other pages can cache an unfetched empty array; wait for a verified count.
+  if (Array.isArray(cache.patents) && cache.patents.length && fresh) {
     state.patents = sortPatents(cache.patents).filter(isActiveItem);
     state.loadingPatents = false;
   }
@@ -731,15 +732,17 @@ async function hydrate() {
     } catch (error) {
       if (collectionName === COLLECTIONS.patents) state.patentsError = true;
       console.warn(`${collectionName} 컬렉션을 불러오지 못했습니다.`, error);
-      showPublicNotice(lang === 'en'
-        ? 'Some live content could not be loaded. Please try again shortly.'
-        : '일부 실시간 콘텐츠를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.', 'danger');
+      if (page !== 'home' || collectionName !== COLLECTIONS.patents) {
+        showPublicNotice(lang === 'en'
+          ? 'Some live content could not be loaded. Please try again shortly.'
+          : '일부 실시간 콘텐츠를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.', 'danger');
+      }
       return [];
     }
   };
 
   const pageCollections = {
-    home: [COLLECTIONS.members, COLLECTIONS.projects, COLLECTIONS.publications, COLLECTIONS.board],
+    home: [COLLECTIONS.members, COLLECTIONS.projects, COLLECTIONS.publications, COLLECTIONS.patents, COLLECTIONS.board],
     members: [COLLECTIONS.members, COLLECTIONS.publications],
     projects: [COLLECTIONS.projects, COLLECTIONS.members],
     patents: [COLLECTIONS.patents],
@@ -794,9 +797,11 @@ async function hydrate() {
     try {
       state.unsubs.push(listenCollection(collectionName, onItems, (error) => {
         console.warn(`${collectionName} 실시간 동기화 실패`, error);
-        showPublicNotice(lang === 'en'
-          ? 'Live updates are temporarily unavailable. The latest loaded content remains visible.'
-          : '실시간 업데이트 연결이 일시적으로 중단되었습니다. 마지막으로 불러온 내용을 표시합니다.', 'warning');
+        if (page !== 'home' || collectionName !== COLLECTIONS.patents) {
+          showPublicNotice(lang === 'en'
+            ? 'Live updates are temporarily unavailable. The latest loaded content remains visible.'
+            : '실시간 업데이트 연결이 일시적으로 중단되었습니다. 마지막으로 불러온 내용을 표시합니다.', 'warning');
+        }
       }));
     } catch (error) {
       console.warn(`${collectionName} 리스너 연결 실패`, error);
@@ -1576,20 +1581,34 @@ function publicationSummaryLines(currentYearPubs = [], currentYear = String(new 
 
 function homeSummaryCard(title, value, lines = []) {
   const meta = (Array.isArray(lines) ? lines : []).filter(Boolean).map((line) => `<small>${escapeHTML(line)}</small>`).join('');
-  return `<article class="stat-card stat-card--summary reveal"><strong class="count-up" data-target="${escapeHTML(value)}">0</strong><span>${escapeHTML(title)}</span>${meta ? `<div class="stat-card__meta">${meta}</div>` : ''}</article>`;
+  const count = value == null ? '<strong>—</strong>' : `<strong class="count-up" data-target="${escapeHTML(value)}">0</strong>`;
+  return `<article class="stat-card stat-card--summary reveal">${count}<span>${escapeHTML(title)}</span>${meta ? `<div class="stat-card__meta">${meta}</div>` : ''}</article>`;
 }
 
 function homeLoadingSummaryCard(title) {
   return '<article class="stat-card stat-card--summary stat-card--skeleton stat-card--loading reveal" aria-hidden="true"><strong class="skeleton-line skeleton-line--number"></strong><span>' + escapeHTML(title) + '</span><div class="stat-card__meta"><small class="skeleton-chip"></small><small class="skeleton-chip skeleton-chip--short"></small></div></article>';
 }
 
+function homePatentSummaryCard() {
+  const title = lang === 'en' ? 'Patents' : '특허';
+  if (state.loadingPatents) return homeLoadingSummaryCard(title);
+  if (state.patentsError) return homeSummaryCard(title, null, [lang === 'en' ? 'Count unavailable' : '집계 정보를 불러오지 못했습니다.']);
+  const granted = state.patents.filter((item) => item.status === 'granted').length;
+  const pending = state.patents.filter((item) => item.status === 'pending').length;
+  return homeSummaryCard(title, state.patents.length, [
+    `${patentStatusLabel('granted', lang)} ${granted}`,
+    `${patentStatusLabel('pending', lang)} ${pending}`
+  ]);
+}
+
 function homeIsInitialLoading() {
   return useLiveData
     && page === 'home'
-    && (state.loadingMembers || state.loadingProjects || state.loadingPublications || state.loadingBoard)
+    && (state.loadingMembers || state.loadingProjects || state.loadingPublications || state.loadingPatents || state.loadingBoard)
     && !state.members.length
     && !state.projects.length
     && !state.publications.length
+    && !state.patents.length
     && !state.board.length;
 }
 
@@ -1699,6 +1718,7 @@ function renderHome() {
         homeLoadingSummaryCard(lang === 'en' ? 'Members' : '구성원'),
         homeLoadingSummaryCard(lang === 'en' ? 'Projects' : '과제'),
         homeLoadingSummaryCard(lang === 'en' ? 'Publications' : '논문'),
+        homeLoadingSummaryCard(lang === 'en' ? 'Patents' : '특허'),
         homeLoadingSummaryCard(lang === 'en' ? 'Board' : '게시판')
       ].join('');
     } else {
@@ -1706,6 +1726,7 @@ function renderHome() {
         homeSummaryCard(lang === 'en' ? 'Members' : '구성원', memberCounts.total, [lang === 'en' ? `PI ${piCount} · Research ${researchProfessors}` : `지도교수 ${piCount} · 연구교수 ${researchProfessors}`, lang === 'en' ? `Graduate ${graduateStudents.length} · Undergraduate ${undergrads}` : `대학원생 ${graduateStudents.length} · 학부연구생 ${undergrads}`]),
         homeSummaryCard(lang === 'en' ? 'Projects' : '과제', state.projects.length, [lang === 'en' ? `Ongoing ${ongoingProjects.length}` : `진행 중 ${ongoingProjects.length}`, lang === 'en' ? `Archived ${completedProjects.length}` : `종료 ${completedProjects.length}`]),
         homeSummaryCard(lang === 'en' ? 'Publications' : '논문', state.publications.length, publicationSummaryLines(currentYearPubs, currentYear)),
+        homePatentSummaryCard(),
         homeSummaryCard(lang === 'en' ? 'Board' : '게시판', state.board.length, [lang === 'en' ? `Articles ${boardOtherCount} · Conference ${boardConferenceCount}` : `기사 ${boardOtherCount} · 학회 ${boardConferenceCount}`, lang === 'en' ? `Workshop ${boardWorkshopCount} · Lab equipment ${boardEquipmentCount}` : `워크숍 ${boardWorkshopCount} · 실험실 장비 목록 ${boardEquipmentCount}`])
       ].join('');
     }
