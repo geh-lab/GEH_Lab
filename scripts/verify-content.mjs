@@ -111,9 +111,19 @@ const trackMembers = [
   { group:'graduateStudent', status:'enrolled', course:'phd' },
   { group:'graduateStudent', status:'alumni', course:'ms', track:'partTime' }
 ];
-assert.equal(memberSummary(trackMembers, 'kr').stats[1].detail, '풀타임 1 · 파트타임 1 · 미지정 1');
-assert.equal(memberSummary(trackMembers, 'en').stats[1].detail, 'Full-time 1 · Part-time 1 · Unspecified 1');
-assert.equal(memberSummary([], 'kr').stats[1].detail, '풀타임 0 · 파트타임 0');
+assert.equal(memberSummary(trackMembers, 'kr').stats[1].detail, '풀타임 1 (박사 1 · 석사 0)\n파트타임 1 (박사 0 · 석사 1)\n미지정 1 (박사 1 · 석사 0)');
+assert.equal(memberSummary(trackMembers, 'en').stats[1].detail, 'Full-time 1 (Ph.D. 1 · M.S. 0)\nPart-time 1 (Ph.D. 0 · M.S. 1)\nUnspecified 1 (Ph.D. 1 · M.S. 0)');
+assert.equal(memberSummary([], 'kr').stats[1].detail, '풀타임 0 (박사 0 · 석사 0)\n파트타임 0 (박사 0 · 석사 0)');
+const mixedTrackMembers = [...trackMembers,
+  { group:'graduateStudent', status:'enrolled', course:'masters', track:'fullTime' },
+  { group:'graduateStudent', status:'enrolled', course:'doctoral', track:'partTime' },
+  { group:'graduateStudent', status:'enrolled', course:'phdCompleted', track:'fullTime' },
+  { group:'graduateStudent', status:'enrolled', track:'fullTime' },
+  { group:'researchProfessor', status:'enrolled', course:'phd', track:'fullTime' },
+  { group:'studentResearcher', status:'enrolled', course:'undergrad', track:'fullTime' }
+];
+assert.equal(memberSummary(mixedTrackMembers, 'kr').stats[1].value, 7);
+assert.equal(memberSummary(mixedTrackMembers, 'kr').stats[1].detail, '풀타임 4 (박사 2 · 석사 1 · 학위 미지정 1)\n파트타임 2 (박사 1 · 석사 1)\n미지정 1 (박사 1 · 석사 0)');
 
 // Full panels, pills, and circles have no hollow centre. Their exterior stays
 // untouched, and the default sampling field must not fold along either axis.
