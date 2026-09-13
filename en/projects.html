@@ -3,8 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f5f7f8">
+  <script>try{var gehTheme=localStorage.getItem('geh-theme');document.documentElement.dataset.theme=gehTheme==='light'||gehTheme==='dark'?gehTheme:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.style.colorScheme=document.documentElement.dataset.theme}catch(e){document.documentElement.dataset.theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}</script>
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+  <script>try{var gehText=Number(localStorage.getItem('geh-text-size'));if([100,125,150,175,200].includes(gehText)){document.documentElement.dataset.textSize=String(gehText);document.documentElement.style.setProperty('--reading-scale',String(gehText/100))}}catch(e){}</script>
   <title>Projects | Greenhouse &amp; Environmental Horticulture Lab</title>
   <meta name="description" content="Research projects from the Greenhouse &amp; Environmental Horticulture Lab (GEH Lab) at Chungnam National University, including plant factories, smart farming, functional crops, and AI-based environmental control.">
   <link rel="canonical" href="https://geh-lab.vercel.app/en/projects.html">
@@ -24,29 +27,51 @@
   <meta name="twitter:description" content="Research projects from the Greenhouse &amp; Environmental Horticulture Lab (GEH Lab) at Chungnam National University, including plant factories, smart farming, functional crops, and AI-based environmental control.">
   <meta name="twitter:image" content="https://geh-lab.vercel.app/assets/images/logos/geh-logo.png">
   <script>document.documentElement.classList.add('js');window.GEH_BOOT_TIMEOUT=window.setTimeout(function(){document.documentElement.classList.add('js-fallback')},3000);</script>
-  <link rel="stylesheet" href="../assets/css/styles.css?v=139">
+  <link rel="stylesheet" href="../assets/css/styles.css?v=140">
+  <link rel="stylesheet" href="../assets/css/redesign.css">
 </head>
-<body class="public-body" data-page="projects" data-lang="en" data-root="..">
+<body id="geh-site" class="public-body design-c" data-page="projects" data-lang="en" data-root="..">
 <div class="site-shell">
 
 <header class="site-header">
-  <a href="index.html" class="brand">
-    <span class="brand-mark"><img src="../assets/images/logos/geh-logo-ui.webp" alt="GEH Lab" width="42" height="42" decoding="async" fetchpriority="high"></span>
-    <span class="brand-text"><strong>GEH Lab</strong><small>Greenhouse & Environmental Horticulture Lab</small></span>
-  </a>
-  <button class="menu-toggle" type="button" aria-label="menu" aria-expanded="false" data-menu-toggle><span></span><span></span></button>
+  <a href="index.html" class="brand" aria-label="GEH Lab"><span class="brand-mark"><img data-logo-asset="assets/images/logos/geh-logo-ui.webp" src="../assets/images/logos/geh-logo-ui.webp" alt="GEH Lab" width="42" height="42"></span><span class="brand-text"><strong>GEH Lab</strong></span></a>
+  <div class="dock-shell">
+  <button class="menu-toggle" type="button" aria-label="All pages" aria-expanded="false" data-menu-toggle><i class="ph ph-squares-four" aria-hidden="true"></i></button>
   <nav class="site-nav" data-nav-panel>
-    <a href="index.html" data-nav-page="home">Home</a>
-    <a href="members.html" data-nav-page="members">Members</a>
-    <a href="projects.html" data-nav-page="projects">Projects</a>
-    <a href="publications.html" data-nav-page="publications">Publications</a>
-      <a href="news.html" data-nav-page="board">Board</a>
-    <a href="contact.html" data-nav-page="contact">Contact</a>
+    <a href="index.html" data-nav-page="home" aria-label="Home"><i class="ph ph-house" aria-hidden="true"></i><span class="nav-label">Home</span></a>
+    <a href="members.html" data-nav-page="members" aria-label="Members"><i class="ph ph-users" aria-hidden="true"></i><span class="nav-label">Members</span></a>
+    <a href="projects.html" data-nav-page="projects" aria-label="Projects"><i class="ph ph-flask" aria-hidden="true"></i><span class="nav-label">Projects</span></a>
+    <a href="publications.html" data-nav-page="publications" aria-label="Publications"><i class="ph ph-book-open" aria-hidden="true"></i><span class="nav-label">Publications</span></a>
+    <a href="patents.html" data-nav-page="patents" aria-label="Patents"><i class="ph ph-seal-check" aria-hidden="true"></i><span class="nav-label">Patents</span></a>
+    <a href="news.html" data-nav-page="board" aria-label="Board"><i class="ph ph-newspaper" aria-hidden="true"></i><span class="nav-label">Board</span></a>
+    <a href="contact.html" data-nav-page="contact" aria-label="Contact"><i class="ph ph-map-pin" aria-hidden="true"></i><span class="nav-label">Contact</span></a>
   </nav>
-  <div class="header-tools">
-    <div class="lang-switch" aria-label="Language"><a class="lang-link" href="../projects.html" hreflang="ko" aria-label="Switch to Korean"><img class="lang-flag" src="../assets/images/flags/kr.svg" alt="" width="24" height="16" aria-hidden="true"><span class="lang-code">KO</span></a><span class="lang-divider" aria-hidden="true">|</span><a class="lang-link is-active" href="projects.html" hreflang="en" aria-current="true" aria-label="Current language: English"><img class="lang-flag" src="../assets/images/flags/us.svg" alt="" width="24" height="16" aria-hidden="true"><span class="lang-code">EN</span></a></div>
-    <a class="icon-button" href="../admin.html" aria-label="Admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="M19.4 15a1.6 1.6 0 0 0 .32 1.76l.06.06a2 2 0 1 1-2.82 2.82l-.06-.06a1.6 1.6 0 0 0-1.76-.32 1.6 1.6 0 0 0-.98 1.46V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-.98-1.46 1.6 1.6 0 0 0-1.76.32l-.06.06a2 2 0 1 1-2.82-2.82l.06-.06A1.6 1.6 0 0 0 4.6 15a1.6 1.6 0 0 0-1.46-.98H3a2 2 0 1 1 0-4h.14A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.32-1.76l-.06-.06a2 2 0 1 1 2.82-2.82l.06.06A1.6 1.6 0 0 0 8.86 4.6a1.6 1.6 0 0 0 .98-1.46V3a2 2 0 1 1 4 0v.14a1.6 1.6 0 0 0 .98 1.46 1.6 1.6 0 0 0 1.76-.32l.06-.06a2 2 0 1 1 2.82 2.82l-.06.06A1.6 1.6 0 0 0 19.4 9c.23.35.35.77.35 1.2s-.12.85-.35 1.2Z"></path></svg></a>
+  <button class="chrome-icon search-trigger" type="button" data-global-search-toggle aria-label="Search site" aria-expanded="false" aria-controls="global-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i></button>
   </div>
+  <a class="header-language" href="../projects.html" lang="ko" hreflang="ko" rel="alternate" aria-label="한국어로 보기">한국어</a>
+  <div class="site-utilities">
+    <button class="chrome-icon preferences-trigger" type="button" data-preferences-toggle aria-label="Display settings" aria-expanded="false" aria-controls="site-preferences"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i></button>
+    <section id="site-preferences" class="chrome-popover" data-preferences-panel hidden aria-label="Display settings">
+      
+      <h2>Appearance</h2><div class="theme-options">
+        <button type="button" data-theme-choice="light" aria-pressed="false"><i class="ph ph-sun" aria-hidden="true"></i><span>Light</span></button>
+        <button type="button" data-theme-choice="dark" aria-pressed="false"><i class="ph ph-moon" aria-hidden="true"></i><span>Dark</span></button>
+        <button type="button" data-theme-choice="system" aria-pressed="true"><i class="ph ph-desktop" aria-hidden="true"></i><span>System</span></button>
+      </div>
+    <div class="reading-preferences"><h2 id="text-size-heading">Text size</h2>
+        <div class="text-size-control" role="group" aria-labelledby="text-size-heading">
+          <button type="button" data-text-smaller aria-label="Decrease text size" disabled><i class="ph ph-minus" aria-hidden="true"></i></button>
+          <output data-text-value aria-live="polite" aria-atomic="true">100%</output>
+          <button type="button" data-text-larger aria-label="Increase text size"><i class="ph ph-plus" aria-hidden="true"></i></button>
+        </div>
+        <button type="button" class="text-size-reset" data-text-reset disabled>Reset to default</button>
+      </div>
+    </section>
+  </div>
+  <section class="global-search chrome-popover" id="global-search" data-global-search hidden aria-label="Site search">
+    <form role="search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input type="search" aria-label="Search people and research" placeholder="Search people and research" autocomplete="off"><button type="button" class="chrome-icon" data-search-close aria-label="Close search"><i class="ph ph-x" aria-hidden="true"></i></button></form>
+    <p class="search-status" data-search-status role="status"></p><div class="global-search-results" data-search-results></div>
+  </section>
 </header>
 
 <main>
@@ -73,15 +98,16 @@
 
 <footer class="site-footer">
   <div class="footer-brand">
-    <img src="../assets/images/logos/cnu-emblem-blue-ui.webp" alt="CNU" width="42" height="42" loading="lazy" decoding="async">
+    <img data-logo-asset="assets/images/logos/cnu-emblem-blue-ui.webp" src="../assets/images/logos/cnu-emblem-blue-ui.webp" alt="CNU" width="42" height="42" loading="lazy" decoding="async">
     <div><strong>GEH Lab</strong><br><small>충남대학교 시설환경원예학연구실 · Greenhouse &amp; Environmental Horticulture Lab</small></div>
   </div>
-  <div class="footer-meta">COPYRIGHT © Chungnam National University Greenhouse & Environmental Horticulture Lab</div>
+  <a class="footer-admin" href="../admin.html">Administrator</a>
+  <div class="footer-meta">COPYRIGHT © Chungnam National University | Greenhouse & Environmental Horticulture Lab</div>
 </footer>
 
 </div>
 <script vite-ignore src="../firebase-config.js?v=80"></script>
-<script type="module" src="../assets/js/public.js?v=139"></script>
+<script type="module" src="../assets/js/public.js?v=141"></script>
 <script>
   window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
 </script>
