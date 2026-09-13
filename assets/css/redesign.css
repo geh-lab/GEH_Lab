@@ -340,6 +340,7 @@
 #geh-site .admin-shell :is(.eyebrow,.member-editor-section-head p,.degree-section__head small,.field-heading-row small) { color:var(--muted) !important; }
 #geh-site .admin-shell :is(.experience-row,.project-picker__item,.publication-picker,.project-picker,.photo-preview--wide) { background:var(--bg-soft) !important; color:var(--text); border-color:var(--line) !important; }
 #geh-site .admin-editor-modal :is(.editor-title-row,.admin-card-head,.form-actions,.member-editor-actions) { background:var(--card-strong) !important; border-color:var(--line) !important; }
+#geh-site .admin-editor-modal :is(.editor-title-row,.admin-card-head) { border-radius:20px; }
 #geh-site .project-picker__item.is-selected { background:var(--accent-soft) !important; border-color:var(--accent) !important; }
 #geh-site .admin-editor-modal :is(.field.experience-field,.member-photo-box,.photo-preview,.file-picker,.field.schedule-field,.field.project-selector-field,.field.publication-selector-field,.field.publication-member-selector-field,.course-schedule-row,.project-picker__content) { background:var(--bg-soft) !important; color:var(--text) !important; border-color:var(--line) !important; }
 #geh-site .admin-shell :is(.field-heading-row>span,.project-picker__content strong) { color:var(--text) !important; }
