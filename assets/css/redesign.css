@@ -270,6 +270,11 @@
 #geh-site :is(.board-tabs,.board-view-switch,.board-sort-label,.admin-tabs,.member-editor-tabs) { background:var(--card) !important; border:1px solid var(--line) !important; color:var(--text); box-shadow:none !important; }
 #geh-site :is(.board-tabs,.board-view-switch) button { color:var(--muted); }
 #geh-site :is(.board-tabs,.board-view-switch) button:is(.is-active,[aria-pressed="true"]) { color:var(--accent); background:var(--accent-soft); }
+@media (max-width:760px) {
+  #geh-site .board-tabs { display:flex; width:100%; gap:4px; padding:6px; border-radius:22px; overflow:visible; }
+  #geh-site .board-tab { flex:1 1 auto; min-width:0; min-height:44px; padding:8px 12px; border-radius:16px; line-height:1.4; white-space:normal; overflow-wrap:anywhere; }
+  #geh-site .board-tab[data-board-tab="equipment"] { flex-basis:100%; }
+}
 #geh-site .board-card__media { background:var(--bg-soft); }
 #geh-site .cnu-row-head { background:var(--accent-light); color:var(--text); border-color:var(--line); }
 #geh-site :is(.cnu-table,.cnu-row) { border-color:var(--line-strong); }
