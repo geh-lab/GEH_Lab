@@ -172,6 +172,7 @@
 #geh-site .hero-stat-grid>.stat-card>span { grid-column:1 !important; grid-row:1 !important; font-size:calc(17px * var(--reading-scale,1)) !important; font-weight:650; line-height:1.45; color:var(--text); word-break:keep-all; overflow-wrap:anywhere; }
 #geh-site .hero-stat-grid>.stat-card>.stat-card__meta { grid-column:1 / -1 !important; grid-row:2 !important; align-self:start; display:flex !important; flex-wrap:wrap; gap:4px 8px !important; }
 #geh-site .stat-card__meta small { color:var(--muted) !important; background:none !important; border:0 !important; padding:0 !important; font-size:calc(13px * var(--reading-scale,1)) !important; line-height:1.6; border-radius:0 !important; }
+#geh-site[data-page="members"] .stat-card__meta small { white-space:pre-line; }
 #geh-site .page-hero { padding-top:112px; padding-bottom:24px; background:none; }
 #geh-site .page-hero-card--overview { display:grid !important; grid-template-areas:none !important; grid-template-columns:minmax(0,1fr) !important; gap:16px !important; padding:28px !important; }
 #geh-site .page-hero-card--overview>* { grid-area:auto !important; grid-column:1 !important; grid-row:auto !important; min-width:0; }
