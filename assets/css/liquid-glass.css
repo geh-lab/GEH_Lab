@@ -39,6 +39,13 @@
   backdrop-filter:var(--glass-backdrop,var(--glass-filter,blur(1.2px))) saturate(1.12) !important;
   -webkit-backdrop-filter:var(--glass-backdrop,var(--glass-filter,blur(1.2px))) saturate(1.12) !important;
 }
+/* Native blur avoids SVG filter textures on touch devices. Nested modal cards
+   share the scrim's blur while keeping their translucent fills and glass rims. */
+#geh-site[data-page] .liquid-glass[data-liquid-glass="native"]::before {
+  backdrop-filter:var(--glass-backdrop,blur(calc(var(--glass-blur,1.2) * 1px))) saturate(1.12) !important;
+  -webkit-backdrop-filter:var(--glass-backdrop,blur(calc(var(--glass-blur,1.2) * 1px))) saturate(1.12) !important;
+}
+#geh-site[data-page] .liquid-glass[data-liquid-glass="material"]::before { backdrop-filter:none !important; -webkit-backdrop-filter:none !important; }
 /* Search needs a stronger reading layer over changing, high-contrast photos. */
 #geh-site .chrome-popover.liquid-glass { --glass-fill:var(--detail-popup-fill); --glass-blur:4; color:var(--text); }
 #geh-site .global-search.liquid-glass { --glass-fill:var(--search-popup-fill); --glass-blur:12; --muted:var(--search-muted); text-shadow:none; }
@@ -99,14 +106,11 @@
 #geh-site .hero-backdrop { opacity:1; }
 #geh-site .hero-backdrop::after { display:none !important; background:none !important; }
 #geh-site .hero :is(h1,.hero-subtitle,.eyebrow) { color:#fff !important; text-shadow:0 1px 3px rgb(0 12 15 / .9),0 2px 12px rgb(0 15 19 / .7) !important; }
-#geh-site .hero .home-portal { --text:#fff; --muted:#edf8f4; --glass-border:rgb(255 255 255 / .48); --glass-edge:rgb(255 255 255 / .38); }
-#geh-site .home-portal-link { text-shadow:0 1px 3px rgb(0 12 15 / .9),0 1px 8px rgb(0 15 19 / .65); }
-#geh-site .home-portal { border-color:var(--glass-border); }
-#geh-site .home-portal-link { color:var(--text); }
-#geh-site .home-portal-link small { color:var(--muted); }
-#geh-site .home-portal-link:first-child { background:transparent; box-shadow:inset 0 1px 0 var(--glass-edge); }
-#geh-site .home-portal-link:hover { background:var(--glass-light); }
-#geh-site .home-portal-link:focus-visible { outline-color:var(--accent); }
+#geh-site .hero .home-overview {
+  --text:#f5fcfa; --muted:#e2efec; --accent:#b7e3ff; --card-strong:#132d34;
+  --glass-fill:rgb(9 29 35 / .64); --glass-blur:6;
+  --glass-border:rgb(237 255 249 / .46); --glass-edge:rgb(237 255 249 / .40);
+}
 #geh-site .over-hero { --c-glass:var(--glass-fill); --c-glass-rim:var(--glass-border); --c-lens:var(--glass-light); }
 #geh-site .over-hero :is(.brand,.dock-shell,.header-language) { color:#fff !important; text-shadow:0 1px 3px rgb(0 12 15 / .9),0 1px 8px rgb(0 15 19 / .65); }
 @media (min-width:981px) {
