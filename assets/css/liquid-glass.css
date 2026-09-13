@@ -36,8 +36,8 @@
   width:auto; height:auto; border:0; border-radius:inherit; opacity:1; transform:none;
   background:linear-gradient(135deg,var(--glass-light),transparent 42%,var(--glass-shade)),var(--glass-fill) !important;
   box-shadow:inset 1px 1px 0 var(--glass-edge),inset -1px -1px 0 rgb(136 166 218 / .16);
-  backdrop-filter:var(--glass-filter,blur(1.2px)) saturate(1.12) !important;
-  -webkit-backdrop-filter:var(--glass-filter,blur(1.2px)) saturate(1.12) !important;
+  backdrop-filter:var(--glass-backdrop,var(--glass-filter,blur(1.2px))) saturate(1.12) !important;
+  -webkit-backdrop-filter:var(--glass-backdrop,var(--glass-filter,blur(1.2px))) saturate(1.12) !important;
 }
 /* Search needs a stronger reading layer over changing, high-contrast photos. */
 #geh-site .chrome-popover.liquid-glass { --glass-fill:var(--detail-popup-fill); --glass-blur:4; color:var(--text); }
@@ -60,6 +60,15 @@
 #geh-site :is(.site-modal__backdrop,.admin-dialog__backdrop,.admin-editor-scrim) { background:rgb(18 50 44 / .10); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
 :root[data-theme="dark"] #geh-site :is(.site-modal__backdrop,.admin-dialog__backdrop,.admin-editor-scrim) { background:rgb(5 19 23 / .18); }
 #geh-site[data-page] .admin-editor-modal.liquid-glass[role="dialog"] { --admin-editor-canvas:transparent; --admin-editor-raised:var(--glass-fill); --admin-editor-subtle:var(--glass-fill); background:transparent !important; }
+/* Keep the board editor's glass on the scroll viewport, so its fill never
+   scrolls away with the form and leaves a visible edge through attachments. */
+#geh-site[data-page] #board-editor-card.liquid-glass[data-liquid-glass] {
+  background:linear-gradient(135deg,var(--glass-light),transparent 42%,var(--glass-shade)),var(--glass-fill) !important;
+  backdrop-filter:var(--glass-backdrop,var(--glass-filter,blur(4px))) saturate(1.12) !important;
+  -webkit-backdrop-filter:var(--glass-backdrop,var(--glass-filter,blur(4px))) saturate(1.12) !important;
+  box-shadow:0 10px 28px var(--glass-shadow),0 1px 3px rgb(37 72 123 / .05),inset 1px 1px 0 var(--glass-edge),inset -1px -1px 0 rgb(136 166 218 / .16) !important;
+}
+#geh-site[data-page] #board-editor-card.liquid-glass[data-liquid-glass]::before { content:none !important; display:none !important; }
 #geh-site .chrome-popover:not(.global-search) { max-height:calc(100dvh - 108px); overflow-y:auto; }
 #geh-site :is(.chrome-icon,.site-modal__close,.text-size-control > button).liquid-glass { border:1px solid var(--glass-border) !important; }
 #geh-site .site-modal__close.liquid-glass { width:44px; height:44px; }
@@ -108,7 +117,8 @@
   #geh-site .site-header { --header-control-size:max(48px,calc(28px * var(--reading-scale,1) + 4px)); --header-hit-size:calc(var(--header-control-size) - 4px); }
   #geh-site .site-header .dock-shell { padding:1px; }
 }
-#geh-site .site-header.is-compact .site-nav.liquid-glass { --glass-blur:6; color:var(--text) !important; --c-lens:var(--accent-soft); --c-glass-rim:var(--line); text-shadow:none; }
+/* Navigation stays readable even when the browser cannot render SVG backdrop filters. */
+#geh-site .site-header.is-compact .site-nav.liquid-glass { --glass-backdrop:blur(12px); color:var(--text) !important; --c-lens:var(--accent-soft); --c-glass-rim:var(--line); text-shadow:none; }
 #geh-site .site-header.is-compact .site-nav.liquid-glass>a.is-active { color:var(--accent) !important; }
 #geh-site .site-header.is-compact.over-hero .site-nav.liquid-glass { color:#f4fffb !important; --accent:#b9e5ff; --c-lens:rgb(255 255 255 / .12); --c-glass-rim:rgb(233 255 248 / .24); text-shadow:0 1px 4px rgb(0 12 15 / .28); }
 @media (max-width:520px) {
@@ -123,4 +133,5 @@
 @media (prefers-reduced-transparency:reduce),(prefers-contrast:more) {
   #geh-site[data-page] .liquid-glass[data-liquid-glass]::before { background:var(--card-strong) !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important; box-shadow:none; }
   #geh-site[data-page] .liquid-glass[data-liquid-glass] { --glass-border:var(--line-strong); border-color:var(--line-strong) !important; }
+  #geh-site[data-page] #board-editor-card.liquid-glass[data-liquid-glass] { background:var(--card-strong) !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important; }
 }

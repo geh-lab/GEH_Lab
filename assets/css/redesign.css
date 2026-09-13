@@ -350,6 +350,21 @@
 #geh-site .admin-shell :is(.field-heading-row>span,.project-picker__content strong) { color:var(--text) !important; }
 #geh-site .admin-shell :is(.project-picker__hint,.project-picker__content small,.file-picker__name) { color:var(--muted) !important; }
 #geh-site .project-picker__item.is-selected .project-picker__content { background:var(--accent-soft) !important; border-color:var(--accent) !important; }
+/* Board attachments use one rounded section, without glass on layout-only rows. */
+#geh-site #board-editor-card .member-photo-box { min-width:0; padding:16px; gap:12px; border:1px solid var(--line); border-radius:20px; background:var(--popup-section-fill,var(--bg-soft)) !important; }
+#geh-site #board-editor-card .form-actions { background:transparent !important; border:0 !important; box-shadow:none !important; }
+#geh-site #board-editor-card .editor-form>.form-actions:last-child { position:static; margin:0; padding:0; }
+#geh-site #board-image-preview { width:100%; height:auto; min-height:0 !important; max-height:none; aspect-ratio:auto; padding:0; border:0; border-radius:14px; background:transparent !important; overflow:visible; }
+#geh-site #board-image-preview.is-empty { min-height:76px !important; padding:16px; border:1px solid var(--line); background:var(--popup-inner-fill,var(--bg-soft)) !important; text-align:center; color:var(--muted); }
+#geh-site #board-image-preview .photo-preview-grid { grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr)) !important; gap:12px; }
+#geh-site #board-image-preview .photo-preview-grid:not(.is-multi) { grid-template-columns:minmax(0,280px) !important; }
+#geh-site #board-image-preview .photo-preview-grid__item { position:relative; min-width:0; min-height:0; padding:10px; gap:8px; background:var(--popup-inner-fill,var(--bg-soft)); }
+#geh-site #board-image-preview .photo-preview-grid__item img { width:100%; height:160px; max-height:160px; object-fit:contain; }
+#geh-site #board-image-preview .photo-preview-grid__remove { position:absolute; top:6px; right:6px; z-index:1; width:36px; height:36px; }
+#geh-site #board-editor-card .form-actions--upload { margin:0; gap:10px; }
+#geh-site #board-editor-card .file-picker { flex-wrap:wrap; min-height:52px; padding:8px 12px; gap:8px 12px; background:var(--popup-inner-fill,var(--bg-soft)) !important; }
+#geh-site #board-editor-card .file-picker__name { flex:1 1 120px; white-space:normal; overflow-wrap:anywhere; }
+#geh-site #board-editor-card .field-hint { margin:0; }
 #geh-site .notice-banner { color:var(--text); background:var(--accent-light); border-color:var(--line-strong); }
 #geh-site :is(.button,.small-button).danger { color:var(--danger) !important; border-color:var(--danger) !important; }
 :root[data-theme="dark"] #geh-site :is(.journal-pill,.index-pill,.member-publication-role) { color:var(--accent) !important; background:var(--accent-soft) !important; border-color:var(--line-strong) !important; }
