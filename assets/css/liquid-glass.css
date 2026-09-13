@@ -1,0 +1,126 @@
+/* Clear surfaces over the lab's green and blue; reading overlays have their own fill. */
+:root {
+  --bg:#edf5f2; --text:#173b40; --muted:#48666b; --line:rgb(79 126 133 / .25); --line-strong:rgb(63 115 126 / .40);
+  --card:rgb(255 255 255 / .30); --card-strong:rgb(248 253 251 / .96); --bg-soft:rgb(241 251 247 / .25);
+  --glass-fill:transparent; --glass-light:rgb(255 255 255 / .02); --glass-shade:transparent;
+  --glass-border:rgb(255 255 255 / .72); --glass-edge:rgb(255 255 255 / .70); --glass-shadow:rgb(30 85 83 / .10);
+  --detail-popup-fill:rgb(248 253 251 / .32); --popup-inner-fill:rgb(255 255 255 / .06);
+  --search-popup-fill:rgb(248 253 251 / .68); --search-muted:#234147;
+  --popup-section-fill:rgb(255 255 255 / .18); --popup-item-fill:rgb(255 255 255 / .30);
+  --pastel-a:rgb(62 171 118 / .40); --pastel-b:rgb(41 133 182 / .30); --pastel-c:rgb(99 177 196 / .32); --pastel-d:rgb(142 201 147 / .25);
+}
+:root[data-theme="dark"] {
+  --bg:#102428; --text:#edf9f7; --muted:#b6d0d1; --line:rgb(158 211 210 / .24); --line-strong:rgb(156 210 218 / .42);
+  --card:rgb(24 48 53 / .36); --card-strong:rgb(20 40 45 / .96); --bg-soft:rgb(31 59 65 / .34);
+  --glass-fill:transparent; --glass-light:rgb(208 244 241 / .02); --glass-shade:transparent;
+  --glass-border:rgb(191 220 255 / .30); --glass-edge:rgb(220 240 255 / .27); --glass-shadow:rgb(3 9 28 / .25);
+  --detail-popup-fill:rgb(20 40 45 / .38); --popup-inner-fill:rgb(48 81 85 / .08);
+  --search-popup-fill:rgb(14 31 36 / .72); --search-muted:#d1e3e0;
+  --popup-section-fill:rgb(48 81 85 / .22); --popup-item-fill:rgb(48 81 85 / .36);
+  --pastel-a:rgb(20 131 88 / .36); --pastel-b:rgb(28 97 152 / .35); --pastel-c:rgb(39 123 152 / .34); --pastel-d:rgb(49 117 85 / .25);
+}
+#geh-site {
+  background:radial-gradient(ellipse 75vw 75vh at 0% 3%,var(--pastel-a),transparent 75%),radial-gradient(ellipse 66vw 95vh at 102% 20%,var(--pastel-b),transparent 75%),radial-gradient(ellipse 68vw 68vh at 70% 105%,var(--pastel-c),transparent 75%),radial-gradient(ellipse 58vw 65vh at 8% 85%,var(--pastel-d),transparent 80%),var(--bg);
+  background-attachment:fixed;
+}
+.liquid-glass-definitions { position:fixed; inset:0 auto auto 0; overflow:hidden; pointer-events:none; }
+#geh-site .liquid-glass--positioned { position:relative; }
+#geh-site .dock-shell.liquid-glass { position:relative; }
+#geh-site[data-page] .liquid-glass[data-liquid-glass] {
+  isolation:isolate; background:transparent !important; border-color:var(--glass-border) !important;
+  box-shadow:0 10px 28px var(--glass-shadow),0 1px 3px rgb(37 72 123 / .05) !important;
+  backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
+}
+#geh-site[data-page] .liquid-glass[data-liquid-glass]::before {
+  content:"" !important; display:block !important; position:absolute; inset:0; z-index:-1; pointer-events:none;
+  width:auto; height:auto; border:0; border-radius:inherit; opacity:1; transform:none;
+  background:linear-gradient(135deg,var(--glass-light),transparent 42%,var(--glass-shade)),var(--glass-fill) !important;
+  box-shadow:inset 1px 1px 0 var(--glass-edge),inset -1px -1px 0 rgb(136 166 218 / .16);
+  backdrop-filter:var(--glass-filter,blur(1.2px)) saturate(1.12) !important;
+  -webkit-backdrop-filter:var(--glass-filter,blur(1.2px)) saturate(1.12) !important;
+}
+/* Search needs a stronger reading layer over changing, high-contrast photos. */
+#geh-site .chrome-popover.liquid-glass { --glass-fill:var(--detail-popup-fill); --glass-blur:4; color:var(--text); }
+#geh-site .global-search.liquid-glass { --glass-fill:var(--search-popup-fill); --glass-blur:12; --muted:var(--search-muted); text-shadow:none; }
+#geh-site .global-search input::placeholder { color:var(--search-muted); opacity:1; }
+#geh-site .global-search-results a>span { color:var(--text); font-weight:600; }
+#geh-site [data-preferences-panel] .liquid-glass { --glass-fill:var(--popup-section-fill); --glass-blur:.3; }
+#geh-site [data-preferences-panel] .theme-options>[aria-pressed="true"].liquid-glass { --glass-fill:color-mix(in srgb,var(--accent) 18%,transparent); --glass-border:var(--accent); color:var(--accent); }
+#geh-site .global-search form.liquid-glass { --glass-fill:var(--popup-section-fill); --glass-blur:.3; }
+#geh-site .global-search [data-search-close].liquid-glass { --glass-fill:var(--popup-inner-fill); --glass-blur:.3; }
+#geh-site .search-field-surface { display:block; min-width:0; border:1px solid var(--glass-border); border-radius:16px; font-weight:400; --glass-fill:var(--popup-inner-fill); --glass-blur:.3; }
+#geh-site[data-page] .search-field-surface>input[type="search"] { display:block; width:100%; min-width:0; margin:0; border:0 !important; border-radius:inherit; background:transparent !important; box-shadow:none !important; }
+#geh-site[data-page] :is(.search-field-surface,.global-search form).liquid-glass:focus-within { --glass-border:var(--accent); outline:2px solid var(--focus-ring); outline-offset:2px; }
+#geh-site :is(.site-modal__dialog,.admin-dialog__panel,.admin-editor-modal).liquid-glass { --glass-fill:var(--detail-popup-fill); --glass-blur:4; color:var(--text); }
+/* Inner cards must not inherit the outer window's blur at every nesting level. */
+#geh-site :is(.site-modal__dialog,.admin-dialog__panel,.admin-editor-modal) .liquid-glass { --glass-fill:var(--popup-inner-fill); --glass-blur:.3; }
+/* Content gains opacity with nesting while the dialog and close button retain their fill. */
+#geh-site .site-modal__dialog .detail-block.liquid-glass { --glass-fill:var(--popup-section-fill); }
+#geh-site .site-modal__dialog .detail-block .liquid-glass { --glass-fill:var(--popup-item-fill); }
+#geh-site :is(.site-modal__backdrop,.admin-dialog__backdrop,.admin-editor-scrim) { background:rgb(18 50 44 / .10); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+:root[data-theme="dark"] #geh-site :is(.site-modal__backdrop,.admin-dialog__backdrop,.admin-editor-scrim) { background:rgb(5 19 23 / .18); }
+#geh-site[data-page] .admin-editor-modal.liquid-glass[role="dialog"] { --admin-editor-canvas:transparent; --admin-editor-raised:var(--glass-fill); --admin-editor-subtle:var(--glass-fill); background:transparent !important; }
+#geh-site .chrome-popover:not(.global-search) { max-height:calc(100dvh - 108px); overflow-y:auto; }
+#geh-site :is(.chrome-icon,.site-modal__close,.text-size-control > button).liquid-glass { border:1px solid var(--glass-border) !important; }
+#geh-site .site-modal__close.liquid-glass { width:44px; height:44px; }
+#geh-site[data-page] .liquid-glass[data-liquid-glass]:is(button,a):hover::before { box-shadow:inset 1px 1px 0 var(--glass-edge),inset 0 0 18px rgb(235 247 255 / .13); }
+/* Paint small controls' rims after their backdrop, so the lens cannot sample
+   its own bright border and turn it into a jagged reflection. */
+#geh-site[data-page] :is(.floating-tools>.chrome-icon,.site-modal__close,.text-size-control>button,.theme-options>button,.global-search [data-search-close]).liquid-glass[data-liquid-glass] { border-color:transparent !important; }
+#geh-site[data-page] :is(.floating-tools>.chrome-icon,.site-modal__close,.text-size-control>button,.theme-options>button,.global-search [data-search-close]).liquid-glass[data-liquid-glass]::before { box-shadow:none !important; }
+#geh-site[data-page] :is(.floating-tools>.chrome-icon,.site-modal__close,.text-size-control>button,.theme-options>button,.global-search [data-search-close]).liquid-glass[data-liquid-glass]::after {
+  content:""; display:block !important; position:absolute; inset:0; z-index:0; pointer-events:none;
+  box-sizing:border-box; border:1px solid var(--glass-border); border-radius:inherit;
+  box-shadow:inset 1px 1px 0 var(--glass-edge),inset -1px -1px 0 rgb(136 166 218 / .16);
+}
+#geh-site[data-page] :is(.floating-tools>.chrome-icon,.site-modal__close,.text-size-control>button,.theme-options>button,.global-search [data-search-close]).liquid-glass:hover::after { box-shadow:inset 1px 1px 0 var(--glass-edge),inset 0 0 18px rgb(235 247 255 / .13); }
+#geh-site .liquid-glass:is(button,a):active { transform:scale(.98); }
+#geh-site .admin-tab.liquid-glass.is-active { --glass-fill:var(--accent-soft); border-color:var(--accent) !important; }
+/* Photos keep their familiar size; a fine glass edge belongs to the full disc. */
+#geh-site :is(.member-thumb,.pi-photo) { box-shadow:0 0 0 2px var(--glass-edge),0 5px 16px var(--glass-shadow) !important; }
+#geh-site .member-card { grid-template-columns:88px minmax(0,1fr) !important; }
+#geh-site .brand-mark { box-shadow:0 0 0 1px var(--glass-edge),0 3px 12px var(--glass-shadow); }
+/* Logo, language and menu controls share one outer height. */
+#geh-site .site-header { --header-control-size:max(52px,calc(28px * var(--reading-scale,1) + 8px)); --header-hit-size:calc(var(--header-control-size) - 8px); }
+#geh-site .site-header > :is(.brand,.header-language,.dock-shell) { box-sizing:border-box; height:var(--header-control-size) !important; min-height:var(--header-control-size) !important; }
+#geh-site .site-header > .brand { border:1px solid var(--glass-border); }
+#geh-site .header-language { line-height:1.2; }
+/* The cover shows the original photography without a colour wash. */
+#geh-site .hero { background:#102428 !important; color:#fff; }
+#geh-site .hero-backdrop { opacity:1; }
+#geh-site .hero-backdrop::after { display:none !important; background:none !important; }
+#geh-site .hero :is(h1,.hero-subtitle,.eyebrow) { color:#fff !important; text-shadow:0 1px 3px rgb(0 12 15 / .9),0 2px 12px rgb(0 15 19 / .7) !important; }
+#geh-site .hero .home-portal { --text:#fff; --muted:#edf8f4; --glass-border:rgb(255 255 255 / .48); --glass-edge:rgb(255 255 255 / .38); }
+#geh-site .home-portal-link { text-shadow:0 1px 3px rgb(0 12 15 / .9),0 1px 8px rgb(0 15 19 / .65); }
+#geh-site .home-portal { border-color:var(--glass-border); }
+#geh-site .home-portal-link { color:var(--text); }
+#geh-site .home-portal-link small { color:var(--muted); }
+#geh-site .home-portal-link:first-child { background:transparent; box-shadow:inset 0 1px 0 var(--glass-edge); }
+#geh-site .home-portal-link:hover { background:var(--glass-light); }
+#geh-site .home-portal-link:focus-visible { outline-color:var(--accent); }
+#geh-site .over-hero { --c-glass:var(--glass-fill); --c-glass-rim:var(--glass-border); --c-lens:var(--glass-light); }
+#geh-site .over-hero :is(.brand,.dock-shell,.header-language) { color:#fff !important; text-shadow:0 1px 3px rgb(0 12 15 / .9),0 1px 8px rgb(0 15 19 / .65); }
+@media (min-width:981px) {
+  #geh-site[data-page] .site-header:not(.is-compact) .site-nav.liquid-glass[data-liquid-glass] { isolation:auto; border:0 !important; box-shadow:none !important; }
+  #geh-site[data-page] .site-header:not(.is-compact) .site-nav.liquid-glass[data-liquid-glass]::before { display:none !important; }
+}
+@media (max-width:980px) {
+  #geh-site .site-header { --header-control-size:max(48px,calc(28px * var(--reading-scale,1) + 4px)); --header-hit-size:calc(var(--header-control-size) - 4px); }
+  #geh-site .site-header .dock-shell { padding:1px; }
+}
+#geh-site .site-header.is-compact .site-nav.liquid-glass { --glass-blur:6; color:var(--text) !important; --c-lens:var(--accent-soft); --c-glass-rim:var(--line); text-shadow:none; }
+#geh-site .site-header.is-compact .site-nav.liquid-glass>a.is-active { color:var(--accent) !important; }
+#geh-site .site-header.is-compact.over-hero .site-nav.liquid-glass { color:#f4fffb !important; --accent:#b9e5ff; --c-lens:rgb(255 255 255 / .12); --c-glass-rim:rgb(233 255 248 / .24); text-shadow:0 1px 4px rgb(0 12 15 / .28); }
+@media (max-width:520px) {
+  #geh-site .member-card { grid-template-columns:72px minmax(0,1fr) !important; }
+  :root:not([data-text-size="100"])[data-text-size] #geh-site .brand-text { display:none !important; }
+  :root:not([data-text-size="100"])[data-text-size] #geh-site .brand-mark { width:min(40px,calc(var(--header-control-size) - 12px)) !important; height:min(40px,calc(var(--header-control-size) - 12px)) !important; }
+}
+:root:not([data-text-size="100"])[data-text-size] #geh-site .member-card { grid-template-columns:72px minmax(0,1fr) !important; }
+@media (max-width:760px) {
+  :root:not([data-text-size="100"])[data-text-size] #geh-site .member-card { grid-template-columns:minmax(0,1fr) !important; }
+}
+@media (prefers-reduced-transparency:reduce),(prefers-contrast:more) {
+  #geh-site[data-page] .liquid-glass[data-liquid-glass]::before { background:var(--card-strong) !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important; box-shadow:none; }
+  #geh-site[data-page] .liquid-glass[data-liquid-glass] { --glass-border:var(--line-strong); border-color:var(--line-strong) !important; }
+}

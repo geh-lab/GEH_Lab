@@ -5,9 +5,9 @@
     "ko": "/members.html",
     "en": "/en/members.html"
   },
-  "memberCount": 44,
+  "memberCount": 41,
   "currentCount": 21,
-  "alumniCount": 23,
+  "alumniCount": 20,
   "members": [
     {
       "id": "jongseok-park",
@@ -87,16 +87,16 @@
       "status": "enrolled"
     },
     {
-      "id": "dao-nhan-loi",
-      "nameKr": "다어난로이",
-      "nameEn": "Dao Nhan Loi",
+      "id": "younghwi-ahn",
+      "nameKr": "안영휘",
+      "nameEn": "Younghwi Ahn",
       "group": "graduateStudent",
       "status": "enrolled"
     },
     {
-      "id": "younghwi-ahn",
-      "nameKr": "안영휘",
-      "nameEn": "Younghwi Ahn",
+      "id": "dao-nhan-loi",
+      "nameKr": "다어난로이",
+      "nameEn": "Dao Nhan Loi",
       "group": "graduateStudent",
       "status": "enrolled"
     },
@@ -157,25 +157,11 @@
       "status": "enrolled"
     },
     {
-      "id": "giju-eoh",
-      "nameKr": "Giju Eoh",
-      "nameEn": "Giju Eoh",
-      "group": "alumni",
-      "status": "enrolled"
-    },
-    {
-      "id": "jiyeon-hwang",
-      "nameKr": "Jiyeon Hwang",
-      "nameEn": "Jiyeon Hwang",
-      "group": "alumni",
-      "status": "enrolled"
-    },
-    {
-      "id": "juseok-jeon",
-      "nameKr": "Juseok Jeon",
+      "id": "3iQTq8tvyUtDY5UHenJZ",
+      "nameKr": "전주석",
       "nameEn": "Juseok Jeon",
       "group": "alumni",
-      "status": "enrolled"
+      "status": "alumni"
     },
     {
       "id": "to-kang",
@@ -216,13 +202,6 @@
       "id": "yfvb6pGdVNWv3GZyAEvf",
       "nameKr": "손경민",
       "nameEn": "손경민",
-      "group": "alumni",
-      "status": "alumni"
-    },
-    {
-      "id": "3iQTq8tvyUtDY5UHenJZ",
-      "nameKr": "전주석",
-      "nameEn": "Juseok Jeon",
       "group": "alumni",
       "status": "alumni"
     },

@@ -37,3 +37,87 @@
 .ph.ph-trash::before { content: "\e4a6"; }
 .ph.ph-trash-simple::before { content: "\e4a8"; }
 .ph.ph-youtube-logo::before { content: "\e4fc"; }
+
+.ph.ph-house::before {
+  content: "\e2c2";
+}
+
+.ph.ph-users::before {
+  content: "\e4d6";
+}
+
+.ph.ph-flask::before {
+  content: "\e79e";
+}
+
+.ph.ph-book-open::before {
+  content: "\e0e6";
+}
+
+.ph.ph-seal-check::before {
+  content: "\e606";
+}
+
+.ph.ph-newspaper::before {
+  content: "\e344";
+}
+
+.ph.ph-map-pin::before {
+  content: "\e316";
+}
+
+.ph.ph-squares-four::before {
+  content: "\e464";
+}
+
+.ph.ph-magnifying-glass::before {
+  content: "\e30c";
+}
+
+.ph.ph-sliders-horizontal::before {
+  content: "\e434";
+}
+
+.ph.ph-sun::before {
+  content: "\e472";
+}
+
+.ph.ph-moon::before {
+  content: "\e330";
+}
+
+.ph.ph-desktop::before {
+  content: "\e560";
+}
+
+.ph.ph-x::before {
+  content: "\e4f6";
+}
+
+.ph.ph-plus::before {
+  content: "\e3d4";
+}
+
+.ph.ph-minus::before {
+  content: "\e32a";
+}
+
+.ph.ph-user::before {
+  content: "\e4c2";
+}
+
+.ph.ph-play::before {
+  content: "\e3d0";
+}
+
+.ph.ph-pause::before {
+  content: "\e39e";
+}
+
+.ph.ph-arrow-up-right::before {
+  content: "\e092";
+}
+
+.ph.ph-arrow-right::before {
+  content: "\e06c";
+}

@@ -1,8 +1,13 @@
+import { memberSummaryMarkup } from './member-summary.js';
+import { setupPublicChrome } from './chrome.js';
+import { portraitMarkup, refreshImageFallbacks } from './portraits.js';
+import '../css/icons.css';
+import { resolveProjectInvestigator, localizedInvestigatorName } from './project-investigator.js';
+import { sortPatents, filterPatents, patentText, patentStatusLabel } from './patents.js';
 import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=80';
 import {
   escapeHTML,
   slugify,
-  getInitials,
   groupBy,
   rootAsset,
   sortMembers,
@@ -42,7 +47,7 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const BOARD_VIEW_STORAGE_KEY = 'geh-board-view-v1';
 const BOARD_SORT_STORAGE_KEY = 'geh-board-sort-v1';
 
-if (page === 'home' || page === 'board' || page === 'members') void import('../css/icons.css');
+
 
 const qs = (selector) => document.querySelector(selector);
 const qsa = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
@@ -134,11 +139,17 @@ function stretchProjectGrid(grid) {
   grid.style.alignItems = 'stretch';
 }
 
-const focusImages = [
-  'assets/images/background/hero-1.jpg',
-  'assets/images/background/hero-2.jpg',
-  'assets/images/background/hero-3.jpg'
-].map((path) => rootAsset(path, root));
+const heroImages = [
+  ['basil-phenotyping.webp', '34% center'],
+  ['lettuce-imaging.webp', '36% center'],
+  ['field-trials.webp', '50% center'],
+  ['cabbage-field.webp', '35% center'],
+  ['basil-closeup.webp', '50% center'],
+  ['lettuce-closeup.webp', '50% center'],
+  ['hemp-greenhouse.webp', '49% center'],
+  ['agastache-closeup.webp', '44% center'],
+  ['artemisia-closeup.webp', '50% center']
+].map(([file, position]) => ({ src: rootAsset(`assets/images/background/${file}`, root), position }));
 
 // Local preview uses fallback data plus localStorage overrides. Only a configured
 // remote deployment should suppress fallback content while Firestore is loading.
@@ -166,6 +177,11 @@ const state = {
   loadingPublications: useLiveData && (page === 'home' || page === 'publications'),
   loadingBoard: useLiveData && (page === 'board' || page === 'home'),
   publicationQuery: '',
+  patents: [],
+  loadingPatents: useLiveData && page === 'patents',
+  patentsError: false,
+  patentQuery: '',
+  patentFilter: 'all',
   boardTab: 'all',
   boardView: savedBoardView(),
   boardSort: savedBoardSort(),
@@ -189,8 +205,9 @@ function collectionAffectsCurrentPage(key) {
   const visibleCollections = {
     home: new Set(['members', 'projects', 'publications', 'board']),
     members: new Set(['members']),
-    projects: new Set(['projects']),
-    publications: new Set(['publications']),
+    projects: new Set(['projects', 'members']),
+    patents: new Set(['patents']),
+    publications: new Set(['publications', 'members']),
     board: new Set(['board'])
   };
   return visibleCollections[page]?.has(key) === true;
@@ -247,6 +264,7 @@ function snapshotSerializableState() {
     members: Array.isArray(state.members) ? state.members : [],
     projects: Array.isArray(state.projects) ? state.projects : [],
     publications: Array.isArray(state.publications) ? state.publications : [],
+    patents: Array.isArray(state.patents) ? state.patents : [],
     board: Array.isArray(state.board) ? state.board : [],
     savedAt: Date.now()
   };
@@ -299,6 +317,10 @@ function applyCachedState() {
     state.board = mergedBoardForPage(cache.board);
     state.loadingBoard = false;
     applied = true;
+  }
+  if (Array.isArray(cache.patents) && fresh) {
+    state.patents = sortPatents(cache.patents).filter(isActiveItem);
+    state.loadingPatents = false;
   }
   return applied;
 }
@@ -483,17 +505,11 @@ function findMemberByAnyName(value = '') {
 }
 
 function resolveProjectInvestigatorMember(project = {}) {
-  if (project.principalInvestigatorId) {
-    const byId = state.members.find((member) => member.id === project.principalInvestigatorId);
-    if (byId) return byId;
-  }
-  return findMemberByAnyName(project.principalInvestigator || '');
+  return resolveProjectInvestigator(project, state.members);
 }
 
 function projectInvestigatorName(project = {}, locale = lang) {
-  const member = resolveProjectInvestigatorMember(project);
-  if (member) return memberDisplayName(member, locale);
-  return project.principalInvestigator || '';
+  return localizedInvestigatorName(project, state.members, locale);
 }
 
 function localizedMemberText(member = {}, key, locale = lang) {
@@ -713,6 +729,7 @@ async function hydrate() {
     try {
       return await fetchCollection(collectionName);
     } catch (error) {
+      if (collectionName === COLLECTIONS.patents) state.patentsError = true;
       console.warn(`${collectionName} 컬렉션을 불러오지 못했습니다.`, error);
       showPublicNotice(lang === 'en'
         ? 'Some live content could not be loaded. Please try again shortly.'
@@ -724,7 +741,8 @@ async function hydrate() {
   const pageCollections = {
     home: [COLLECTIONS.members, COLLECTIONS.projects, COLLECTIONS.publications, COLLECTIONS.board],
     members: [COLLECTIONS.members, COLLECTIONS.publications],
-    projects: [COLLECTIONS.projects],
+    projects: [COLLECTIONS.projects, COLLECTIONS.members],
+    patents: [COLLECTIONS.patents],
     publications: [COLLECTIONS.publications, COLLECTIONS.members],
     board: [COLLECTIONS.board]
   };
@@ -757,6 +775,10 @@ async function hydrate() {
     const nextItems = useLiveData ? sortPublications(publications).filter(isActiveItem) : sortPublications(mergePublications(FALLBACK_PUBLICATIONS, publications)).filter(isActiveItem);
     const changed = replaceCollectionState('publications', nextItems, 'loadingPublications');
     shouldRender = shouldRender || (changed && collectionAffectsCurrentPage('publications'));
+  }
+  if (resultMap.has(COLLECTIONS.patents)) {
+    const changed = replaceCollectionState('patents', sortPatents(resultMap.get(COLLECTIONS.patents)).filter(isActiveItem), 'loadingPatents');
+    shouldRender = shouldRender || changed || page === 'patents';
   }
   if (resultMap.has(COLLECTIONS.board)) {
     const changed = replaceCollectionState('board', mergedBoardForPage(board), 'loadingBoard');
@@ -798,6 +820,14 @@ async function hydrate() {
     writePublicCache();
     if (changed && collectionAffectsCurrentPage('publications')) renderPage();
   });
+  if (collectionNames.includes(COLLECTIONS.patents)) addListener(COLLECTIONS.patents, (items) => {
+    const recovered = state.patentsError;
+    state.patentsError = false;
+    if (recovered && page === 'patents') qs('#public-status-notice')?.remove();
+    const changed = replaceCollectionState('patents', sortPatents(items).filter(isActiveItem), 'loadingPatents');
+    writePublicCache();
+    if ((changed || recovered) && collectionAffectsCurrentPage('patents')) renderPage();
+  });
   if (collectionNames.includes(COLLECTIONS.board)) {
     addListener(COLLECTIONS.board, (items) => {
       const changed = replaceCollectionState('board', mergedBoardForPage(items), 'loadingBoard');
@@ -807,256 +837,103 @@ async function hydrate() {
   }
 }
 
+let requestedSearchItemOpened = false;
 function renderPage() {
 
   if (page === 'home') renderHome();
   if (page === 'members') renderMembers();
   if (page === 'projects') renderProjects();
   if (page === 'publications') renderPublications();
+  if (page === 'patents') renderPatents();
   if (page === 'board') renderBoard();
   setUpdatedDate();
   setupRevealAnimations();
   setupAccordions();
   setupCountAnimations();
   bindInteractiveCards();
+  openRequestedSearchItem();
 }
 
-function setupLiquidNavLens(panel) {
-  if (!panel || panel.dataset.liquidLensBound === 'true') return;
-  const links = () => qsa(':scope > a', panel);
-  const lens = document.createElement('span');
-  lens.className = 'site-nav__lens';
-  lens.setAttribute('aria-hidden', 'true');
-  panel.prepend(lens);
-  panel.dataset.liquidLensBound = 'true';
-
-  let currentLink = null;
-  let pressedLink = null;
-  let pointerId = null;
-  let selecting = false;
-  let longPressTimer = 0;
-  let suppressNextClick = false;
-
-  const activeLink = () => links().find((link) => link.classList.contains('is-active') || link.hasAttribute('aria-current')) || links()[0];
-  const moveLens = (link, immediate = false) => {
-    if (!link?.isConnected || !panel.contains(link)) return;
-    if (currentLink === link && !immediate) return;
-    currentLink?.classList.remove('is-lens-target');
-    currentLink = link;
-    currentLink.classList.add('is-lens-target');
-    const linkRect = link.getBoundingClientRect();
-    if (!linkRect.width || !linkRect.height) return;
-    lens.classList.toggle('is-immediate', immediate);
-    lens.style.width = `${linkRect.width}px`;
-    lens.style.height = `${linkRect.height}px`;
-    lens.style.transform = `translate3d(${link.offsetLeft}px, ${link.offsetTop}px, 0)`;
-    lens.classList.add('is-visible');
-    if (immediate) requestAnimationFrame(() => lens.classList.remove('is-immediate'));
-  };
-  const settle = (immediate = false) => moveLens(activeLink(), immediate);
-  const realign = (immediate = false) => moveLens(currentLink || activeLink(), immediate);
-  const linkAtPoint = (x, y) => document.elementFromPoint(x, y)?.closest('.site-nav a');
-
-  links().forEach((link) => {
-    link.addEventListener('pointerenter', (event) => {
-      if (event.pointerType === 'mouse' && !pressedLink) moveLens(link);
-    });
-    link.addEventListener('mouseenter', () => {
-      if (!pressedLink) moveLens(link);
-    });
-    link.addEventListener('focus', () => moveLens(link));
-    link.addEventListener('pointerdown', (event) => {
-      if (event.pointerType === 'mouse') return;
-      pressedLink = link;
-      pointerId = event.pointerId;
-      selecting = false;
-      moveLens(link);
-      window.clearTimeout(longPressTimer);
-      longPressTimer = window.setTimeout(() => {
-        selecting = true;
-        panel.classList.add('is-touch-selecting');
-      }, 320);
-    });
-  });
-
-  const trackPointer = (event) => {
-    if (!pressedLink || event.pointerId !== pointerId || !selecting) return;
-    event.preventDefault();
-    const target = linkAtPoint(event.clientX, event.clientY);
-    if (target && panel.contains(target)) moveLens(target);
-  };
-
-  const finishPointer = (event, cancelled = false) => {
-    if (!pressedLink || event.pointerId !== pointerId) return;
-    window.clearTimeout(longPressTimer);
-    panel.classList.remove('is-touch-selecting');
-    const destination = selecting && !cancelled ? currentLink : null;
-    const origin = pressedLink;
-    pressedLink = null;
-    pointerId = null;
-    selecting = false;
-    if (destination && destination !== origin) {
-      suppressNextClick = true;
-      window.location.assign(destination.href);
-      return;
-    }
-    window.setTimeout(() => settle(), 90);
-  };
-
-  window.addEventListener('pointermove', trackPointer, { passive: false });
-  window.addEventListener('pointerup', (event) => finishPointer(event));
-  window.addEventListener('pointercancel', (event) => finishPointer(event, true));
-  panel.addEventListener('pointerleave', (event) => {
-    if (!pressedLink && event.pointerType === 'mouse') settle();
-  });
-  panel.addEventListener('mousemove', (event) => {
-    if (pressedLink) return;
-    const target = event.target.closest?.('.site-nav a');
-    if (target && target !== currentLink) moveLens(target);
-  }, { passive: true });
-  panel.addEventListener('contextmenu', (event) => {
-    if (pressedLink || selecting) event.preventDefault();
-  });
-  panel.addEventListener('click', (event) => {
-    if (!suppressNextClick) return;
-    suppressNextClick = false;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-  }, true);
-
-  const resizeObserver = new ResizeObserver(() => realign(true));
-  resizeObserver.observe(panel);
-  window.addEventListener('resize', () => realign(true), { passive: true });
-  requestAnimationFrame(() => settle(true));
+function openRequestedSearchItem() {
+  if (requestedSearchItemOpened) return;
+  const id = new URLSearchParams(location.search).get('item');
+  if (!id) return;
+  const key = page === 'board' ? 'board' : page;
+  const item = state[key]?.find(entry => String(entry.id) === id);
+  if (!item) return;
+  requestedSearchItemOpened = true;
+  if (page === 'members') openMemberModal(item);
+  else if (page === 'projects') openProjectModal(item);
+  else if (page === 'board') openBoardModal(item);
+  else if (page === 'publications') {
+    state.publicationQuery = item.title || '';
+    qs('#publication-search').value = state.publicationQuery;
+    renderPublications(); setupAccordions(); setupRevealAnimations(); bindInteractiveCards();
+  } else if (page === 'patents') {
+    state.patentQuery = item.applicationNumber || patentText(item, 'title', lang);
+    qs('#patent-search').value = state.patentQuery;
+    renderPatents(); setupAccordions(); setupRevealAnimations();
+  }
 }
 
 function setupHeader() {
-  const toggle = qs('[data-menu-toggle]');
-  const panel = qs('[data-nav-panel]');
-  const header = qs('.site-header');
-  const adminButton = qs('.site-header .icon-button[href]');
-  const activePage = page === 'member-profile' ? 'members' : page;
-  const activeLink = qs(`.site-nav a[data-nav-page="${activePage}"]`);
-  activeLink?.classList.add('is-active');
-  activeLink?.setAttribute('aria-current', 'page');
-  const languageLabels = {
-    ko: {
-      code: 'KO',
-      name: lang === 'en' ? 'Korean' : '한국어',
-      flag: 'assets/images/flags/kr.svg'
-    },
-    en: {
-      code: 'EN',
-      name: 'English',
-      flag: 'assets/images/flags/us.svg'
+  setupPublicChrome({ lang, page, loadSearch: loadGlobalSearch });
+  if (page === 'contact') setupMapControlLabels();
+}
+
+function setupMapControlLabels() {
+  const map = qs('.root_daum_roughmap');
+  if (!map) return;
+  const controls = [
+    ['.btn_zoom_in', lang === 'en' ? 'Zoom in' : '지도 확대'],
+    ['.btn_zoom_out', lang === 'en' ? 'Zoom out' : '지도 축소'],
+    ['.btn_zoom_reset', lang === 'en' ? 'Reset map' : '지도 초기화']
+  ];
+  const label = () => controls.every(([selector, text]) => {
+    const button = map.querySelector(selector);
+    if (!button) return false;
+    button.type = 'button';
+    button.setAttribute('aria-label', text);
+    button.title = text;
+    return true;
+  });
+  if (label()) return;
+  const observer = new MutationObserver(() => { if (label()) observer.disconnect(); });
+  observer.observe(map, { childList: true, subtree: true });
+}
+
+async function loadGlobalSearch() {
+  const keys = ['members', 'projects', 'publications', 'patents', 'board'];
+  const results = await Promise.allSettled(keys.map(async key => {
+    let timer;
+    try {
+      return await Promise.race([
+        fetchCollection(COLLECTIONS[key]),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Search timeout')), 10000); })
+      ]);
+    } finally {
+      clearTimeout(timer);
     }
+  }));
+  const collections = {};
+  results.forEach((result, index) => {
+    const key = keys[index];
+    collections[key] = (result.status === 'fulfilled' && (useLiveData || result.value.length) ? result.value : state[key] || []).filter(isActiveItem);
+  });
+  const labels = lang === 'en' ? ['Members','Projects','Publications','Patents','Board'] : ['멤버','과제','논문','특허','게시판'];
+  const pages = ['members','projects','publications','patents','news'];
+  const titleFor = {
+    members: item => memberDisplayName(item),
+    projects: item => localizedProjectTitle(item),
+    publications: item => item.title,
+    patents: item => patentText(item, 'title', lang),
+    board: item => (lang === 'en' ? item.titleEn : item.titleKr) || item.titleKr || item.titleEn || item.title
   };
-
-  qsa('.lang-switch .lang-link').forEach((link) => {
-    const language = link.textContent.trim().toLowerCase() === 'en' ? 'en' : 'ko';
-    const option = languageLabels[language];
-    const isCurrent = link.classList.contains('is-active');
-    link.dataset.language = language;
-    link.hreflang = language;
-    link.setAttribute('aria-label', isCurrent
-      ? (lang === 'en' ? `Current language: ${option.name}` : `현재 언어: ${option.name}`)
-      : (lang === 'en' ? `Switch to ${option.name}` : `${option.name}로 전환`));
-    if (isCurrent) link.setAttribute('aria-current', 'true');
-    Array.from(link.childNodes).forEach((node) => {
-      if (node.nodeType === 3) node.remove();
-    });
-    let flag = link.querySelector('.lang-flag');
-    if (!flag) {
-      flag = document.createElement('img');
-      flag.className = 'lang-flag';
-      flag.alt = '';
-      flag.width = 24;
-      flag.height = 16;
-      flag.decoding = 'async';
-      flag.setAttribute('aria-hidden', 'true');
-      link.prepend(flag);
-    }
-    flag.src = rootAsset(option.flag, root);
-
-    let code = link.querySelector('.lang-code');
-    if (!code) {
-      code = document.createElement('span');
-      code.className = 'lang-code';
-      link.append(code);
-    }
-    code.textContent = option.code;
-  });
-
-  if (panel && toggle) {
-    panel.id ||= 'site-navigation';
-    toggle.setAttribute('aria-controls', panel.id);
-  }
-
-  if (adminButton) {
-    const adminLabel = lang === 'en' ? 'Admin settings' : '관리자 설정';
-    adminButton.setAttribute('aria-label', adminLabel);
-    adminButton.setAttribute('title', adminLabel);
-  }
-
-  panel?.querySelectorAll('.nav-admin-link').forEach((link) => link.remove());
-  setupLiquidNavLens(panel);
-
-  const setMenuOpen = (open, { returnFocus = false, focusFirst = false } = {}) => {
-    if (!panel || !toggle) return;
-    const desktop = window.matchMedia('(min-width: 1101px)').matches;
-    panel.classList.toggle('is-open', open);
-    panel.setAttribute('aria-hidden', String(!desktop && !open));
-    toggle.classList.toggle('is-open', open);
-    toggle.setAttribute('aria-expanded', String(open));
-    toggle.setAttribute('aria-label', lang === 'en'
-      ? (open ? 'Close menu' : 'Open menu')
-      : (open ? '메뉴 닫기' : '메뉴 열기'));
-    if (open && focusFirst) panel.querySelector('a')?.focus();
-    if (!open && returnFocus) toggle.focus({ preventScroll: true });
-  };
-
-  setMenuOpen(false);
-  toggle?.addEventListener('click', (event) => {
-    const nextOpen = toggle.getAttribute('aria-expanded') !== 'true';
-    setMenuOpen(nextOpen, { focusFirst: nextOpen && event.detail === 0 });
-  });
-
-  qsa('.site-nav a').forEach((link) => {
-    link.addEventListener('click', () => {
-      setMenuOpen(false);
-    });
-  });
-
-  document.addEventListener('click', (event) => {
-    if (!panel?.classList.contains('is-open')) return;
-    const target = event.target;
-    if (header?.contains(target)) return;
-    setMenuOpen(false);
-  });
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape' || !panel?.classList.contains('is-open')) return;
-    event.preventDefault();
-    setMenuOpen(false, { returnFocus: true });
-  });
-
-  window.matchMedia('(min-width: 1101px)').addEventListener?.('change', (event) => {
-    if (event.matches) setMenuOpen(false);
-  });
-
-  if (header) {
-    let sentinel = qs('.header-scroll-sentinel');
-    if (!sentinel) {
-      sentinel = document.createElement('span');
-      sentinel.className = 'header-scroll-sentinel';
-      sentinel.setAttribute('aria-hidden', 'true');
-      document.body.prepend(sentinel);
-    }
-    const observer = new IntersectionObserver(([entry]) => {
-      header.classList.toggle('is-scrolled', !entry.isIntersecting);
-    }, { threshold: 0 });
-    observer.observe(sentinel);
-  }
+  return { partial: results.some(result => result.status === 'rejected'), items: keys.flatMap((key, index) => collections[key].map(item => ({
+    title: titleFor[key](item) || labels[index], group: labels[index],
+    search: [item.nameKr, item.nameEn, item.titleKr, item.titleEn, item.authors, item.year, item.applicationNumber, item.registrationNumber].filter(Boolean).join(' '),
+    href: `${pages[index]}.html?item=${encodeURIComponent(item.id)}`
+  }))) };
 }
 
 function ensureModal() {
@@ -1143,7 +1020,7 @@ function closeModal() {
     }
     const currentTrigger = trigger?.isConnected
       ? trigger
-      : (triggerMemberId ? qsa('[data-member-id]').find((item) => item.dataset.memberId === triggerMemberId) : null);
+      : (triggerMemberId ? qsa('button[data-member-id], [role="button"][data-member-id]').find((item) => item.dataset.memberId === triggerMemberId) : null);
     if (currentTrigger?.isConnected) currentTrigger.focus({ preventScroll: true });
     modalState.trigger = null;
     modalState.instant = false;
@@ -1153,6 +1030,7 @@ function closeModal() {
 }
 
 function bindInteractiveCards() {
+  refreshImageFallbacks(root);
   const bindCard = (selector, datasetKey, resolver) => {
     qsa(selector).forEach((card) => {
       if (card.dataset.bound === 'true') return;
@@ -1168,6 +1046,7 @@ function bindInteractiveCards() {
         open();
       });
       card.addEventListener('keydown', (event) => {
+        if (event.target !== card) return;
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           modalState.instant = true;
@@ -1250,7 +1129,7 @@ function openMemberModal(member) {
   if (yearLabel) chips.push(yearLabel);
   const displayName = memberDisplayName(member);
   const title = displayName;
-  const photo = member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}">` : `<div class="modal-avatar__placeholder">${escapeHTML(getInitials(memberDisplayName(member, 'en') || memberDisplayName(member) || member.name))}</div>`;
+  const photo = portraitMarkup({ source: member.photoUrl, name: displayName, initialsName: memberDisplayName(member, 'en') || displayName, root, size: 160, eager: true });
   const currentLabel = copy.currentPosition;
   const relatedProjectSection = renderMemberProjectBlock(member);
   const experienceMarkup = memberExperienceMarkup(member, lang, 'detail');
@@ -1267,19 +1146,17 @@ function openMemberModal(member) {
   ].filter(Boolean).join('');
   openModal(title, `
     <div class="detail-modal detail-modal--member">
-      <div class="detail-modal__hero">
-        <div class="detail-modal__aside">
-          <div class="detail-modal__media">${photo}</div>
-          ${interestSection ? `<div class="detail-modal__interest">${interestSection}</div>` : ''}
-        </div>
+      <div class="member-detail-header">
+        <div class="detail-modal__media" role="img" aria-label="${escapeHTML(displayName)}">${photo}</div>
         <div class="detail-modal__summary">
           <div class="member-chip-row">${chips.map((chip) => `<span class="member-chip member-chip--soft">${escapeHTML(chip)}</span>`).join('')}</div>
           <h3>${escapeHTML(displayName)}</h3>
           ${localizedMemberText(member, 'bio') ? `<p class="detail-lead">${escapeHTML(localizedMemberText(member, 'bio'))}</p>` : ''}
           ${memberEmailLink(member.email, 'detail-member-email')}
-          ${coreDetailSections ? `<div class="detail-grid detail-grid--member-core">${coreDetailSections}</div>` : ''}
         </div>
       </div>
+      ${interestSection ? `<div class="member-detail-interest">${interestSection}</div>` : ''}
+      ${coreDetailSections ? `<div class="detail-grid detail-grid--member-core">${coreDetailSections}</div>` : ''}
       ${extendedDetailSections ? `<div class="detail-grid detail-grid--member-extended">${extendedDetailSections}</div>` : ''}
     </div>
   `);
@@ -1443,8 +1320,8 @@ function renderPublicationMemberDetails(publication = {}) {
           return `
           <article class="publication-members__item publication-members__item--compact">
             <div class="publication-members__main">
-              <strong>${escapeHTML(item.memberName || '')}</strong>
-              ${item.email ? `<span class="muted">${escapeHTML(item.email)}</span>` : ''}
+              ${state.members.some(member => String(member.id) === String(item.memberId)) ? `<button type="button" class="publication-member-profile" data-member-id="${escapeHTML(item.memberId)}" aria-label="${escapeHTML(item.memberName)} ${lang === 'en' ? 'profile' : '프로필 보기'}"><strong>${escapeHTML(item.memberName)}</strong></button>` : `<strong>${escapeHTML(item.memberName || '')}</strong>`}
+              ${item.email ? `<a class="publication-member-email muted" href="mailto:${escapeHTML(item.email)}">${escapeHTML(item.email)}</a>` : ''}
             </div>
             ${orderedRoles.length ? `<div class="member-publication-roles">${orderedRoles.map((role) => `<span class="member-publication-role member-publication-role--${escapeHTML(role)}">${escapeHTML(publicationRoleLabel(role, lang))}</span>`).join('')}</div>` : ''}
           </article>`;
@@ -1556,7 +1433,7 @@ function setupRevealAnimations() {
           setupRevealAnimations.observer.unobserve(entry.target);
         });
       },
-      { threshold: 0.14, rootMargin: '0px 0px -8% 0px' }
+      { threshold: 0, rootMargin: '0px 0px 40px 0px' }
     );
   }
   qsa('.reveal').forEach((item) => {
@@ -1602,7 +1479,7 @@ function animateCount(el, target) {
   const duration = 900;
   const start = performance.now();
   function step(now) {
-    const progress = Math.min((now - start) / duration, 1);
+    const progress = Math.max(0, Math.min((now - start) / duration, 1));
     const eased = 1 - Math.pow(1 - progress, 3);
     el.textContent = String(Math.round(target * eased));
     if (progress < 1 && el.dataset.counting === 'true') requestAnimationFrame(step);
@@ -1620,7 +1497,9 @@ function setupHeroSlider() {
   let index = 0;
   let timer = null;
   slides.forEach((slide, order) => {
-    const imageUrl = focusImages[order % focusImages.length];
+    const image = heroImages[order % heroImages.length];
+    const imageUrl = image.src;
+    slide.style.backgroundPosition = image.position;
     if (order === 0 && !slide.style.backgroundImage) slide.style.backgroundImage = `url('${imageUrl}')`;
     if (order > 0) slide.dataset.backgroundImage = imageUrl;
     slide.classList.toggle('is-active', order === 0);
@@ -1650,8 +1529,11 @@ function setupHeroSlider() {
   };
   const advance = () => {
     if (document.hidden || reducedMotion.matches) return stop();
+    const nextIndex = (index + 1) % slides.length;
+    // Keep the current photo visible while the next background is still loading.
+    if (!slides[nextIndex].style.backgroundImage) return schedule();
     slides[index].classList.remove('is-active');
-    index = (index + 1) % slides.length;
+    index = nextIndex;
     slides[index].classList.add('is-active');
     schedule();
   };
@@ -1749,7 +1631,7 @@ function homeNewsCard(item = {}) {
     indicators.push(`<span class="home-news-indicator"><i class="ph ph-images" aria-hidden="true"></i>${escapeHTML(imageLabel)}</span>`);
   }
   if (youtube) indicators.push(`<span class="home-news-indicator"><i class="ph ph-youtube-logo" aria-hidden="true"></i>YouTube</span>`);
-  if (item.linkUrl) indicators.push(`<span class="home-news-indicator"><i class="ph ph-arrow-square-out" aria-hidden="true"></i>${lang === 'en' ? 'Link' : '링크'}</span>`);
+  if (item.linkUrl) indicators.push(`<span class="home-news-indicator">${lang === 'en' ? 'Link' : '링크'}</span>`);
   return `<article class="home-news-card reveal interactive-card" data-board-id="${escapeHTML(item.id)}" tabindex="0" role="button" aria-label="${escapeHTML(item.title || '')}">
     <div class="home-news-card__copy">
       <div class="member-chip-row home-news-card__topline"><span class="member-chip member-chip--soft">${escapeHTML(boardCategoryLabel(item.category))}</span>${indicators.join('')}</div>
@@ -1824,7 +1706,7 @@ function renderHome() {
         homeSummaryCard(lang === 'en' ? 'Members' : '구성원', memberCounts.total, [lang === 'en' ? `PI ${piCount} · Research ${researchProfessors}` : `지도교수 ${piCount} · 연구교수 ${researchProfessors}`, lang === 'en' ? `Graduate ${graduateStudents.length} · Undergraduate ${undergrads}` : `대학원생 ${graduateStudents.length} · 학부연구생 ${undergrads}`]),
         homeSummaryCard(lang === 'en' ? 'Projects' : '과제', state.projects.length, [lang === 'en' ? `Ongoing ${ongoingProjects.length}` : `진행 중 ${ongoingProjects.length}`, lang === 'en' ? `Archived ${completedProjects.length}` : `종료 ${completedProjects.length}`]),
         homeSummaryCard(lang === 'en' ? 'Publications' : '논문', state.publications.length, publicationSummaryLines(currentYearPubs, currentYear)),
-        homeSummaryCard(lang === 'en' ? 'Board' : '게시판', state.board.length, [lang === 'en' ? `Conference ${boardConferenceCount} · Workshop ${boardWorkshopCount}` : `학회 ${boardConferenceCount} · 워크숍 ${boardWorkshopCount}`, lang === 'en' ? `Lab equipment ${boardEquipmentCount} · Other ${boardOtherCount}` : `실험실 장비 목록 ${boardEquipmentCount} · 기타 ${boardOtherCount}`])
+        homeSummaryCard(lang === 'en' ? 'Board' : '게시판', state.board.length, [lang === 'en' ? `Articles ${boardOtherCount} · Conference ${boardConferenceCount}` : `기사 ${boardOtherCount} · 학회 ${boardConferenceCount}`, lang === 'en' ? `Workshop ${boardWorkshopCount} · Lab equipment ${boardEquipmentCount}` : `워크숍 ${boardWorkshopCount} · 실험실 장비 목록 ${boardEquipmentCount}`])
       ].join('');
     }
   }
@@ -1938,34 +1820,7 @@ function renderMembers() {
 
   const pageStats = qs('#page-stat-grid');
   if (pageStats) {
-    const phdStudents = graduateStudents.filter((item) => ['phd','doctoral'].includes(String(item.course || '').toLowerCase())).length;
-    const msStudents = graduateStudents.filter((item) => ['ms','masters'].includes(String(item.course || '').toLowerCase())).length;
-    const activeBreakdown = [
-      `${copy.pi} ${piCount}`,
-      `${copy.researchProfessor} ${researchProfessors.length}`,
-      `${copy.graduateStudent} ${graduateStudents.length}`,
-      `${copy.studentResearcher} ${undergrads.length}`
-    ];
-    const alumniBreakdown = [
-      `${lang === 'en' ? 'Ph.D.' : '박사'} ${alumni.filter((item) => ['phd','doctoral'].includes(String(item.course || '').toLowerCase())).length}`,
-      `${lang === 'en' ? 'M.S.' : '석사'} ${alumni.filter((item) => ['ms','masters'].includes(String(item.course || '').toLowerCase())).length}`
-    ];
-    const gradBreakdown = [
-      `${lang === 'en' ? 'Ph.D.' : '박사'} ${phdStudents}`,
-      `${lang === 'en' ? 'M.S.' : '석사'} ${msStudents}`
-    ];
-    pageStats.innerHTML = [
-      { value: memberCounts.total, label: copy.stats.current, meta: activeBreakdown },
-      { value: researchProfessors.length, label: copy.researchProfessor, meta: [] },
-      { value: graduateStudents.length, label: copy.graduateStudent, meta: gradBreakdown },
-      { value: alumni.length, label: copy.stats.alumni, meta: alumniBreakdown }
-    ].map((item) => `
-      <article class="stat-card stat-card--summary reveal">
-        <strong class="count-up" data-target="${escapeHTML(item.value)}">0</strong>
-        <span>${escapeHTML(item.label)}</span>
-        ${Array.isArray(item.meta) && item.meta.length ? `<div class="stat-card__meta">${item.meta.map((line) => `<small>${escapeHTML(line)}</small>`).join('')}</div>` : ''}
-      </article>
-    `).join('');
+    pageStats.innerHTML = memberSummaryMarkup(state.members, lang);
   }
 
   const piCard = qs('#pi-card');
@@ -1978,26 +1833,20 @@ function renderMembers() {
       piCard.classList.add('pi-card--clickable');
       piCard.dataset.memberId = pi.id;
       const piInterest = localizedMemberText(pi, 'researchInterest');
-      const piSchedule = memberCourseScheduleEntries(pi);
       piCard.innerHTML = `
         <div class="pi-card-layout">
-          <button type="button" class="pi-photo pi-photo-button" data-member-id="${escapeHTML(pi.id)}">
-            ${pi.photoUrl ? `<img src="${escapeHTML(rootAsset(pi.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(pi))}" width="480" height="575" decoding="async" fetchpriority="high">` : `<span>${escapeHTML(getInitials(memberDisplayName(pi, 'en') || pi.name))}</span>`}
-          </button>
+          <div class="profile-avatar profile-avatar--pi"><button type="button" class="pi-photo" data-member-id="${escapeHTML(pi.id)}" aria-label="${escapeHTML(memberDisplayName(pi))} ${lang === 'en' ? 'details' : '상세 보기'}">
+            ${portraitMarkup({ source: pi.photoUrl, name: memberDisplayName(pi), initialsName: memberDisplayName(pi, 'en'), root, size: 168, eager: true })}
+          </button></div>
           <div class="pi-card-main">
             <div class="pi-card-head">
               <span class="eyebrow">${escapeHTML(copy.pi)}</span>
               <div class="pi-name-row"><h2>${escapeHTML(memberDisplayName(pi))}</h2>${memberYearLabel(pi, lang) ? `<span class="member-chip member-chip--soft">${escapeHTML(memberYearLabel(pi, lang))}</span>` : ''}${memberEmailLink(pi.email, 'pi-card-email')}</div>
               <p class="pi-title">${escapeHTML(localizedMemberText(pi, 'bio') || (lang === 'en' ? 'Professor, Chungnam National University' : '충남대학교 교수'))}</p>
             </div>
-            <div class="pi-card-grid pi-card-grid--core">
-              <article><h3>${escapeHTML(copy.education)}</h3>${memberEducationMarkup(pi, lang, 'panel')}</article>
-              <article><h3>${escapeHTML(copy.experience)}</h3>${memberExperienceMarkup(pi, lang, 'panel') || `<p>${multilineText(localizedMemberText(pi, 'experience') || '')}</p>`}</article>
-            </div>
-            ${piInterest ? `<article class="pi-card-interest"><h3>${escapeHTML(copy.interest)}</h3><p>${multilineText(piInterest)}</p></article>` : ''}
           </div>
+          ${piInterest ? `<div class="pi-card-focus"><h3>${escapeHTML(copy.interest)}</h3><p class="pi-research-summary">${escapeHTML(piInterest)}</p></div>` : ''}
         </div>
-        ${piSchedule.length ? `<div class="pi-card-grid pi-card-grid--schedule"><article class="pi-card-grid__full"><h3>${escapeHTML(lang === 'en' ? 'Course schedule' : '수업 시간표')}</h3>${memberCourseScheduleMarkup(pi, lang)}</article></div>` : ''}
       `;
     }
   }
@@ -2136,6 +1985,56 @@ function renderPublications() {
   }
 }
 
+
+function patentCard(item) {
+  const en = lang === 'en';
+  const meta = [
+    [en ? 'Inventors' : '발명자', patentText(item, 'inventors', lang)],
+    [en ? 'Applicant / Assignee' : '출원인 / 권리자', patentText(item, 'applicant', lang)],
+    [en ? 'Application no.' : '출원번호', item.applicationNumber],
+    [en ? 'Filed on' : '출원일', item.applicationDate],
+    ...(item.status === 'granted' ? [[en ? 'Registration no.' : '등록번호', item.registrationNumber], [en ? 'Granted on' : '등록일', item.registrationDate]] : [])
+  ].filter(([, value]) => value);
+  const description = patentText(item, 'description', lang);
+  return `<article class="publication-card patent-card reveal">
+    <div class="publication-topline"><span class="status-pill ${item.status === 'granted' ? 'patent-status--granted' : ''}">${escapeHTML(patentStatusLabel(item.status, lang))}</span>${patentText(item, 'country', lang) ? `<span class="year-pill">${escapeHTML(patentText(item, 'country', lang))}</span>` : ''}</div>
+    <h3>${escapeHTML(patentText(item, 'title', lang))}</h3>
+    <dl class="patent-details">${meta.map(([label, value]) => `<div><dt>${escapeHTML(label)}</dt><dd>${escapeHTML(value)}</dd></div>`).join('')}</dl>
+    ${description ? `<details class="publication-abstract"><summary><span class="publication-abstract__label">${en ? 'Summary' : '요약'}</span><span class="publication-abstract__icon" aria-hidden="true">▾</span></summary><div class="publication-abstract__content"><p class="muted">${escapeHTML(description)}</p></div></details>` : ''}
+    ${item.url ? `<a class="publication-doi-link patent-source-link" href="${escapeHTML(item.url)}" target="_blank" rel="noopener noreferrer">${en ? 'View patent' : '특허 정보 보기'}</a>` : ''}
+  </article>`;
+}
+
+function renderPatents() {
+  const en = lang === 'en';
+  const container = qs('#patent-accordion');
+  const statGrid = qs('#patent-stat-grid');
+  if (!container || !statGrid) return;
+  const stats = [
+    { value: state.patents.length, label: en ? 'Total patents' : '전체 특허' },
+    { value: state.patents.filter((item) => item.status === 'granted').length, label: en ? 'Granted' : '등록 특허' },
+    { value: state.patents.filter((item) => item.status === 'pending').length, label: en ? 'Filed' : '출원 특허' }
+  ];
+  statGrid.innerHTML = stats.map((item) => `<article class="stat-card reveal"><strong>${state.loadingPatents || state.patentsError ? '—' : item.value}</strong><span>${escapeHTML(item.label)}</span></article>`).join('');
+  if (state.loadingPatents) { container.innerHTML = publicationListSkeleton(2); return; }
+  if (state.patentsError) {
+    container.innerHTML = emptyState(en ? 'Patents could not be loaded. Please reload this page to try again.' : '특허 정보를 불러오지 못했습니다. 페이지를 새로고침해 다시 시도해주세요.');
+    return;
+  }
+  const filtered = filterPatents(state.patents, state.patentQuery, state.patentFilter);
+  qs('#patent-results').textContent = en ? `${filtered.length} ${filtered.length === 1 ? 'result' : 'results'}` : `${filtered.length}건`;
+  if (!filtered.length) {
+    container.innerHTML = emptyState(state.patents.length
+      ? (en ? 'No patents match your search or filter.' : '검색 조건에 맞는 특허가 없습니다.')
+      : (en ? 'No patents have been added yet.' : '아직 등록된 특허가 없습니다.'));
+    return;
+  }
+  const groups = Object.entries(groupBy(filtered, (item) => item.year || (en ? 'Unspecified' : '미정')))
+    .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
+  container.innerHTML = groups.map(([year, items], index) => accordionMarkup(year, items.length,
+    `<div class="publication-list">${items.map(patentCard).join('')}</div>`, Boolean(state.patentQuery) || index === 0)).join('');
+}
+
 function boardSkeletonMarkup() {
   return Array.from({ length: 4 }).map(() => `
     <article class="board-card board-card--skeleton">
@@ -2268,6 +2167,15 @@ function renderBoard({ skipReveal = false } = {}) {
 }
 
 function setupSearch() {
+  qs('#patent-search')?.addEventListener('input', (event) => {
+    state.patentQuery = event.currentTarget.value;
+    renderPage();
+  });
+  qsa('[data-patent-status]').forEach(button => button.addEventListener('click', () => {
+    state.patentFilter = button.dataset.patentStatus;
+    qsa('[data-patent-status]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+    renderPage();
+  }));
   qs('#publication-search')?.addEventListener('input', (event) => {
     state.publicationQuery = event.currentTarget.value;
     renderPublications();
@@ -2285,6 +2193,10 @@ function setUpdatedDate() {
   if (page === 'members') source = lastUpdated(state.members, BUILD_DATE);
   if (page === 'projects') source = lastUpdated(state.projects, BUILD_DATE);
   if (page === 'publications') source = lastUpdated(state.publications, BUILD_DATE);
+  if (page === 'patents') {
+    if (!state.patents.length || state.patentsError) { target.textContent = ''; return; }
+    source = lastUpdated(state.patents, BUILD_DATE);
+  }
   if (page === 'board') source = lastUpdated(state.board, BUILD_DATE);
   target.textContent = `${copy.updated} ${formatDate(source, lang === 'en' ? 'en-CA' : 'ko-KR')}`;
 }
@@ -2417,52 +2329,22 @@ function memberEmailLink(email = '', extraClass = '') {
   return `<a class="member-email${extraClass ? ` ${escapeHTML(extraClass)}` : ''}" href="mailto:${escapeHTML(email)}" aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}"><i class="ph ph-envelope-simple" aria-hidden="true"></i></a>`;
 }
 
-function memberCard(member) {
-  const education = memberEducationMarkup(member, lang, 'compact');
-  const chips = memberMetaChips(member);
-  return `
-    <article class="member-card reveal interactive-card" data-member-id="${escapeHTML(member.id)}" tabindex="0" role="button" aria-label="${escapeHTML(memberDisplayName(member))}">
-      <div class="member-card__profile">
-        <div class="member-thumb">
-          ${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}" width="96" height="96" loading="lazy" decoding="async">` : `<span>${escapeHTML(getInitials(memberDisplayName(member, 'en') || memberDisplayName(member) || member.name))}</span>`}
-        </div>
-        <div class="member-card__identity">
-          ${chips ? `<div class="member-chip-row">${chips}</div>` : ''}
-          <div class="member-card__name-row">
-            <h3>${escapeHTML(memberDisplayName(member))}</h3>
-            ${memberEmailLink(member.email, 'member-card__email')}
-          </div>
-        </div>
-      </div>
-      <div class="member-copy">
-        ${education || ''}
-      </div>
-    </article>
-  `;
+function memberPreview(member, alumni = false) {
+  const name = memberDisplayName(member);
+  const interest = !alumni && member.group === 'researchProfessor' ? localizedMemberText(member, 'researchInterest') : '';
+  const chips = alumni
+    ? [member.graduationYear, alumniCourseLabel(member, lang)].filter(Boolean).map(text => `<span class="member-chip">${escapeHTML(text)}</span>`).join('')
+    : memberMetaChips(member);
+  const photo = portraitMarkup({ source: member.photoUrl, name, initialsName: memberDisplayName(member, 'en') || name, root });
+  return `<article class="member-card${alumni ? ' member-card--alumni' : ''} reveal" data-member-id="${escapeHTML(member.id)}">
+    <div class="profile-avatar"><button type="button" class="member-thumb" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(name)} ${lang === 'en' ? 'details' : '상세 보기'}">${photo}</button></div>
+    <div class="member-preview-identity"><h3>${escapeHTML(name)}</h3>${chips ? `<div class="member-chip-row">${chips}</div>` : ''}${alumni && localizedMemberText(member, 'currentPosition') ? `<p class="muted">${escapeHTML(localizedMemberText(member, 'currentPosition'))}</p>` : ''}</div>
+    ${interest ? `<div class="member-card-interest"><h4>${escapeHTML(copy.interest)}</h4><p>${escapeHTML(interest)}</p></div>` : ''}
+  </article>`;
 }
 
-
-function alumniCard(member) {
-  const education = memberEducationMarkup(member, lang, 'compact');
-  const chips = [member.graduationYear || '', alumniCourseLabel(member, lang)].filter(Boolean);
-  return `
-    <article class="member-card member-card--alumni reveal interactive-card" data-member-id="${escapeHTML(member.id)}" tabindex="0" role="button" aria-label="${escapeHTML(memberDisplayName(member))}">
-      <div class="member-card__profile">
-        <div class="member-thumb">
-          ${member.photoUrl ? `<img src="${escapeHTML(rootAsset(member.photoUrl, root))}" alt="${escapeHTML(memberDisplayName(member))}" width="80" height="80" loading="lazy" decoding="async">` : `<span>${escapeHTML(getInitials(memberDisplayName(member, 'en') || memberDisplayName(member) || member.name))}</span>`}
-        </div>
-        <div class="member-card__identity">
-          ${chips.length ? `<div class="member-chip-row">${chips.map((chip) => `<span class="member-chip">${escapeHTML(chip)}</span>`).join('')}</div>` : ''}
-          <h3>${escapeHTML(memberDisplayName(member))}</h3>
-        </div>
-      </div>
-      <div class="member-copy">
-        ${education || (localizedMemberText(member, 'bio') ? `<p>${escapeHTML(localizedMemberText(member, 'bio'))}</p>` : '')}
-        ${localizedMemberText(member, 'currentPosition') ? `<p class="muted"><strong>${escapeHTML(copy.currentPosition)}:</strong> ${escapeHTML(localizedMemberText(member, 'currentPosition'))}</p>` : ''}
-      </div>
-    </article>
-  `;
-}
+function memberCard(member) { return memberPreview(member); }
+function alumniCard(member) { return memberPreview(member, true); }
 
 function projectCard(project, { compact = false } = {}) {
   const period = getProjectPeriodDisplay(project);
@@ -2590,14 +2472,14 @@ function normalizeBoardCategory(category = '') {
   if (['conference', 'poster', 'oral'].includes(key)) return 'conference';
   if (['workshop', 'seminar'].includes(key)) return 'workshop';
   if (['equipment', 'news', 'lab-equipment', 'labequipment'].includes(key)) return 'equipment';
-  if (['other', 'notice', 'misc'].includes(key)) return 'other';
+  if (['other', 'notice', 'misc', 'article', 'articles'].includes(key)) return 'other';
   return key || 'other';
 }
 
 function boardFilterConfig() {
   return lang === 'en'
-    ? [['all', 'All'], ['conference', 'Conference'], ['workshop', 'Workshop'], ['equipment', 'Lab equipment list'], ['other', 'Other']]
-    : [['all', '전체'], ['conference', '학회'], ['workshop', '워크숍'], ['equipment', '실험실 장비 목록'], ['other', '기타']];
+    ? [['all', 'All'], ['other', 'Articles'], ['conference', 'Conference'], ['workshop', 'Workshop'], ['equipment', 'Lab equipment list']]
+    : [['all', '전체'], ['other', '기사'], ['conference', '학회'], ['workshop', '워크숍'], ['equipment', '실험실 장비 목록']];
 }
 
 function boardCategoryLabel(category = '') {
@@ -2608,10 +2490,10 @@ function boardCategoryLabel(category = '') {
     workshop: lang === 'en' ? 'Workshop' : '워크숍',
     equipment: lang === 'en' ? 'Lab equipment list' : '실험실 장비 목록',
     news: lang === 'en' ? 'Lab equipment list' : '실험실 장비 목록',
-    notice: lang === 'en' ? 'Other' : '기타',
-    other: lang === 'en' ? 'Other' : '기타'
+    notice: lang === 'en' ? 'Articles' : '기사',
+    other: lang === 'en' ? 'Articles' : '기사'
   };
-  return map[String(category || '').trim().toLowerCase()] || (lang === 'en' ? 'Other' : '기타');
+  return map[normalizeBoardCategory(category)] || (lang === 'en' ? 'Articles' : '기사');
 }
 
 function boardDateLabel(value = '') {

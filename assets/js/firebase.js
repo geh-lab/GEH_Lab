@@ -1,3 +1,4 @@
+import { allowsAdminPreview } from './admin-preview.js';
 import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js';
 import {
   getAuth,
@@ -33,18 +34,20 @@ export const COLLECTIONS = {
   members: 'members',
   projects: 'projects',
   publications: 'publications',
+  patents: 'patents',
   board: 'boardPosts',
   trash: 'trash'
 };
 
-const firebaseConfig = window.GEH_FIREBASE_CONFIG?.apiKey ? window.GEH_FIREBASE_CONFIG : null;
+export const isLocalAdminPreview = allowsAdminPreview(window.location);
+const firebaseConfig = !isLocalAdminPreview && window.GEH_FIREBASE_CONFIG?.apiKey ? window.GEH_FIREBASE_CONFIG : null;
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 const isLocalRuntime = LOCAL_HOSTS.has(window.location.hostname) || window.location.protocol === 'file:';
-export const isLocalDevMode = window.GEH_LOCAL_DEV_MODE === true
+export const isLocalDevMode = isLocalAdminPreview || (window.GEH_LOCAL_DEV_MODE === true
   ? true
   : window.GEH_LOCAL_DEV_MODE === false
     ? false
-    : (!firebaseConfig && isLocalRuntime);
+    : (!firebaseConfig && isLocalRuntime));
 export const hasFirebaseConfig = Boolean(firebaseConfig) || isLocalDevMode;
 export const ADMIN_EMAILS = Array.isArray(window.GEH_ADMIN_EMAILS)
   ? window.GEH_ADMIN_EMAILS.map((email) => String(email).trim().toLowerCase()).filter(Boolean)
@@ -87,6 +90,7 @@ const LOCAL_PREFIX = 'geh-local-collection:';
 const LOCAL_AUTH_EVENT = 'geh-local-auth-change';
 const LOCAL_COLLECTION_EVENT = 'geh-local-collection-change';
 const localSubscribers = new Map();
+const previewCollections = new Map();
 
 function localStorageSafe() {
   try {
@@ -97,6 +101,7 @@ function localStorageSafe() {
 }
 
 function getLocalAdminUser() {
+  if (isLocalAdminPreview) return { uid: 'preview', email: 'preview@localhost', displayName: '미리보기' };
   const store = localStorageSafe();
   const raw = store?.getItem(LOCAL_AUTH_KEY);
   if (!raw) return null;
@@ -125,6 +130,7 @@ function localCollectionKey(name) {
 }
 
 function readLocalCollection(name) {
+  if (isLocalAdminPreview) return previewCollections.get(name) || [];
   const store = localStorageSafe();
   const raw = store?.getItem(localCollectionKey(name));
   if (!raw) return [];
@@ -146,6 +152,11 @@ function notifyLocalCollection(name) {
 }
 
 function writeLocalCollection(name, items) {
+  if (isLocalAdminPreview) {
+    previewCollections.set(name, items);
+    notifyLocalCollection(name);
+    return;
+  }
   const store = localStorageSafe();
   store?.setItem(localCollectionKey(name), JSON.stringify(items));
   notifyLocalCollection(name);

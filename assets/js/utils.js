@@ -562,6 +562,8 @@ export function normalizeProject(item = {}, options = {}) {
     leadRole,
     principalInvestigatorId: item.principalInvestigatorId || item.piId || '',
     principalInvestigator: item.principalInvestigator || item.pi || '',
+    principalInvestigatorKr: item.principalInvestigatorKr || '',
+    principalInvestigatorEn: item.principalInvestigatorEn || '',
     figureUrl: item.figureUrl || item.imageUrl || '',
     figurePath: item.figurePath || '',
     figureAspect,
@@ -710,7 +712,7 @@ function yearValue(value = '') {
   return match ? Number(match[0]) : 0;
 }
 
-export function sortMembers(items = []) {
+export function sortMembers(items = [], date = new Date()) {
   const memberName = (item = {}) => String(item.nameKr || item.nameEn || item.name || '').trim();
   const memberYearValue = (item = {}) => {
     const year = yearValue(item.startYear);
@@ -735,6 +737,8 @@ export function sortMembers(items = []) {
       if (byCourse) return byCourse;
       const byTrack = (TRACK_ORDER[a.track] ?? 99) - (TRACK_ORDER[b.track] ?? 99);
       if (byTrack) return byTrack;
+      const bySemester = memberTotalSemesters(b, date) - memberTotalSemesters(a, date);
+      if (bySemester) return bySemester;
       const byMemberYear = memberYearValue(b) - memberYearValue(a);
       if (byMemberYear) return byMemberYear;
       const byName = memberName(a).localeCompare(memberName(b), 'ko');
@@ -969,15 +973,7 @@ function shouldShowAcademicProgress(member = {}) {
 function activeAcademicStandingLabel(member = {}, startYear, startSemester, lang = 'kr') {
   if (!shouldShowAcademicProgress(member) || !startYear || !startSemester) return '';
 
-  const current = currentAcademicTerm();
-
-  // Convert both terms into absolute semester indexes.
-  // Example: 2022년 2학기 -> 2022 * 2 + (2 - 1) = 4045.
-  const entryAbsolute = (Number(startYear) * 2) + (Number(startSemester) - 1);
-  const currentAbsolute = (Number(current.year) * 2) + (Number(current.semester) - 1);
-
-  // Total semesters includes the currently running academic term.
-  const totalSemesters = currentAbsolute - entryAbsolute + 1;
+  const totalSemesters = memberTotalSemesters(member);
   if (totalSemesters < 1) return '';
 
   const nthYear = Math.ceil(totalSemesters / 2);
@@ -990,6 +986,14 @@ function activeAcademicStandingLabel(member = {}, startYear, startSemester, lang
   return `${nthYear}년차 ${semesterInYear}학기 (총 ${totalSemesters}학기)`;
 }
 
+export function memberTotalSemesters(member = {}, date = new Date()) {
+  if (!shouldShowAcademicProgress(member)) return 0;
+  const year = extractAcademicStartYear(member);
+  const semester = extractAcademicStartSemester(member);
+  if (!year || !semester) return 0;
+  const current = currentAcademicTerm(date);
+  return Math.max(0, (current.year - year) * 2 + current.semester - semester + 1);
+}
 
 
 export function memberYearLabel(member = {}, lang = 'kr') {
@@ -1046,6 +1050,7 @@ function glassElements(node, selector) {
  * Content cards are intentionally excluded so academic information remains crisp.
  */
 export function setupAdaptiveGlass(root = document) {
+  if (document.body.classList.contains('design-c')) return () => {};
   const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
   const reducedTransparency = window.matchMedia('(prefers-reduced-transparency: reduce)');
   let pointerFrame = 0;

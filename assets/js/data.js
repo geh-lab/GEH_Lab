@@ -3,7 +3,7 @@ export const BUILD_DATE = "2026-04-10";
 export const SITE_COPY = {
   "kr": {
     "siteName": "충남대학교 환경원예학연구실",
-    "copyright": "COPYRIGHT © Chungnam National University Greenhouse & Environmental Horticulture Lab",
+    "copyright": "COPYRIGHT © Chungnam National University | Greenhouse & Environmental Horticulture Lab",
     "siteShort": "GEH Lab",
     "brandSub": "Greenhouse & Environmental Horticulture Lab",
     "nav": {
@@ -11,6 +11,7 @@ export const SITE_COPY = {
       "members": "멤버",
       "projects": "과제",
       "publications": "논문",
+      "patents": "특허",
       "board": "게시판"
     },
     "switch": "Ko | En",
@@ -24,7 +25,7 @@ export const SITE_COPY = {
       "publications": "논문 보기"
     },
     "stats": {
-      "current": "재학 구성원",
+      "current": "현재 연구 인원",
       "alumni": "졸업생",
       "ongoing": "진행 중 과제",
       "publications": "논문",
@@ -96,7 +97,7 @@ export const SITE_COPY = {
   },
   "en": {
     "siteName": "CNU GEH Lab",
-    "copyright": "COPYRIGHT © Chungnam National University Greenhouse & Environmental Horticulture Lab",
+    "copyright": "COPYRIGHT © Chungnam National University | Greenhouse & Environmental Horticulture Lab",
     "siteShort": "GEH Lab",
     "brandSub": "Greenhouse & Environmental Horticulture Lab",
     "nav": {
@@ -104,6 +105,7 @@ export const SITE_COPY = {
       "members": "Members",
       "projects": "Projects",
       "publications": "Publications",
+      "patents": "Patents",
       "board": "Board"
     },
     "switch": "Ko | En",

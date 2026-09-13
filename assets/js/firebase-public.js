@@ -2,6 +2,7 @@ export const COLLECTIONS = {
   members: 'members',
   projects: 'projects',
   publications: 'publications',
+  patents: 'patents',
   board: 'boardPosts'
 };
 

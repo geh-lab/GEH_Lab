@@ -1,3 +1,6 @@
+import { setupPublicChrome } from './chrome.js';
+import { resolveProjectInvestigator, localizedInvestigatorName } from './project-investigator.js';
+import { normalizePatent, sortPatents, filterPatents, patentText, patentStatusLabel, validatePatent } from './patents.js';
 import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=80';
 import {
   escapeHTML,
@@ -38,6 +41,7 @@ import {
   auth,
   hasFirebaseConfig,
   isLocalDevMode,
+  isLocalAdminPreview,
   COLLECTIONS,
   resolveRedirectResult,
   watchAdminState,
@@ -61,6 +65,11 @@ const state = {
   publications: useLiveAdminData ? [] : sortPublications(FALLBACK_PUBLICATIONS),
   board: useLiveAdminData ? [] : sortBoardPosts(FALLBACK_BOARD_POSTS),
   trash: [],
+  patents: [],
+  editingPatent: null,
+  patentFilter: 'all',
+  patentQuery: '',
+  patentPage: 1,
   editingMember: null,
   editingProject: null,
   editingPublication: null,
@@ -229,6 +238,15 @@ const elements = {
   projectFigurePreview: qs('#project-figure-preview'),
   projectFigureRemove: qs('#project-figure-remove'),
   projectPrincipalInvestigator: qs('#project-principal-investigator'),
+  patentForm: qs('#patent-form'),
+  patentList: qs('#patent-list'),
+  patentTitle: qs('#patent-form-title'),
+  patentEditorCard: qs('#patent-editor-card'),
+  patentAddButton: qs('#patent-add-button'),
+  patentFilterTabs: qs('#patent-filter-tabs'),
+  patentSearchInput: qs('#patent-search-admin'),
+  patentPagination: qs('#patent-pagination'),
+  summaryPatents: qs('#summary-patents'),
   publicationForm: qs('#publication-form'),
   publicationList: qs('#publication-list'),
   publicationTitle: qs('#publication-form-title'),
@@ -270,11 +288,13 @@ const elements = {
 };
 
 function setTopbarAuthState(isAuthenticated, _email = '') {
+  const sessionBar = qs('.admin-session-bar');
+  if (sessionBar) sessionBar.hidden = !isAuthenticated;
   if (elements.currentUser) {
-    elements.currentUser.innerHTML = isAuthenticated
+    elements.currentUser.innerHTML = isLocalAdminPreview ? '<i class="ph ph-eye" aria-hidden="true"></i><span>미리보기</span>' : isAuthenticated
       ? '<i class="ph ph-shield-check" aria-hidden="true"></i><span>관리자로 로그인</span>'
       : '<i class="ph ph-lock-key" aria-hidden="true"></i><span>로그인 필요</span>';
-    elements.currentUser.setAttribute('aria-label', isAuthenticated ? '관리자로 로그인됨' : '관리자 로그인 필요');
+    elements.currentUser.setAttribute('aria-label', isLocalAdminPreview ? '로컬 관리자 화면 미리보기' : isAuthenticated ? '관리자로 로그인됨' : '관리자 로그인 필요');
     elements.currentUser.classList.toggle('is-authenticated', Boolean(isAuthenticated));
   }
   if (elements.loginShortcutButton) {
@@ -283,9 +303,9 @@ function setTopbarAuthState(isAuthenticated, _email = '') {
     elements.loginShortcutButton.setAttribute('aria-hidden', String(Boolean(isAuthenticated)));
   }
   if (elements.logoutButton) {
-    elements.logoutButton.hidden = !isAuthenticated;
-    elements.logoutButton.style.display = isAuthenticated ? 'inline-flex' : 'none';
-    elements.logoutButton.setAttribute('aria-hidden', String(!isAuthenticated));
+    elements.logoutButton.hidden = !isAuthenticated || isLocalAdminPreview;
+    elements.logoutButton.style.display = isAuthenticated && !isLocalAdminPreview ? 'inline-flex' : 'none';
+    elements.logoutButton.setAttribute('aria-hidden', String(!isAuthenticated || isLocalAdminPreview));
   }
 }
 
@@ -514,17 +534,11 @@ function findMemberByAnyName(value = '') {
 }
 
 function resolveProjectInvestigatorMember(project = {}) {
-  if (project.principalInvestigatorId) {
-    const byId = state.members.find((member) => member.id === project.principalInvestigatorId);
-    if (byId) return byId;
-  }
-  return findMemberByAnyName(project.principalInvestigator || '');
+  return resolveProjectInvestigator(project, state.members);
 }
 
 function projectInvestigatorDisplay(project = {}, locale = 'kr') {
-  const member = resolveProjectInvestigatorMember(project);
-  if (member) return memberDisplayName(member, locale);
-  return project.principalInvestigator || '';
+  return localizedInvestigatorName(project, state.members, locale);
 }
 
 function localizedMemberText(member = {}, key, locale = 'kr') {
@@ -641,7 +655,7 @@ function adminErrorMessage(error, fallback) {
     return `현재 도메인(${hostname})이 Firebase Authentication 허용 목록에 없습니다. Firebase Console > Authentication > Settings > Authorized domains에 ${hostname}을 추가해주세요.`;
   }
   if (error?.code === 'permission-denied' || /Missing or insufficient permissions/i.test(error?.message || '')) {
-    return `${fallback} Firestore 보안 규칙에 ${COLLECTIONS.board} / ${COLLECTIONS.members} / ${COLLECTIONS.projects} / ${COLLECTIONS.publications} / ${COLLECTIONS.trash} 쓰기 권한이 반영되었는지 확인해주세요.`;
+    return `${fallback} Firestore 보안 규칙에 ${COLLECTIONS.board} / ${COLLECTIONS.members} / ${COLLECTIONS.projects} / ${COLLECTIONS.publications} / ${COLLECTIONS.patents} / ${COLLECTIONS.trash} 쓰기 권한이 반영되었는지 확인해주세요.`;
   }
   return error?.message || fallback;
 }
@@ -652,6 +666,7 @@ function editorElement(kind) {
     member: elements.memberEditorCard,
     project: elements.projectEditorCard,
     publication: elements.publicationEditorCard,
+    patent: elements.patentEditorCard,
     board: elements.boardEditorCard
   }[kind] || null;
 }
@@ -994,8 +1009,15 @@ function ensureEditorScrim() {
 document.addEventListener('DOMContentLoaded', async () => {
   ensureEditorScrim();
   setupAdaptiveGlass(document);
+  setupPublicChrome({ lang: 'kr', page: 'admin', loadSearch: async () => ({items: [], partial: false}) });
   bindEvents();
   renderSetupMessage();
+  const previewLink = qs('#admin-preview-link');
+  if (previewLink) previewLink.hidden = !['localhost', '127.0.0.1', '[::1]', '::1'].includes(location.hostname);
+  const previewBanner = qs('#admin-preview-banner');
+  if (previewBanner) previewBanner.hidden = !isLocalAdminPreview;
+  const previewExit = qs('#admin-preview-exit');
+  if (previewExit) previewExit.hidden = !isLocalAdminPreview;
   renderAllLists();
   setTopbarAuthState(false);
 
@@ -1060,6 +1082,17 @@ function bindEvents() {
   elements.memberAddButton?.addEventListener('click', () => { resetMemberForm(); openEditor('member'); });
   elements.projectAddButton?.addEventListener('click', () => { resetProjectForm(); openEditor('project'); });
   elements.publicationAddButton?.addEventListener('click', () => { resetPublicationForm(); openEditor('publication'); });
+  elements.patentAddButton?.addEventListener('click', () => { resetPatentForm(); openEditor('patent'); });
+  elements.patentForm?.elements.namedItem('status')?.addEventListener('change', updatePatentRegistrationFields);
+  elements.patentForm?.addEventListener('submit', handlePatentSubmit);
+  qs('#patent-reset')?.addEventListener('click', resetPatentForm);
+  elements.patentList?.addEventListener('click', onPatentListClick);
+  elements.patentSearchInput?.addEventListener('input', (event) => { state.patentQuery = event.currentTarget.value; state.patentPage = 1; renderPatentsList(); });
+  elements.patentFilterTabs?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-patent-filter]');
+    if (!button) return;
+    state.patentFilter = button.dataset.patentFilter; state.patentPage = 1; renderPatentsList();
+  });
   elements.boardAddButton?.addEventListener('click', () => { resetBoardForm(); openEditor('board'); });
   qsa('[data-editor-close]').forEach((button) => button.addEventListener('click', () => requestCloseEditor(button.dataset.editorClose)));
   elements.memberFilterTabs?.addEventListener('click', onMemberFilterClick);
@@ -1164,7 +1197,7 @@ function bindEvents() {
   elements.dialog?.addEventListener('click', (event) => {
     if (event.target === elements.dialog || event.target.closest('[data-dialog-close]')) closeDialog(null);
   });
-  [elements.memberForm, elements.projectForm, elements.publicationForm, elements.boardForm].forEach((form) => {
+  [elements.memberForm, elements.projectForm, elements.publicationForm, elements.patentForm, elements.boardForm].forEach((form) => {
     form?.addEventListener('input', () => markFormDirty(form));
     form?.addEventListener('change', () => markFormDirty(form));
   });
@@ -1426,7 +1459,7 @@ async function handleAuthState(user) {
   attachListeners();
   setActiveTab(state.activeTab || 'members');
   renderProjectLeadOptions();
-  if (previousUid !== state.user.uid) showNotice('관리자로 로그인되었습니다.', 'success');
+  if (previousUid !== state.user.uid) showNotice(isLocalAdminPreview ? '관리자 화면 미리보기입니다.' : '관리자로 로그인되었습니다.', 'success');
 }
 
 function togglePending(isPending) {
@@ -1452,9 +1485,9 @@ async function ensureSeeded() {
 
 function renderAdminLoadingState() {
   const skeleton = '<div class="admin-list-skeleton" aria-hidden="true"><span></span><span></span><span></span></div>';
-  [elements.memberList, elements.projectList, elements.publicationList, elements.boardList, elements.trashList]
+  [elements.memberList, elements.projectList, elements.publicationList, elements.patentList, elements.boardList, elements.trashList]
     .forEach((container) => { if (container) container.innerHTML = skeleton; });
-  [elements.summaryMembers, elements.summaryProjects, elements.summaryPublications, elements.summaryBoard, elements.summaryTrash]
+  [elements.summaryMembers, elements.summaryProjects, elements.summaryPublications, elements.summaryPatents, elements.summaryBoard, elements.summaryTrash]
     .forEach((summary) => { if (summary) summary.textContent = '—'; });
   showNotice('관리자 콘텐츠를 불러오는 중입니다.', 'info');
 }
@@ -1484,6 +1517,11 @@ function attachListeners() {
       renderPublicationsList();
       renderSummary();
     }, onError),
+    listenCollection(COLLECTIONS.patents, (items) => {
+      state.patents = activeItems(sortPatents(items));
+      renderPatentsList();
+      renderSummary();
+    }, onError),
     listenCollection(COLLECTIONS.board, (items) => {
       state.board = activeItems(useLiveAdminData ? sortBoardPosts(items) : sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items)));
       renderBoardList();
@@ -1507,6 +1545,7 @@ function renderSummary() {
   if (elements.summaryMembers) elements.summaryMembers.textContent = state.members.length;
   if (elements.summaryProjects) elements.summaryProjects.textContent = state.projects.length;
   if (elements.summaryPublications) elements.summaryPublications.textContent = state.publications.length;
+  if (elements.summaryPatents) elements.summaryPatents.textContent = state.patents.length;
   if (elements.summaryBoard) elements.summaryBoard.textContent = state.board.length;
   if (elements.summaryTrash) elements.summaryTrash.textContent = state.trash.length;
 }
@@ -1516,7 +1555,7 @@ function sortTrashItems(items = []) {
 }
 
 function trashTypeLabel(type = '') {
-  const map = { member: '멤버', project: '과제', publication: '논문', board: '게시판' };
+  const map = { member: '멤버', project: '과제', publication: '논문', patent: '특허', board: '게시판' };
   return map[type] || '기타';
 }
 
@@ -2248,6 +2287,8 @@ async function handleProjectSubmit(event) {
     leadRole: String(formData.get('leadRole') || 'leadInstitutionInvestigator').trim(),
     principalInvestigatorId: selectedMember?.id || '',
     principalInvestigator: selectedMember ? memberDisplayName(selectedMember) : investigatorValue,
+    principalInvestigatorKr: selectedMember?.nameKr || (investigatorValue ? state.editingProject?.principalInvestigatorKr || '' : ''),
+    principalInvestigatorEn: selectedMember?.nameEn || (investigatorValue ? state.editingProject?.principalInvestigatorEn || '' : ''),
     coResearchers: '',
     figureUrl: state.editingProject?.figureUrl || '',
     figurePath: state.editingProject?.figurePath || '',
@@ -2322,7 +2363,7 @@ async function handleBoardSubmit(event) {
   const form = event.currentTarget;
   const formData = new FormData(form);
   let payload = {
-    category: normalizeBoardCategory(String(formData.get('category') || 'conference')),
+    category: normalizeBoardCategory(String(formData.get('category') || 'other')),
     title: String(formData.get('title') || '').trim(),
     description: String(formData.get('description') || '').trim(),
     linkUrl: String(formData.get('linkUrl') || '').trim(),
@@ -2386,6 +2427,7 @@ async function handleBoardSubmit(event) {
 }
 
 function renderAllLists() {
+  renderPatentsList();
   renderMembersList();
   renderProjectsList();
   renderPublicationsList();
@@ -2595,6 +2637,123 @@ function renderProjectsList() {
   bindPagination(elements.projectPagination, 'projectPage');
 }
 
+
+function updatePatentRegistrationFields() {
+  const granted = elements.patentForm.elements.namedItem('status').value === 'granted';
+  qs('#patent-registration-fields').hidden = !granted;
+  for (const key of ['registrationNumber', 'registrationDate']) {
+    const field = elements.patentForm.elements.namedItem(key);
+    field.disabled = !granted;
+    field.required = granted;
+  }
+}
+
+function resetPatentForm() {
+  elements.patentForm.reset();
+  state.editingPatent = null;
+  elements.patentTitle.textContent = '특허 추가';
+  updatePatentRegistrationFields();
+  markFormClean(elements.patentForm);
+}
+
+function loadPatentForm(item) {
+  resetPatentForm();
+  state.editingPatent = structuredClone(item);
+  elements.patentTitle.textContent = '특허 수정';
+  for (const field of elements.patentForm.elements) {
+    if (field.name) setFormValue(elements.patentForm, field.name, item[field.name] || '');
+  }
+  updatePatentRegistrationFields();
+  markFormClean(elements.patentForm);
+  openEditor('patent');
+}
+
+async function handlePatentSubmit(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (form.dataset.busy === 'true' || !state.user) return;
+  const values = Object.fromEntries(new FormData(form));
+  const validationError = validatePatent(values);
+  if (validationError) return showNotice(validationError, 'warning');
+  const normalizedNumber = (value) => String(value || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+  const duplicate = state.patents.find((item) => item.id !== state.editingPatent?.id
+    && normalizedNumber(item.applicationNumber) === normalizedNumber(values.applicationNumber)
+    && patentText(item, 'country') === (values.countryKr || ''));
+  if (duplicate) return showNotice('같은 국가와 출원번호의 특허가 있습니다. 기존 항목을 수정해주세요.', 'warning');
+  const payload = normalizePatent({ ...values, sortOrder: state.editingPatent?.sortOrder ?? 999 });
+  delete payload.id;
+  if (payload.status !== 'granted') { payload.registrationNumber = ''; payload.registrationDate = ''; }
+  setFormBusy(form, true);
+  showNotice('특허 정보를 저장하는 중입니다.', 'info');
+  try {
+    const id = await saveDocument(COLLECTIONS.patents, state.editingPatent?.id || null, payload);
+    state.patents = sortPatents([...state.patents.filter((item) => item.id !== id), { ...payload, id, updatedAt: new Date().toISOString() }]);
+    state.patentFilter = 'all';
+    state.patentQuery = '';
+    elements.patentSearchInput.value = '';
+    renderPatentsList(); renderSummary();
+    showNotice('특허 정보가 저장되었습니다.', 'success');
+    resetPatentForm(); closeEditor('patent');
+  } catch (error) {
+    console.error(error);
+    showNotice(adminErrorMessage(error, '특허 저장에 실패했습니다.'), 'danger');
+  } finally {
+    setFormBusy(form, false);
+    updatePatentRegistrationFields();
+  }
+}
+
+function renderPatentsList() {
+  if (!elements.patentList) return;
+  elements.patentFilterTabs.innerHTML = [['all', '전체'], ['granted', '등록'], ['pending', '출원']].map(([value, label]) =>
+    `<button type="button" class="admin-subtab${state.patentFilter === value ? ' is-active' : ''}" data-patent-filter="${value}" aria-pressed="${state.patentFilter === value}">${label}</button>`).join('');
+  const filtered = filterPatents(state.patents, state.patentQuery, state.patentFilter);
+  const pageData = paginateItems(filtered, state.patentPage);
+  state.patentPage = pageData.page;
+  elements.patentList.innerHTML = pageData.items.map((item) => {
+    const title = patentText(item, 'title');
+    return `<article class="admin-item-card admin-item-card--publication">
+      <div class="admin-item-actions admin-item-actions--corner" aria-label="특허 관리 작업">
+        <button type="button" class="small-button admin-icon-action" data-patent-action="edit" data-id="${escapeHTML(item.id)}" aria-label="${escapeHTML(title)} 수정" title="수정"><i class="ph ph-pencil-simple" aria-hidden="true"></i></button>
+        <button type="button" class="small-button admin-icon-action is-danger" data-patent-action="delete" data-id="${escapeHTML(item.id)}" aria-label="${escapeHTML(title)} 삭제" title="삭제"><i class="ph ph-trash" aria-hidden="true"></i></button>
+      </div>
+      <div class="admin-item-main admin-item-main--single"><div class="admin-item-content">
+        <div class="card-topline"><strong>${escapeHTML(title)}</strong><span class="status-pill">${patentStatusLabel(item.status)}</span></div>
+        ${item.titleEn ? `<p class="muted">${escapeHTML(item.titleEn)}</p>` : ''}
+        <p>${escapeHTML(patentText(item, 'inventors'))}</p>
+        <p class="muted">출원 ${escapeHTML(item.applicationNumber)} · ${escapeHTML(item.applicationDate)}</p>
+        ${item.status === 'granted' ? `<p class="muted">등록 ${escapeHTML(item.registrationNumber)} · ${escapeHTML(item.registrationDate)}</p>` : ''}
+      </div></div>
+    </article>`;
+  }).join('') || emptyAdmin(state.patents.length ? '검색 조건에 맞는 특허가 없습니다.' : '특허 추가 버튼으로 첫 특허를 등록해주세요.');
+  elements.patentPagination.innerHTML = paginationMarkup('patent', pageData.page, pageData.pages);
+  bindPagination(elements.patentPagination, 'patentPage');
+}
+
+function onPatentListClick(event) {
+  const button = event.target.closest('[data-patent-action]');
+  const item = state.patents.find((entry) => entry.id === button?.dataset.id);
+  if (!item) return;
+  if (button.dataset.patentAction === 'edit') return loadPatentForm(item);
+  if (button.dataset.patentAction === 'delete') return removePatent(item);
+}
+
+async function removePatent(item) {
+  const title = patentText(item, 'title');
+  const ok = await openDialog({ title: '특허 삭제', message: `${title} 특허를 휴지통으로 이동할까요?`, type: 'confirm' });
+  if (!ok) return;
+  try {
+    const trashEntry = await moveItemToTrash('patent', COLLECTIONS.patents, item, title);
+    state.patents = state.patents.filter((entry) => entry.id !== item.id);
+    state.trash = sortTrashItems([trashEntry, ...state.trash.filter((entry) => entry.id !== trashEntry.id)]);
+    renderPatentsList(); renderTrashList(); renderSummary();
+    showNotice('특허가 휴지통으로 이동되었습니다.', 'success');
+  } catch (error) {
+    console.error(error);
+    showNotice(adminErrorMessage(error, '특허 삭제에 실패했습니다.'), 'danger');
+  }
+}
+
 function renderPublicationFilterTabs() {
   const years = [...new Set(state.publications.map((item) => item.year).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
   const filters = [['all', '전체'], ...years.map((year) => [year, `${year}`])];
@@ -2653,12 +2812,12 @@ function normalizeBoardCategory(category = '') {
   if (['conference', 'poster', 'oral'].includes(key)) return 'conference';
   if (['workshop', 'seminar'].includes(key)) return 'workshop';
   if (['equipment', 'news', 'lab-equipment', 'labequipment'].includes(key)) return 'equipment';
-  if (['other', 'notice', 'misc'].includes(key)) return 'other';
+  if (['other', 'notice', 'misc', 'article', 'articles'].includes(key)) return 'other';
   return key || 'other';
 }
 
 function boardAdminFilters() {
-  return [['all', '전체'], ['conference', '학회'], ['workshop', '워크숍'], ['equipment', '실험실 장비 목록'], ['other', '기타']];
+  return [['all', '전체'], ['other', '기사'], ['conference', '학회'], ['workshop', '워크숍'], ['equipment', '실험실 장비 목록']];
 }
 
 function renderBoardFilterTabs() {
@@ -2689,8 +2848,8 @@ function boardItemMarkup(item) {
 }
 
 function boardCategoryLabel(category = '') {
-  const map = { conference: '학회', poster: '학회', oral: '학회', workshop: '워크숍', equipment: '실험실 장비 목록', news: '실험실 장비 목록', notice: '기타', other: '기타' };
-  return map[String(category || '').trim().toLowerCase()] || '기타';
+  const map = { conference: '학회', poster: '학회', oral: '학회', workshop: '워크숍', equipment: '실험실 장비 목록', news: '실험실 장비 목록', notice: '기사', other: '기사' };
+  return map[normalizeBoardCategory(category)] || '기사';
 }
 
 function renderBoardList() {
@@ -2716,6 +2875,7 @@ function renderTrashFilterTabs() {
     ['member', '멤버'],
     ['project', '과제'],
     ['publication', '논문'],
+    ['patent', '특허'],
     ['board', '게시판']
   ];
   elements.trashFilterTabs.innerHTML = filters.map(([value, label]) => `
