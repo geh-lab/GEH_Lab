@@ -58,6 +58,14 @@ import {
 } from './firebase.js?v=80';
 
 const useLiveAdminData = hasFirebaseConfig && !isLocalDevMode;
+const ADMIN_COLLECTIONS = [
+  { key: 'members', name: COLLECTIONS.members, label: '멤버', list: 'memberList', pagination: 'memberPagination', summary: 'summaryMembers' },
+  { key: 'projects', name: COLLECTIONS.projects, label: '과제', list: 'projectList', pagination: 'projectPagination', summary: 'summaryProjects' },
+  { key: 'publications', name: COLLECTIONS.publications, label: '논문', list: 'publicationList', pagination: 'publicationPagination', summary: 'summaryPublications' },
+  { key: 'patents', name: COLLECTIONS.patents, label: '특허', list: 'patentList', pagination: 'patentPagination', summary: 'summaryPatents' },
+  { key: 'board', name: COLLECTIONS.board, label: '게시판', list: 'boardList', pagination: 'boardPagination', summary: 'summaryBoard' },
+  { key: 'trash', name: COLLECTIONS.trash, label: '휴지통', list: 'trashList', pagination: 'trashPagination', summary: 'summaryTrash' }
+];
 const state = {
   user: null,
   members: useLiveAdminData ? [] : sortMembers(FALLBACK_MEMBERS),
@@ -84,6 +92,7 @@ const state = {
   boardImageRemoved: false,
   seeded: false,
   unsubs: [],
+  collectionReads: new Map(),
   authResolved: false,
   activeTab: 'members',
   memberFilter: 'all',
@@ -649,13 +658,13 @@ function numericYearSort(value) {
   return Number(String(value || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
 }
 
-function adminErrorMessage(error, fallback) {
+function adminErrorMessage(error, fallback, { collection = '해당 컬렉션', operation = 'write' } = {}) {
   if (error?.code === 'auth/unauthorized-domain') {
     const hostname = window.location.hostname || '현재 도메인';
     return `현재 도메인(${hostname})이 Firebase Authentication 허용 목록에 없습니다. Firebase Console > Authentication > Settings > Authorized domains에 ${hostname}을 추가해주세요.`;
   }
   if (error?.code === 'permission-denied' || /Missing or insufficient permissions/i.test(error?.message || '')) {
-    return `${fallback} Firestore 보안 규칙에 ${COLLECTIONS.board} / ${COLLECTIONS.members} / ${COLLECTIONS.projects} / ${COLLECTIONS.publications} / ${COLLECTIONS.patents} / ${COLLECTIONS.trash} 쓰기 권한이 반영되었는지 확인해주세요.`;
+    return `${fallback} Firestore 보안 규칙의 ${collection} ${operation === 'read' ? '읽기' : '쓰기'} 권한과 관리자 로그인 계정을 확인해주세요.`;
   }
   return error?.message || fallback;
 }
@@ -1495,59 +1504,103 @@ function renderAdminLoadingState() {
 
 function attachListeners() {
   teardownListeners();
-  const onError = (error) => {
-    console.error(error);
-    showNotice(adminErrorMessage(error, '관리자 데이터를 불러오지 못했습니다.'), 'danger');
+  ADMIN_COLLECTIONS.forEach(({ key }) => state.collectionReads.set(key, { status: 'loading', hasData: false }));
+  renderAdminReadNotice();
+  const watch = (key, onItems, renderList) => {
+    const { name } = ADMIN_COLLECTIONS.find((item) => item.key === key);
+    const onError = (error) => {
+      console.error(`${name} 데이터 읽기 실패`, error);
+      state.collectionReads.set(key, { ...state.collectionReads.get(key), status: 'error', error });
+      renderList();
+      renderSummary();
+      renderAdminReadNotice();
+    };
+    try {
+      return listenCollection(name, (items) => {
+        state.collectionReads.set(key, { status: 'ready', hasData: true });
+        onItems(items);
+        renderAdminReadNotice();
+      }, onError);
+    } catch (error) {
+      onError(error);
+      return () => {};
+    }
   };
   state.unsubs = [
-    listenCollection(COLLECTIONS.members, (items) => {
+    watch('members', (items) => {
       state.members = activeItems(useLiveAdminData ? sortMembers(items) : sortMembers(mergeMembers(FALLBACK_MEMBERS, items)));
       renderMembersList();
       renderProjectLeadOptions();
       renderMemberPublicationPicker(state.editingMember?.publicationLinks || []);
       renderSummary();
-    }, onError),
-    listenCollection(COLLECTIONS.projects, (items) => {
+    }, renderMembersList),
+    watch('projects', (items) => {
       state.projects = activeItems(useLiveAdminData ? sortProjects(items) : sortProjects(mergeProjects(FALLBACK_PROJECTS, items)));
       renderProjectsList();
       renderSummary();
-    }, onError),
-    listenCollection(COLLECTIONS.publications, (items) => {
+    }, renderProjectsList),
+    watch('publications', (items) => {
       state.publications = activeItems(useLiveAdminData ? sortPublications(items) : sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items)));
       renderPublicationsList();
       renderSummary();
-    }, onError),
-    listenCollection(COLLECTIONS.patents, (items) => {
+    }, renderPublicationsList),
+    watch('patents', (items) => {
       state.patents = activeItems(sortPatents(items));
       renderPatentsList();
       renderSummary();
-    }, onError),
-    listenCollection(COLLECTIONS.board, (items) => {
+    }, renderPatentsList),
+    watch('board', (items) => {
       state.board = activeItems(useLiveAdminData ? sortBoardPosts(items) : sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items)));
       renderBoardList();
       renderSummary();
-    }, onError),
-    listenCollection(COLLECTIONS.trash, (items) => {
+    }, renderBoardList),
+    watch('trash', (items) => {
       state.trash = sortTrashItems(items);
       renderTrashList();
       renderSummary();
       cleanupExpiredTrash().catch((error) => console.error(error));
-    }, onError)
+    }, renderTrashList)
   ];
 }
 
 function teardownListeners() {
   state.unsubs.forEach((unsub) => { try { unsub(); } catch {} });
   state.unsubs = [];
+  state.collectionReads.clear();
+  renderAdminReadNotice();
 }
 
 function renderSummary() {
-  if (elements.summaryMembers) elements.summaryMembers.textContent = state.members.length;
-  if (elements.summaryProjects) elements.summaryProjects.textContent = state.projects.length;
-  if (elements.summaryPublications) elements.summaryPublications.textContent = state.publications.length;
-  if (elements.summaryPatents) elements.summaryPatents.textContent = state.patents.length;
-  if (elements.summaryBoard) elements.summaryBoard.textContent = state.board.length;
-  if (elements.summaryTrash) elements.summaryTrash.textContent = state.trash.length;
+  ADMIN_COLLECTIONS.forEach(({ key, summary }) => {
+    const read = state.collectionReads.get(key);
+    if (elements[summary]) elements[summary].textContent = read && !read.hasData ? '—' : state[key].length;
+  });
+}
+
+function adminReadErrorMessage(key) {
+  const { name, label } = ADMIN_COLLECTIONS.find((item) => item.key === key);
+  const context = `${label}(${name}) 데이터를 불러오지 못했습니다.`;
+  const message = adminErrorMessage(state.collectionReads.get(key)?.error, context, { collection: name, operation: 'read' });
+  return message.startsWith(context) ? message : `${context} ${message}`;
+}
+
+function renderAdminReadNotice() {
+  const notice = qs('#admin-data-notice');
+  if (!notice) return;
+  const failed = ADMIN_COLLECTIONS.filter(({ key }) => state.collectionReads.get(key)?.status === 'error');
+  notice.textContent = failed.map(({ key }) => adminReadErrorMessage(key)).join(' ');
+  notice.hidden = failed.length === 0;
+}
+
+function renderCollectionReadState(key) {
+  const read = state.collectionReads.get(key);
+  if (!read || read.hasData) return false;
+  const { list, pagination, label } = ADMIN_COLLECTIONS.find((item) => item.key === key);
+  if (elements[pagination]) elements[pagination].innerHTML = '';
+  if (elements[list]) elements[list].innerHTML = read.status === 'error'
+    ? `<div class="admin-empty" role="status"><strong>${escapeHTML(label)} 데이터를 불러오지 못했습니다.</strong><span>${escapeHTML(adminReadErrorMessage(key))}</span><span>설정을 확인한 뒤 페이지를 새로고침해주세요.</span></div>`
+    : '<div class="admin-list-skeleton" aria-hidden="true"><span></span><span></span><span></span></div>';
+  return true;
 }
 
 function sortTrashItems(items = []) {
@@ -2040,8 +2093,10 @@ function renderBoardImagePreview() {
   const previewUrls = Array.isArray(state.pendingBoardPreviews) && state.pendingBoardPreviews.length
     ? state.pendingBoardPreviews
     : boardStoredImageUrls(state.editingBoard);
+  elements.boardImagePreview.classList.toggle('is-empty', previewUrls.length === 0);
+  if (elements.boardImageRemove) elements.boardImageRemove.disabled = previewUrls.length === 0;
   if (!previewUrls.length) {
-    elements.boardImagePreview.innerHTML = `<span>게시판</span>`;
+    elements.boardImagePreview.innerHTML = '<span>이미지를 선택하면 미리보기가 표시됩니다.</span>';
     updateBoardImageLabel();
     return;
   }
@@ -2488,6 +2543,7 @@ function memberItemMarkup(member) {
 
 function renderMembersList() {
   if (!elements.memberList) return;
+  if (renderCollectionReadState('members')) return;
   renderMemberFilterTabs();
   const matched = state.members.filter((item) => matchesSearch(state.memberQuery, ...memberProjectSearchValues(item)));
   const enrolled = matched.filter((item) => item.status !== 'alumni');
@@ -2601,6 +2657,7 @@ function adminProjectSection(title, items = []) {
 
 function renderProjectsList() {
   if (!elements.projectList) return;
+  if (renderCollectionReadState('projects')) return;
   renderProjectFilterTabs();
   const filteredProjects = state.projects.filter((item) => matchesSearch(state.projectQuery, ...projectSearchValues(item)));
   if (state.projectQuery && !filteredProjects.length) {
@@ -2705,6 +2762,7 @@ async function handlePatentSubmit(event) {
 
 function renderPatentsList() {
   if (!elements.patentList) return;
+  if (renderCollectionReadState('patents')) return;
   elements.patentFilterTabs.innerHTML = [['all', '전체'], ['granted', '등록'], ['pending', '출원']].map(([value, label]) =>
     `<button type="button" class="admin-subtab${state.patentFilter === value ? ' is-active' : ''}" data-patent-filter="${value}" aria-pressed="${state.patentFilter === value}">${label}</button>`).join('');
   const filtered = filterPatents(state.patents, state.patentQuery, state.patentFilter);
@@ -2784,6 +2842,7 @@ function publicationItemMarkup(item) {
 
 function renderPublicationsList() {
   if (!elements.publicationList) return;
+  if (renderCollectionReadState('publications')) return;
   renderPublicationFilterTabs();
   const filteredPublications = state.publications.filter((item) => matchesSearch(state.publicationQuery, ...publicationSearchValues(item)));
   if (state.publicationQuery && !filteredPublications.length) {
@@ -2854,6 +2913,7 @@ function boardCategoryLabel(category = '') {
 
 function renderBoardList() {
   if (!elements.boardList) return;
+  if (renderCollectionReadState('board')) return;
   renderBoardFilterTabs();
   const items = (state.boardFilter === 'all' ? state.board : state.board.filter((item) => normalizeBoardCategory(item.category) === state.boardFilter)).filter((item) => matchesSearch(state.boardQuery, ...boardSearchValues(item)));
   if (state.boardQuery && !items.length) {
@@ -2909,6 +2969,7 @@ function trashItemMarkup(item) {
 
 function renderTrashList() {
   if (!elements.trashList) return;
+  if (renderCollectionReadState('trash')) return;
   renderTrashFilterTabs();
   const items = (state.trashFilter === 'all' ? state.trash : state.trash.filter((item) => item.itemType === state.trashFilter)).filter((item) => matchesSearch(state.trashQuery, ...trashSearchValues(item)));
   const pageData = paginateItems(items, state.trashPage);
