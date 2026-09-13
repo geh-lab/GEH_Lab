@@ -131,7 +131,6 @@ export function setupLiquidGlass() {
     '.detail-block','.member-education-item','.member-experience-item','.linked-card',
     '.member-publication-item','.publication-members__item','.archive-project-item','.publication-item',
     '.admin-editor-modal','.admin-editor-modal .editor-title-row','.admin-editor-modal .admin-card-head',
-    '.admin-editor-modal:not(#board-editor-card) .form-actions','.admin-editor-modal .member-editor-actions',
     '.admin-editor-modal .degree-section','.admin-editor-modal .experience-editor-row',
     '.admin-editor-modal .schedule-editor-row','.admin-editor-modal .admin-inline-panel'
   ].join(',');
