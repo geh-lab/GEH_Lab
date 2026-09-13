@@ -19,6 +19,87 @@ async function htmlEntries(directoryUrl, prefix = '') {
   return entries;
 }
 
+// Inspect real elements and their ancestry, ignoring comments and script text.
+function markupElements(html) {
+  const elements = [];
+  const stack = [];
+  const voidTags = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
+  const tags = /<!--[\s\S]*?(?:-->|$)|<![^>]*>|<\/?([a-z][\w:-]*)\b((?:[^"'<>]|"[^"]*"|'[^']*')*)>/gi;
+  let match;
+  while ((match = tags.exec(html))) {
+    if (!match[1]) continue;
+    const tag = match[1].toLowerCase();
+    if (match[0].startsWith('</')) {
+      const index = stack.findLastIndex((element) => element.tag === tag);
+      if (index !== -1) stack.length = index;
+      continue;
+    }
+    const attributes = Object.create(null);
+    for (const attribute of match[2].matchAll(/([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g)) {
+      const name = attribute[1].toLowerCase();
+      if (!(name in attributes)) attributes[name] = attribute[2] ?? attribute[3] ?? attribute[4] ?? '';
+    }
+    const element = { tag, attributes, classes: new Set((attributes.class || '').split(/\s+/)), parent: stack.at(-1) };
+    if (tag !== 'template' && !stack.some((ancestor) => ancestor.tag === 'template')) elements.push(element);
+    if (['script', 'style', 'textarea', 'title'].includes(tag)) {
+      const closingTag = new RegExp(`</${tag}\\s*>`, 'gi');
+      closingTag.lastIndex = tags.lastIndex;
+      const closing = closingTag.exec(html);
+      tags.lastIndex = closing ? closingTag.lastIndex : html.length;
+    } else if (!voidTags.has(tag)) {
+      stack.push(element);
+    }
+  }
+  return elements;
+}
+
+function ancestorWithClass(element, className) {
+  for (let ancestor = element?.parent; ancestor; ancestor = ancestor.parent) {
+    if (ancestor.classes.has(className)) return ancestor;
+  }
+  return null;
+}
+
+async function verifyHomeLayout(entry, html, directoryUrl) {
+  const issues = [];
+  const elements = markupElements(html);
+  const grids = elements.filter((element) => element.attributes.id === 'hero-stat-grid');
+  const panels = elements.filter((element) => element.classes.has('home-overview'));
+  if (grids.length !== 1) issues.push(`${entry} -> expected one #hero-stat-grid, found ${grids.length}`);
+  if (panels.length !== 1) issues.push(`${entry} -> expected one .home-overview panel, found ${panels.length}`);
+  for (const grid of grids) {
+    const panel = ancestorWithClass(grid, 'home-overview');
+    const layout = ancestorWithClass(panel, 'hero-layout');
+    if (!ancestorWithClass(layout, 'hero')) {
+      issues.push(`${entry} -> #hero-stat-grid must be inside .home-overview inside .hero-layout inside .hero`);
+    }
+  }
+  if (elements.some((element) => (
+    element.attributes.id === 'hero-stat-grid' || element.classes.has('hero-stat-grid') || element.classes.has('home-overview')
+  ) && !ancestorWithClass(element, 'hero'))) {
+    issues.push(`${entry} -> home statistics area remains outside .hero`);
+  }
+
+  let hasPanelStyles = false;
+  for (const link of elements.filter((element) => element.tag === 'link' && (element.attributes.rel || '').toLowerCase().split(/\s+/).includes('stylesheet'))) {
+    const href = link.attributes.href || '';
+    if (!href || /^(?:[a-z][\w+.-]*:|\/\/|#)/i.test(href)) continue;
+    const clean = href.split(/[?#]/)[0];
+    const relative = normalize(clean.startsWith('/') ? clean.slice(1) : join(dirname(entry), clean));
+    if (relative.startsWith('../')) continue;
+    try {
+      const css = (await readFile(new URL(relative, directoryUrl), 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '');
+      hasPanelStyles ||= Array.from(css.matchAll(/([^{}]+)\{([^{}]*)\}/g)).some((rule) => (
+        /\.home-overview(?![\w-])/.test(rule[1]) && /[\w-]+\s*:/.test(rule[2])
+      ));
+    } catch {
+      // The existing asset-reference check reports missing stylesheets separately.
+    }
+  }
+  if (!hasPanelStyles) issues.push(`${entry} -> referenced built CSS is missing .home-overview styles`);
+  return issues;
+}
+
 const entries = await htmlEntries(root);
 const rosterIndex = JSON.parse(await readFile(new URL('../assets/data/member-profile-index.json', import.meta.url), 'utf8'));
 const sourceRoster = JSON.parse(await readFile(new URL('../assets/data/profile-source.json', import.meta.url), 'utf8')).members || [];
@@ -33,6 +114,7 @@ if (oldProfilePages.length) missing.push(`independent profile pages still emitte
 
 for (const entry of entries) {
   const html = await readFile(new URL(entry, root), 'utf8');
+  if (entry === 'index.html' || entry === 'en/index.html') missing.push(...await verifyHomeLayout(entry, html, root));
   const references = Array.from(html.matchAll(/(?:href|src)="([^"]+)"/g), (match) => match[1]);
   for (const reference of references) {
     if (/^(?:https?:|mailto:|tel:|#|data:)/i.test(reference) || reference.startsWith('/_vercel/')) continue;
