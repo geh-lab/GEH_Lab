@@ -188,7 +188,10 @@ export function setupPublicChrome({ lang, page, loadSearch }) {
       const shownWidth = labels.reduce((sum, label) => sum + label.getBoundingClientRect().width, 0);
       const longestWidth = Math.max(...labelText.map(text => text.scrollWidth + 8));
       const dockWidth = dock.getBoundingClientRect().width - shownWidth + longestWidth;
-      const sideWidth = Math.max(header.querySelector('.brand').scrollWidth, header.querySelector('.header-language').scrollWidth);
+      const sideWidth = Math.max(
+        header.querySelector('.brand')?.scrollWidth || 0,
+        header.querySelector('.header-language')?.scrollWidth || 0
+      );
       const gap = Number.parseFloat(getComputedStyle(header).columnGap) || 0;
       compact = dockWidth + sideWidth * 2 + gap * 2 > header.clientWidth;
       header.classList.toggle('is-compact', compact);
