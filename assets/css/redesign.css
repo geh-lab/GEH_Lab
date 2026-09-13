@@ -162,7 +162,7 @@
 #geh-site .research-intro { padding-block:28px 24px; }
 #geh-site .research-intro-heading h2 { font-size:calc(clamp(30px,4vw,46px) * var(--reading-scale,1)); line-height:1.25; letter-spacing:-.045em; margin:0 0 22px; }
 #geh-site .research-intro-heading>p { max-width:none; font-size:calc(16px * var(--reading-scale,1)); color:var(--muted); line-height:1.8; margin:0; }
-#geh-site .research-intro .hero-stat-grid { grid-template-columns:repeat(4,minmax(0,1fr)) !important; margin-top:0; gap:14px !important; }
+#geh-site .research-intro .hero-stat-grid { grid-template-columns:repeat(5,minmax(0,1fr)) !important; margin-top:0; gap:14px !important; }
 #geh-site .research-intro .hero-stat-grid>.stat-card { border:1px solid var(--line-strong) !important; border-radius:22px !important; background:var(--card) !important; min-height:112px; padding:20px !important; gap:8px 12px !important; }
 #geh-site .hero-stat-grid { display:grid !important; grid-template-columns:repeat(4,minmax(0,1fr)) !important; grid-auto-rows:auto !important; width:100% !important; max-width:none !important; margin:0; gap:14px !important; padding:0 !important; border:0 !important; background:none !important; box-shadow:none !important; }
 #geh-site .hero-stat-grid>.stat-card { display:grid !important; grid-template-columns:minmax(0,1fr) auto !important; grid-template-rows:auto 1fr !important; align-items:center; align-content:start; gap:12px 16px !important; padding:20px !important; min-height:112px; border:1px solid var(--line) !important; border-radius:18px !important; background:var(--bg-soft) !important; box-shadow:none !important; transform:none !important; }
@@ -520,8 +520,11 @@
   #geh-site .hero-layout { gap:28px; }
   #geh-site .home-portal-link { grid-template-columns:minmax(0,1fr); gap:8px; padding:16px 12px; }
   #geh-site .home-portal-link>.ph:first-child { display:none; }
-  #geh-site .research-intro .hero-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:14px !important; }
   #geh-site .research-intro .hero-stat-grid>.stat-card { padding:18px !important; }
+}
+@media (max-width:1200px) {
+  #geh-site .research-intro .hero-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+  #geh-site .research-intro .hero-stat-grid>.stat-card:last-child:nth-child(odd) { grid-column:1 / -1; }
 }
 @media (max-width:760px) {
   #geh-site .hero { padding:102px 24px 80px !important; }
@@ -536,10 +539,12 @@
   #geh-site .home-portal-link:first-child strong { font-size:calc(20px * var(--reading-scale,1)); }
   #geh-site .home-portal-link small { font-size:calc(12px * var(--reading-scale,1)); margin-top:5px; }
   #geh-site .research-intro { padding-block:24px 16px; }
-  #geh-site .research-intro .hero-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
   #geh-site .research-intro .hero-stat-grid>.stat-card { padding:18px !important; }
   #geh-site .research-intro .hero-stat-grid>.stat-card:nth-child(odd) { padding-right:18px !important; }
 
+}
+@media (max-width:600px) {
+  #geh-site .research-intro .hero-stat-grid { grid-template-columns:minmax(0,1fr) !important; }
 }
 /* Text enlargement reflows the content instead of scaling its containers. */
 #geh-site .hero h1 { overflow-wrap:anywhere; }
@@ -547,6 +552,7 @@
 :root:is([data-text-size="150"],[data-text-size="175"],[data-text-size="200"]) #geh-site .hero-layout { grid-template-columns:minmax(0,1fr); }
 :root:is([data-text-size="150"],[data-text-size="175"],[data-text-size="200"]) #geh-site .hero-content { max-width:none; }
 :root:not([data-text-size="100"])[data-text-size] #geh-site .hero-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+:root:not([data-text-size="100"])[data-text-size] #geh-site .research-intro .hero-stat-grid>.stat-card:last-child:nth-child(odd) { grid-column:1 / -1; }
 :root:not([data-text-size="100"])[data-text-size] #geh-site :is(.member-grid,.home-publication-grid,.preview-grid) { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
 :root:not([data-text-size="100"])[data-text-size] #geh-site .member-card { grid-template-columns:72px minmax(0,1fr); }
 :root:not([data-text-size="100"])[data-text-size] #geh-site .member-card .profile-avatar { width:72px; height:72px; }
