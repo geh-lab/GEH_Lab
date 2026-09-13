@@ -12,6 +12,8 @@ export default defineConfig({
       await cp(page('assets/images'), page('dist/assets/images'), {
         recursive: true,
         filter: (source) => ![
+          'assets/images/flags/kr.svg',
+          'assets/images/flags/us.svg',
           'assets/images/background/research-map.png',
           'assets/images/mainpic.png',
           'assets/images/mainpic.webp',
