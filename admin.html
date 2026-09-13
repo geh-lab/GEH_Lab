@@ -5,69 +5,97 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+  <meta name="theme-color" content="#f5f7f8">
+  <script>document.documentElement.classList.add('js');try{var gehTheme=localStorage.getItem('geh-theme');document.documentElement.dataset.theme=gehTheme==='light'||gehTheme==='dark'?gehTheme:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.style.colorScheme=document.documentElement.dataset.theme}catch(e){document.documentElement.dataset.theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}</script>
+  <script>try{var gehText=Number(localStorage.getItem('geh-text-size'));if([100,125,150,175,200].includes(gehText)){document.documentElement.dataset.textSize=String(gehText);document.documentElement.style.setProperty('--reading-scale',String(gehText/100))}}catch(e){}</script>
   <title>GEH Lab 관리자</title>
   <meta name="description" content="GEH Lab Firebase 관리자 페이지">
   <meta name="robots" content="noindex,nofollow,noarchive">
-  <link rel="stylesheet" href="assets/css/styles.css?v=139">
+  <link rel="stylesheet" href="assets/css/styles.css?v=140">
   <link rel="stylesheet" href="assets/css/icons.css?v=3">
+  <link rel="stylesheet" href="assets/css/redesign.css">
 </head>
-<body class="admin-body" data-root=".">
+<body id="geh-site" class="admin-body design-c" data-page="admin" data-lang="kr" data-root=".">
   <div class="admin-shell">
-    <header class="admin-topbar">
-      <div class="brand">
-        <span class="brand-mark"><img src="assets/images/logos/geh-logo-ui.webp" alt="GEH Lab" width="42" height="42" decoding="async" fetchpriority="high"></span>
-        <span class="brand-text"><strong>GEH Lab</strong><small>관리자 페이지</small></span>
+    <header class="site-header">
+  <a href="index.html" class="brand" aria-label="GEH Lab"><span class="brand-mark"><img data-logo-asset="assets/images/logos/geh-logo-ui.webp" src="assets/images/logos/geh-logo-ui.webp" alt="GEH Lab" width="42" height="42"></span><span class="brand-text"><strong>GEH Lab</strong></span></a>
+  <div class="dock-shell">
+  <button class="menu-toggle" type="button" aria-label="전체 메뉴" aria-expanded="false" data-menu-toggle><i class="ph ph-squares-four" aria-hidden="true"></i></button>
+  <nav class="site-nav" data-nav-panel>
+    <a href="index.html" data-nav-page="home" aria-label="홈"><i class="ph ph-house" aria-hidden="true"></i><span class="nav-label">홈</span></a>
+    <a href="members.html" data-nav-page="members" aria-label="멤버"><i class="ph ph-users" aria-hidden="true"></i><span class="nav-label">멤버</span></a>
+    <a href="projects.html" data-nav-page="projects" aria-label="과제"><i class="ph ph-flask" aria-hidden="true"></i><span class="nav-label">과제</span></a>
+    <a href="publications.html" data-nav-page="publications" aria-label="논문"><i class="ph ph-book-open" aria-hidden="true"></i><span class="nav-label">논문</span></a>
+    <a href="patents.html" data-nav-page="patents" aria-label="특허"><i class="ph ph-seal-check" aria-hidden="true"></i><span class="nav-label">특허</span></a>
+    <a href="news.html" data-nav-page="board" aria-label="게시판"><i class="ph ph-newspaper" aria-hidden="true"></i><span class="nav-label">게시판</span></a>
+    <a href="contact.html" data-nav-page="contact" aria-label="오시는 길"><i class="ph ph-map-pin" aria-hidden="true"></i><span class="nav-label">오시는 길</span></a>
+  <a href="admin.html" class="glass-control" data-nav-page="admin"><i class="ph ph-shield-check" aria-hidden="true"></i><span class="nav-label">관리자</span></a></nav>
+  <button class="chrome-icon search-trigger" hidden type="button" data-global-search-toggle aria-label="사이트 통합 검색" aria-expanded="false" aria-controls="global-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i></button>
+  </div>
+  <div class="site-utilities">
+    <button class="chrome-icon preferences-trigger" type="button" data-preferences-toggle aria-label="화면 설정" aria-expanded="false" aria-controls="site-preferences"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i></button>
+    <section id="site-preferences" class="chrome-popover" data-preferences-panel hidden aria-label="화면 설정">
+      
+      <h2>화면 모드</h2><div class="theme-options">
+        <button type="button" data-theme-choice="light" aria-pressed="false"><i class="ph ph-sun" aria-hidden="true"></i><span>라이트</span></button>
+        <button type="button" data-theme-choice="dark" aria-pressed="false"><i class="ph ph-moon" aria-hidden="true"></i><span>다크</span></button>
+        <button type="button" data-theme-choice="system" aria-pressed="true"><i class="ph ph-desktop" aria-hidden="true"></i><span>자동</span></button>
       </div>
-      <nav class="admin-topbar-links" aria-label="관리자 상단 메뉴">
-        <a href="index.html">홈</a>
-        <a href="members.html">멤버</a>
-        <a href="projects.html">과제</a>
-        <a href="publications.html">논문</a>
-        <a href="news.html">게시판</a>
-        <a href="contact.html">오시는 길</a>
-        <a href="admin.html" class="is-active" aria-current="page">관리자</a>
-      </nav>
-      <div class="admin-topbar-auth">
+    <div class="reading-preferences"><h2 id="text-size-heading">글자 크기</h2>
+        <div class="text-size-control" role="group" aria-labelledby="text-size-heading">
+          <button type="button" data-text-smaller aria-label="글자 작게" disabled><i class="ph ph-minus" aria-hidden="true"></i></button>
+          <output data-text-value aria-live="polite" aria-atomic="true">100%</output>
+          <button type="button" data-text-larger aria-label="글자 크게"><i class="ph ph-plus" aria-hidden="true"></i></button>
+        </div>
+        <button type="button" class="text-size-reset" data-text-reset disabled>기본 크기로</button>
+      </div>
+    </section>
+  </div>
+  <section class="global-search chrome-popover" id="global-search" data-global-search hidden aria-label="사이트 검색">
+    <form role="search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input type="search" aria-label="멤버와 연구 검색" placeholder="멤버, 과제, 논문 검색" autocomplete="off"><button type="button" class="chrome-icon" data-search-close aria-label="검색 닫기"><i class="ph ph-x" aria-hidden="true"></i></button></form>
+    <p class="search-status" data-search-status role="status"></p><div class="global-search-results" data-search-results></div>
+  </section>
+</header>
+<div class="admin-session-bar" hidden><div class="admin-topbar-auth">
         <span class="user-chip" id="current-user-label">확인 중</span>
-        <button class="button secondary" id="login-shortcut-button">로그인</button>
+        <a class="button secondary" id="admin-preview-exit" href="admin.html" hidden>미리보기 종료</a>
         <button class="button secondary" id="logout-button" hidden style="display:none;">로그아웃</button>
-      </div>
-    </header>
+      </div></div>
 
     <section class="login-panel" id="auth-loading">
       <div class="login-card loading-card">
-        <span class="eyebrow">관리자</span>
-        <h1>CNU GEH Lab CMS</h1>
+        <h1>연구실 콘텐츠 관리</h1>
         <p class="muted">로그인 상태를 확인하는 중입니다.</p>
       </div>
     </section>
 
     <section class="login-panel" id="login-view" hidden>
       <div class="login-card">
-        <span class="eyebrow">관리자</span>
-        <h1>CNU GEH Lab CMS</h1>
-        <p class="muted">관리자 페이지는 Google 계정 로그인으로만 접근할 수 있습니다. 로그인 후 멤버, 과제, 논문, 게시판을 바로 추가·수정·삭제할 수 있습니다.</p>
+        <h1>연구실 콘텐츠 관리</h1>
+        <p class="muted">관리자 페이지는 Google 계정 로그인으로만 접근할 수 있습니다. 로그인 후 멤버, 과제, 논문, 특허, 게시판을 바로 추가·수정·삭제할 수 있습니다.</p>
         <div id="auth-notice" class="notice-banner is-info" role="status" aria-live="polite" aria-atomic="true"></div>
         <button type="button" class="google-button" id="google-login-button">
           <svg class="google-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.3-1.6 3.9-5.4 3.9-3.2 0-5.9-2.7-5.9-6s2.7-6 5.9-6c1.8 0 3.1.8 3.8 1.4l2.6-2.5C16.7 3.4 14.6 2.5 12 2.5 6.8 2.5 2.5 6.8 2.5 12S6.8 21.5 12 21.5c6.9 0 9.1-4.8 9.1-7.3 0-.5-.1-.9-.1-1.3H12z"></path><path fill="#34A853" d="M3.6 7l3.2 2.3C7.7 7.7 9.7 6 12 6c1.8 0 3.1.8 3.8 1.4l2.6-2.5C16.7 3.4 14.6 2.5 12 2.5 8.3 2.5 5 4.6 3.6 7z"></path><path fill="#4A90E2" d="M12 21.5c2.5 0 4.6-.8 6.1-2.3l-2.8-2.3c-.8.6-1.8 1-3.3 1-3.7 0-5.1-2.5-5.4-3.8l-3.1 2.4c1.4 2.8 4.7 5 8.5 5z"></path><path fill="#FBBC05" d="M6.6 14.1c-.2-.6-.3-1.3-.3-2.1s.1-1.5.3-2.1L3.5 7.5C2.9 8.8 2.5 10.4 2.5 12s.4 3.2 1 4.5l3.1-2.4z"></path></svg>
           Google 계정으로 로그인
         </button>
+        <a id="admin-preview-link" class="button secondary" href="admin.html?preview=1" hidden>로그인 없이 화면 미리보기</a>
       </div>
     </section>
 
     <main class="admin-main" id="dashboard-view" hidden>
+      <div id="admin-preview-banner" class="notice-banner is-info" hidden>예시 데이터로 보는 관리자 화면입니다. 변경은 이 탭에서만 유지되며 새로고침하면 초기화됩니다.</div>
       <div id="notice-area" class="notice-banner is-info" role="status" aria-live="polite" aria-atomic="true" hidden></div>
       <div class="admin-head admin-card">
         <div>
-          <span class="eyebrow">관리자</span>
-          <h1>콘텐츠 관리</h1>
-          <p>탭을 눌러 멤버, 과제, 논문, 게시판을 분리해서 관리할 수 있습니다.</p>
+            <h1>콘텐츠 관리</h1>
+          <p>탭을 눌러 멤버, 과제, 논문, 특허, 게시판을 분리해서 관리할 수 있습니다.</p>
         </div>
       </div>
-      <div class="admin-summary-row admin-summary-row--five">
+      <div class="admin-summary-row admin-summary-row--six">
         <article class="summary-card"><strong id="summary-members">0</strong><span>멤버</span></article>
         <article class="summary-card"><strong id="summary-projects">0</strong><span>과제</span></article>
         <article class="summary-card"><strong id="summary-publications">0</strong><span>논문</span></article>
+        <article class="summary-card"><strong id="summary-patents">0</strong><span>특허</span></article>
         <article class="summary-card"><strong id="summary-board">0</strong><span>게시판</span></article>
         <article class="summary-card summary-card--trash"><strong id="summary-trash">0</strong><span>휴지통</span></article>
       </div>
@@ -75,6 +103,7 @@
         <button type="button" class="admin-tab is-active" data-admin-tab="members">멤버 관리</button>
         <button type="button" class="admin-tab" data-admin-tab="projects">과제 관리</button>
         <button type="button" class="admin-tab" data-admin-tab="publications">논문 관리</button>
+        <button type="button" class="admin-tab" data-admin-tab="patents">특허 관리</button>
         <button type="button" class="admin-tab" data-admin-tab="board">게시판 관리</button>
         <button type="button" class="admin-tab" data-admin-tab="trash">휴지통</button>
       </div>
@@ -232,12 +261,49 @@
         <article class="admin-card"><div class="admin-card-head"><span class="eyebrow">저장된 논문</span><button type="button" class="button primary button-sm" id="publication-add-button">논문 추가</button></div><div class="admin-subtabs" id="publication-filter-tabs"></div><label class="field admin-search-field"><span>검색</span><input id="publication-search-admin" type="search" placeholder="제목, 저자, 저널, DOI 검색"></label><div class="admin-list-stack" id="publication-list"></div><div class="admin-pagination" id="publication-pagination"></div></article>
       </section>
 
+
+      <section class="admin-stage" data-panel="patents" hidden>
+        <article class="admin-card admin-editor-modal" id="patent-editor-card" role="dialog" aria-modal="true" aria-labelledby="patent-form-title" tabindex="-1" hidden>
+          <div class="editor-title-row"><h2 id="patent-form-title">특허 추가</h2><button type="button" class="small-button editor-close-button" data-editor-close="patent">닫기</button></div>
+          <form id="patent-form" class="editor-form">
+            <p class="muted">영문 항목을 입력하면 영문 페이지에 표시됩니다. 비워 두면 국문 내용을 표시합니다.</p>
+            <div class="form-grid form-grid--double">
+              <label class="field"><span>특허명 (국문) *</span><input name="titleKr" type="text" required></label>
+<label class="field"><span>특허명 (영문)</span><input name="titleEn" type="text"></label>
+<label class="field"><span>발명자 (국문) *</span><input name="inventorsKr" type="text" required></label>
+<label class="field"><span>발명자 (영문)</span><input name="inventorsEn" type="text"></label>
+<label class="field"><span>출원인 / 권리자 (국문)</span><input name="applicantKr" type="text"></label>
+<label class="field"><span>출원인 / 권리자 (영문)</span><input name="applicantEn" type="text"></label>
+<label class="field"><span>국가 / 관할 (국문)</span><input name="countryKr" type="text" value="대한민국"></label>
+<label class="field"><span>국가 / 관할 (영문)</span><input name="countryEn" type="text" value="Republic of Korea"></label>
+<label class="field"><span>출원번호 *</span><input name="applicationNumber" type="text" required></label>
+<label class="field"><span>출원일 *</span><input name="applicationDate" type="date" required></label>
+              <label class="field"><span>상태</span><select name="status"><option value="pending">출원</option><option value="granted">등록</option></select></label>
+            </div>
+            <div class="form-grid form-grid--double" id="patent-registration-fields" hidden>
+              <label class="field"><span>등록번호 *</span><input name="registrationNumber" type="text" disabled></label>
+              <label class="field"><span>등록일 *</span><input name="registrationDate" type="date" disabled></label>
+            </div>
+            <label class="field"><span>특허 정보 링크</span><input name="url" type="url" placeholder="https://…"></label>
+            <label class="field"><span>요약 (국문)</span><textarea name="descriptionKr"></textarea></label>
+            <label class="field"><span>요약 (영문)</span><textarea name="descriptionEn"></textarea></label>
+            <div class="form-actions"><button class="button primary" type="submit">저장</button><button class="button secondary" type="button" id="patent-reset">초기화</button></div>
+          </form>
+        </article>
+        <article class="admin-card">
+          <div class="admin-card-head"><span class="eyebrow">저장된 특허</span><button type="button" class="button primary button-sm" id="patent-add-button">특허 추가</button></div>
+          <div class="admin-subtabs" id="patent-filter-tabs"></div>
+          <label class="field admin-search-field"><span>검색</span><input id="patent-search-admin" type="search" placeholder="특허명, 발명자, 출원인, 번호 검색"></label>
+          <div class="admin-list-stack" id="patent-list"></div><div class="admin-pagination" id="patent-pagination"></div>
+        </article>
+      </section>
+
       <section class="admin-stage" data-panel="board" hidden>
         <article class="admin-card admin-editor-modal" id="board-editor-card" role="dialog" aria-modal="true" aria-labelledby="board-form-title" tabindex="-1" hidden>
           <div class="editor-title-row"><h2 id="board-form-title">게시판 추가</h2><button type="button" class="small-button editor-close-button" data-editor-close="board">닫기</button></div>
           <form id="board-form" class="editor-form">
             <div class="form-grid form-grid--double form-grid--board-meta">
-              <label class="field"><span>분류</span><select name="category"><option value="conference" selected>학회</option><option value="workshop">워크숍</option><option value="equipment">실험실 장비 목록</option><option value="other">기타</option></select></label>
+              <label class="field"><span>분류</span><select name="category"><option value="other" selected>기사</option><option value="conference">학회</option><option value="workshop">워크숍</option><option value="equipment">실험실 장비 목록</option></select></label>
               <label class="field"><span>날짜</span><input name="date" type="date"></label>
             </div>
             <label class="field"><span>제목 *</span><input name="title" type="text" required></label>
@@ -286,6 +352,6 @@
   </div>
 
   <script vite-ignore src="firebase-config.js?v=80"></script>
-  <script type="module" src="assets/js/admin.js?v=115"></script>
+  <script type="module" src="assets/js/admin.js?v=141"></script>
 </body>
 </html>

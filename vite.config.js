@@ -39,6 +39,7 @@ export default defineConfig({
         members: page('members.html'),
         projects: page('projects.html'),
         publications: page('publications.html'),
+        patents: page('patents.html'),
         news: page('news.html'),
         board: page('board.html'),
         contact: page('contact.html'),
@@ -47,6 +48,7 @@ export default defineConfig({
         enMembers: page('en/members.html'),
         enProjects: page('en/projects.html'),
         enPublications: page('en/publications.html'),
+        enPatents: page('en/patents.html'),
         enNews: page('en/news.html'),
         enBoard: page('en/board.html'),
         enContact: page('en/contact.html')

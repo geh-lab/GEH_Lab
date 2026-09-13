@@ -1,10 +1,11 @@
+import { memberSummaryMarkup } from '../assets/js/member-summary.js';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { portraitMarkup } from '../assets/js/portraits.js';
 import {
   escapeHTML,
   formatEnglishName,
-  getInitials,
   groupBy,
   isActiveItem,
   memberCourseLabel,
@@ -207,35 +208,24 @@ function memberMetaChips(member, lang) {
 
 function memberImage(member, lang, root, size) {
   const name = displayName(member, lang);
-  const path = rootAsset(member.photoUrl || member.photoPath || '', root);
-  return path
-    ? `<img src="${escapeHTML(path)}" alt="${escapeHTML(name)}" width="${size}" height="${size}" loading="lazy" decoding="async">`
-    : `<span>${escapeHTML(getInitials(displayName(member, 'en') || name || member.name))}</span>`;
+  return portraitMarkup({ source: member.photoUrl || member.photoPath || '', name, initialsName: displayName(member, 'en') || name, root, size, eager: member.group === 'pi' });
 }
 
-function memberCard(member, lang, root) {
-  const chips = memberMetaChips(member, lang);
-  return `<article class="member-card reveal interactive-card" data-member-id="${escapeHTML(member.id)}" tabindex="0" role="button" aria-label="${escapeHTML(displayName(member, lang))}">
-    <div class="member-card__profile">
-      <div class="member-thumb">${memberImage(member, lang, root, 96)}</div>
-      <div class="member-card__identity">${chips ? `<div class="member-chip-row">${chips}</div>` : ''}<div class="member-card__name-row"><h3>${escapeHTML(displayName(member, lang))}</h3>${memberEmailLink(member.email, lang, 'member-card__email')}</div></div>
-    </div>
-    <div class="member-copy">${educationMarkup(member, lang)}</div>
+function memberPreview(member, lang, root, alumni = false) {
+  const name = displayName(member, lang);
+  const interest = !alumni && member.group === 'researchProfessor' ? localized(member, 'researchInterest', lang) : '';
+  const chips = alumni
+    ? [member.graduationYear, alumniCourseLabel(member, lang)].filter(Boolean).map(text => `<span class="member-chip">${escapeHTML(text)}</span>`).join('')
+    : memberMetaChips(member, lang);
+  const position = alumni ? localized(member, 'currentPosition', lang) : '';
+  return `<article class="member-card${alumni ? ' member-card--alumni' : ''} reveal" data-member-id="${escapeHTML(member.id)}">
+    <div class="profile-avatar"><button type="button" class="member-thumb" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(name)} ${lang === 'en' ? 'details' : '상세 보기'}">${memberImage(member, lang, root, 128)}</button></div>
+    <div class="member-preview-identity"><h3>${escapeHTML(name)}</h3>${chips ? `<div class="member-chip-row">${chips}</div>` : ''}${position ? `<p class="muted">${escapeHTML(position)}</p>` : ''}</div>
+    ${interest ? `<div class="member-card-interest"><h4>${escapeHTML(copy[lang].interest)}</h4><p>${escapeHTML(interest)}</p></div>` : ''}
   </article>`;
 }
-
-function alumniCard(member, lang, root) {
-  const chips = [member.graduationYear || '', alumniCourseLabel(member, lang)].filter(Boolean);
-  const education = educationMarkup(member, lang);
-  const position = localized(member, 'currentPosition', lang);
-  return `<article class="member-card member-card--alumni reveal interactive-card" data-member-id="${escapeHTML(member.id)}" tabindex="0" role="button" aria-label="${escapeHTML(displayName(member, lang))}">
-    <div class="member-card__profile">
-      <div class="member-thumb">${memberImage(member, lang, root, 80)}</div>
-      <div class="member-card__identity">${chips.length ? `<div class="member-chip-row">${chips.map((chip) => `<span class="member-chip">${escapeHTML(chip)}</span>`).join('')}</div>` : ''}<h3>${escapeHTML(displayName(member, lang))}</h3></div>
-    </div>
-    <div class="member-copy">${education || (localized(member, 'bio', lang) ? `<p>${escapeHTML(localized(member, 'bio', lang))}</p>` : '')}${position ? `<p class="muted"><strong>${escapeHTML(copy[lang].currentPosition)}:</strong> ${escapeHTML(position)}</p>` : ''}</div>
-  </article>`;
-}
+function memberCard(member, lang, root) { return memberPreview(member, lang, root); }
+function alumniCard(member, lang, root) { return memberPreview(member, lang, root, true); }
 
 function scheduleMarkup(member, lang) {
   const rows = (Array.isArray(member.courseSchedule) ? member.courseSchedule : []).filter((entry) => ['time', 'courseName', 'credits', 'description'].some((key) => String(entry?.[key] || '').trim()));
@@ -247,16 +237,13 @@ function scheduleMarkup(member, lang) {
 
 function piMarkup(pi, lang, root) {
   if (!pi) return `<div class="empty-state">${escapeHTML(copy[lang].noMembers)}</div>`;
-  const year = memberYearLabel(pi, lang);
-  const schedule = scheduleMarkup(pi, lang);
   const interest = localized(pi, 'researchInterest', lang);
   return `<div class="pi-card-layout">
-    <button type="button" class="pi-photo pi-photo-button" data-member-id="${escapeHTML(pi.id)}">${pi.photoUrl ? `<img src="${escapeHTML(rootAsset(pi.photoUrl, root))}" alt="${escapeHTML(displayName(pi, lang))}" width="480" height="575" decoding="async" fetchpriority="high">` : `<span>${escapeHTML(getInitials(displayName(pi, 'en') || pi.name))}</span>`}</button>
-    <div class="pi-card-main"><div class="pi-card-head"><span class="eyebrow">${escapeHTML(copy[lang].pi)}</span><div class="pi-name-row"><h2>${escapeHTML(displayName(pi, lang))}</h2>${year ? `<span class="member-chip member-chip--soft">${escapeHTML(year)}</span>` : ''}${memberEmailLink(pi.email, lang, 'pi-card-email')}</div><p class="pi-title">${escapeHTML(localized(pi, 'bio', lang) || copy[lang].professorBio)}</p></div>
-      <div class="pi-card-grid pi-card-grid--core"><article><h3>${escapeHTML(copy[lang].education)}</h3>${educationMarkup(pi, lang, 'panel')}</article><article><h3>${escapeHTML(copy[lang].experience)}</h3>${experienceMarkup(pi, lang, 'panel')}</article></div>
-      ${interest ? `<article class="pi-card-interest"><h3>${escapeHTML(copy[lang].interest)}</h3><p>${escapeHTML(interest)}</p></article>` : ''}
+    <div class="profile-avatar profile-avatar--pi"><button type="button" class="pi-photo" data-member-id="${escapeHTML(pi.id)}" aria-label="${escapeHTML(displayName(pi, lang))} ${lang === 'en' ? 'details' : '상세 보기'}">${memberImage(pi, lang, root, 192)}</button></div>
+    <div class="pi-card-main"><div class="pi-card-head"><span class="eyebrow">${escapeHTML(copy[lang].pi)}</span><div class="pi-name-row"><h2>${escapeHTML(displayName(pi, lang))}</h2>${memberEmailLink(pi.email, lang, 'pi-card-email')}</div><p class="pi-title">${escapeHTML(localized(pi, 'bio', lang) || copy[lang].professorBio)}</p></div>
     </div>
-  </div>${schedule ? `<div class="pi-card-grid pi-card-grid--schedule"><article class="pi-card-grid__full"><h3>${escapeHTML(copy[lang].courseSchedule)}</h3>${schedule}</article></div>` : ''}`;
+    ${interest ? `<div class="pi-card-focus"><h3>${escapeHTML(copy[lang].interest)}</h3><p class="pi-research-summary">${escapeHTML(interest)}</p></div>` : ''}
+  </div>`;
 }
 
 function accordionMarkup(title, items, content, open, id) {
@@ -273,15 +260,7 @@ function rosterSections(members, lang) {
   const graduates = current.filter((member) => member.group === 'graduateStudent');
   const undergrads = current.filter((member) => member.group === 'studentResearcher');
   const alumni = members.filter((member) => member.status === 'alumni' || member.group === 'alumni');
-  const phdCount = graduates.filter((member) => member.course === 'phd').length;
-  const phdCompletedCount = graduates.filter((member) => member.course === 'phdCompleted').length;
-  const msCount = graduates.filter((member) => member.course === 'ms').length;
-  const stats = [
-    { value: current.length, label: copy[lang].current, meta: [`${copy[lang].pi} ${piMembers.length}`, `${copy[lang].research} ${researchers.length}`, `${copy[lang].graduate} ${graduates.length}`, `${copy[lang].undergrad} ${undergrads.length}`] },
-    { value: researchers.length, label: copy[lang].research, meta: [] },
-    { value: graduates.length, label: copy[lang].graduate, meta: [`${copy[lang].phd} ${phdCount}`, `${lang === 'en' ? 'Ph.D. completion research' : copy[lang].phdCompleted} ${phdCompletedCount}`, `${copy[lang].ms} ${msCount}`] },
-    { value: alumni.length, label: copy[lang].alumni, meta: [`${copy[lang].phd} ${alumni.filter((member) => ['phd', 'phdCompleted'].includes(member.course)).length}`, `${copy[lang].ms} ${alumni.filter((member) => member.course === 'ms').length}`] }
-  ].map((item) => `<article class="stat-card stat-card--summary reveal"><strong class="count-up is-counted" data-target="${item.value}">${item.value}</strong><span>${escapeHTML(item.label)}</span>${item.meta.length ? `<div class="stat-card__meta">${item.meta.map((line) => `<small>${escapeHTML(line)}</small>`).join('')}</div>` : ''}</article>`).join('');
+  const stats = memberSummaryMarkup(members, lang);
 
   let accordionId = 0;
   const grid = (items, className = '') => items.length ? `<div class="member-grid${className ? ` ${className}` : ''}" data-count="${items.length}">${items.map((member) => memberCard(member, lang, root)).join('')}</div>` : `<div class="empty-state">${escapeHTML(copy[lang].noMembers)}</div>`;
@@ -372,8 +351,8 @@ function compactMember(member) {
 
 function buildSitemap(lastmod) {
   const urls = [
-    '/', '/members.html', '/projects.html', '/publications.html', '/news.html', '/contact.html',
-    '/en/', '/en/members.html', '/en/projects.html', '/en/publications.html', '/en/news.html', '/en/contact.html'
+    '/', '/members.html', '/projects.html', '/publications.html', '/patents.html', '/news.html', '/contact.html',
+    '/en/', '/en/members.html', '/en/projects.html', '/en/publications.html', '/en/patents.html', '/en/news.html', '/en/contact.html'
   ];
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((path) => `  <url><loc>${siteUrl}${path}</loc><lastmod>${lastmod}</lastmod></url>`).join('\n')}\n</urlset>\n`;
 }

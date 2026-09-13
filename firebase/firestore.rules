@@ -22,6 +22,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /patents/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /boardPosts/{docId} {
       allow read: if true;
       allow write: if isAdmin();
