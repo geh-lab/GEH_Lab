@@ -108,8 +108,9 @@
 #geh-site .hero :is(h1,.hero-subtitle,.eyebrow) { color:#fff !important; text-shadow:0 1px 3px rgb(0 12 15 / .9),0 2px 12px rgb(0 15 19 / .7) !important; }
 #geh-site .hero .home-overview {
   --text:#f5fcfa; --muted:#e2efec; --accent:#b7e3ff; --card-strong:#132d34;
-  --glass-fill:rgb(9 29 35 / .64); --glass-blur:6;
+  --glass-fill:rgb(9 29 35 / .44); --glass-blur:8;
   --glass-border:rgb(237 255 249 / .46); --glass-edge:rgb(237 255 249 / .40);
+  background:var(--glass-fill);
 }
 #geh-site .over-hero { --c-glass:var(--glass-fill); --c-glass-rim:var(--glass-border); --c-lens:var(--glass-light); }
 #geh-site .over-hero :is(.brand,.dock-shell,.header-language) { color:#fff !important; text-shadow:0 1px 3px rgb(0 12 15 / .9),0 1px 8px rgb(0 15 19 / .65); }

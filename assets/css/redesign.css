@@ -523,12 +523,12 @@
   #geh-site .header-language { padding-inline:10px; font-size:calc(12px * var(--reading-scale,1)); }
 }
 
-/* Home: the introduction and live lab totals share one cover. */
+/* Home: live totals sit inside one glass panel over the cover photo. */
 #geh-site .hero-layout { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); align-items:center; gap:clamp(28px,4vw,64px); width:100%; max-width:1200px; margin-inline:auto; }
-#geh-site .home-overview { min-width:0; margin:0; }
-#geh-site .home-overview .hero-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; margin:0 !important; gap:12px !important; }
-#geh-site .home-overview .hero-stat-grid>.stat-card { min-width:0; min-height:124px !important; padding:20px !important; border-radius:22px !important; }
-#geh-site .home-overview .hero-stat-grid>.stat-card:last-child { grid-column:1 / -1; }
+#geh-site .home-overview { min-width:0; margin:0; padding:28px; border:1px solid var(--glass-border); border-radius:30px; }
+#geh-site .home-overview .hero-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; margin:0 !important; gap:24px !important; }
+#geh-site .home-overview .hero-stat-grid>.stat-card { min-width:0; min-height:100px !important; padding:0 !important; border:0 !important; border-radius:0 !important; background:none !important; box-shadow:none !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important; }
+#geh-site .home-overview .hero-stat-grid>.stat-card:last-child { grid-column:1 / -1; min-height:0 !important; padding-top:20px !important; border-top:1px solid var(--glass-border) !important; }
 @media (max-width:1100px) {
   #geh-site .hero-layout { grid-template-columns:minmax(0,1fr); gap:32px; }
 }
@@ -538,7 +538,7 @@
   #geh-site .hero h1 { font-size:calc(clamp(34px,6.8vw,48px) * var(--reading-scale,1)) !important; }
   #geh-site .hero .eyebrow { margin-bottom:16px; }
   #geh-site .hero .hero-subtitle { margin-top:18px; max-width:480px; }
-  #geh-site .home-overview .hero-stat-grid>.stat-card { min-height:112px !important; padding:18px !important; border-radius:20px !important; }
+  #geh-site .home-overview { padding:22px; border-radius:26px; }
 
 }
 @media (max-width:600px) {

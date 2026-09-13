@@ -119,7 +119,7 @@ export function attachLiquidGlass(host) {
 
 export function setupLiquidGlass() {
   const selectors=[
-    '.page-hero-card','.stat-card','.project-card','.member-card','.pi-card','.contact-card',
+    '.page-hero-card','.home-overview','.stat-card:not(.stat-card--summary)','.project-card','.member-card','.pi-card','.contact-card',
     '.home-publication-card','.home-news-card','.home-contact-card','.publication-card',
     '.board-card','.news-card','.accordion','.archive-item','.patent-card','.login-card',
     '.admin-card','.admin-item-card','.summary-card','.admin-dialog__panel',
