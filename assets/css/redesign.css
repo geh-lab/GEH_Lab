@@ -347,6 +347,10 @@
 #geh-site .admin-shell :is(.project-picker__hint,.project-picker__content small,.file-picker__name) { color:var(--muted) !important; }
 #geh-site .project-picker__item.is-selected .project-picker__content { background:var(--accent-soft) !important; border-color:var(--accent) !important; }
 /* Board attachments use one rounded section, without glass on layout-only rows. */
+#geh-site #board-editor-card .editor-form { grid-template-columns:minmax(0,1fr) !important; }
+#geh-site #board-editor-card :is(.editor-form,.form-grid) > * { min-width:0; }
+#geh-site #board-editor-card .field { grid-template-columns:minmax(0,1fr); }
+#geh-site #board-editor-card .field :is(input,select,textarea) { min-width:0; max-width:100%; }
 #geh-site #board-editor-card .member-photo-box { min-width:0; padding:16px; gap:12px; border:1px solid var(--line); border-radius:20px; background:var(--popup-section-fill,var(--bg-soft)) !important; }
 #geh-site #board-editor-card .form-actions { background:transparent !important; border:0 !important; box-shadow:none !important; }
 #geh-site #board-editor-card .editor-form>.form-actions:last-child { position:static; margin:0; padding:0; }
@@ -356,7 +360,13 @@
 #geh-site #board-image-preview .photo-preview-grid:not(.is-multi) { grid-template-columns:minmax(0,280px) !important; }
 #geh-site #board-image-preview .photo-preview-grid__item { position:relative; min-width:0; min-height:0; padding:10px; gap:8px; background:var(--popup-inner-fill,var(--bg-soft)); }
 #geh-site #board-image-preview .photo-preview-grid__item img { width:100%; height:160px; max-height:160px; object-fit:contain; }
-#geh-site #board-image-preview .photo-preview-grid__remove { position:absolute; top:6px; right:6px; z-index:1; width:36px; height:36px; }
+#geh-site #board-image-preview .photo-preview-grid__remove {
+  --preview-remove-size:max(44px,calc(22px * var(--reading-scale,1) + 8px));
+  --glass-fill:var(--search-popup-fill);
+  position:absolute; top:6px; right:6px; z-index:1;
+  width:var(--preview-remove-size); height:var(--preview-remove-size); min-width:var(--preview-remove-size); min-height:var(--preview-remove-size);
+  padding:0; border:1px solid var(--line); border-radius:50%; background:var(--card-strong); color:var(--text);
+}
 #geh-site #board-editor-card .form-actions--upload { margin:0; gap:10px; }
 #geh-site #board-editor-card .file-picker { flex-wrap:wrap; min-height:52px; padding:8px 12px; gap:8px 12px; background:var(--popup-inner-fill,var(--bg-soft)) !important; }
 #geh-site #board-editor-card .file-picker__name { flex:1 1 120px; white-space:normal; overflow-wrap:anywhere; }

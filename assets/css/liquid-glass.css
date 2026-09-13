@@ -82,14 +82,14 @@
 #geh-site[data-page] .liquid-glass[data-liquid-glass]:is(button,a):hover::before { box-shadow:inset 1px 1px 0 var(--glass-edge),inset 0 0 18px rgb(235 247 255 / .13); }
 /* Paint small controls' rims after their backdrop, so the lens cannot sample
    its own bright border and turn it into a jagged reflection. */
-#geh-site[data-page] :is(.floating-tools>.chrome-icon,.site-modal__close,.text-size-control>button,.theme-options>button,.global-search [data-search-close]).liquid-glass[data-liquid-glass] { border-color:transparent !important; }
-#geh-site[data-page] :is(.floating-tools>.chrome-icon,.site-modal__close,.text-size-control>button,.theme-options>button,.global-search [data-search-close]).liquid-glass[data-liquid-glass]::before { box-shadow:none !important; }
-#geh-site[data-page] :is(.floating-tools>.chrome-icon,.site-modal__close,.text-size-control>button,.theme-options>button,.global-search [data-search-close]).liquid-glass[data-liquid-glass]::after {
+#geh-site[data-page] :is(.floating-tools>.chrome-icon,.site-modal__close,.photo-preview-grid__remove,.text-size-control>button,.theme-options>button,.global-search [data-search-close]).liquid-glass[data-liquid-glass] { border-color:transparent !important; }
+#geh-site[data-page] :is(.floating-tools>.chrome-icon,.site-modal__close,.photo-preview-grid__remove,.text-size-control>button,.theme-options>button,.global-search [data-search-close]).liquid-glass[data-liquid-glass]::before { box-shadow:none !important; }
+#geh-site[data-page] :is(.floating-tools>.chrome-icon,.site-modal__close,.photo-preview-grid__remove,.text-size-control>button,.theme-options>button,.global-search [data-search-close]).liquid-glass[data-liquid-glass]::after {
   content:""; display:block !important; position:absolute; inset:0; z-index:0; pointer-events:none;
   box-sizing:border-box; border:1px solid var(--glass-border); border-radius:inherit;
   box-shadow:inset 1px 1px 0 var(--glass-edge),inset -1px -1px 0 rgb(136 166 218 / .16);
 }
-#geh-site[data-page] :is(.floating-tools>.chrome-icon,.site-modal__close,.text-size-control>button,.theme-options>button,.global-search [data-search-close]).liquid-glass:hover::after { box-shadow:inset 1px 1px 0 var(--glass-edge),inset 0 0 18px rgb(235 247 255 / .13); }
+#geh-site[data-page] :is(.floating-tools>.chrome-icon,.site-modal__close,.photo-preview-grid__remove,.text-size-control>button,.theme-options>button,.global-search [data-search-close]).liquid-glass:hover::after { box-shadow:inset 1px 1px 0 var(--glass-edge),inset 0 0 18px rgb(235 247 255 / .13); }
 #geh-site .liquid-glass:is(button,a):active { transform:scale(.98); }
 #geh-site .admin-tab.liquid-glass.is-active { --glass-fill:var(--accent-soft); border-color:var(--accent) !important; }
 /* Photos keep their familiar size; a fine glass edge belongs to the full disc. */

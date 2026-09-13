@@ -127,7 +127,7 @@ export function setupLiquidGlass() {
     '.search-field-surface','.global-search form','.global-search [data-search-close]',
     '.floating-tools > .chrome-icon','.text-size-control > button',
     '[data-preferences-panel] .theme-options > button',
-    '.site-modal__dialog','.site-modal__close','.admin-tab',
+    '.site-modal__dialog','.site-modal__close','.photo-preview-grid__remove','.admin-tab',
     '.detail-block','.member-education-item','.member-experience-item','.linked-card',
     '.member-publication-item','.publication-members__item','.archive-project-item','.publication-item',
     '.admin-editor-modal','.admin-editor-modal .editor-title-row','.admin-editor-modal .admin-card-head',

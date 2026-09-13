@@ -2104,7 +2104,7 @@ function renderBoardImagePreview() {
     ? state.pendingBoardFiles.map((file) => file.name)
     : previewUrls.map((_, index) => `이미지 ${index + 1}`);
   const gridClass = previewUrls.length > 1 ? ' is-multi' : '';
-  elements.boardImagePreview.innerHTML = `<div class="photo-preview-grid${gridClass}">` + previewUrls.map((url, index) => `<figure class="photo-preview-grid__item"><button type="button" class="photo-preview-grid__remove" data-board-preview-remove="${index}" aria-label="이미지 삭제">×</button><img src="${escapeHTML(rootAsset(url, root))}" alt="preview ${index + 1}"><figcaption class="photo-preview-grid__caption">${escapeHTML(names[index] || `이미지 ${index + 1}`)}</figcaption></figure>`).join('') + `</div>`;
+  elements.boardImagePreview.innerHTML = `<div class="photo-preview-grid${gridClass}">` + previewUrls.map((url, index) => `<figure class="photo-preview-grid__item"><button type="button" class="chrome-icon photo-preview-grid__remove" data-board-preview-remove="${index}" aria-label="이미지 ${index + 1} 삭제"><i class="ph ph-x" aria-hidden="true"></i></button><img src="${escapeHTML(rootAsset(url, root))}" alt="preview ${index + 1}"><figcaption class="photo-preview-grid__caption">${escapeHTML(names[index] || `이미지 ${index + 1}`)}</figcaption></figure>`).join('') + `</div>`;
   updateBoardImageLabel();
 }
 
