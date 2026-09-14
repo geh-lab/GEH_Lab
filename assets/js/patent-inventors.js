@@ -64,15 +64,18 @@ function unmatchedText(value, aliases) {
 
 export function resolvePatentInventors(patent = {}, members = []) {
   const { byId, aliases } = memberIndex(members);
-  const structured = ['inventorMemberIds', 'inventorMembers', 'externalInventorsKr', 'externalInventorsEn']
+  const structured = ['inventorMemberIds', 'inventorMembers', 'externalInventorsKr', 'externalInventorsEn', 'inventorOrder']
     .some((key) => own(patent, key));
 
   if (structured) {
-    const saved = new Map((Array.isArray(patent.inventorMembers) ? patent.inventorMembers : [])
-      .map((item) => snapshot(item)).filter((item) => item.memberId).map((item) => [item.memberId, item]));
+    const saved = new Map([...(Array.isArray(patent.inventorOrder) ? patent.inventorOrder : []),
+      ...(Array.isArray(patent.inventorMembers) ? patent.inventorMembers : [])]
+      .filter((item) => item && typeof item === 'object').map((item) => snapshot(item)).filter((item) => item.memberId).map((item) => [item.memberId, item]));
     // An explicit empty ID list records an intentional unlink, even if old names remain.
-    const memberIds = own(patent, 'inventorMemberIds')
+    const selectedIds = own(patent, 'inventorMemberIds')
       ? uniqueIds(patent.inventorMemberIds) : [...saved.keys()];
+    const memberIds = uniqueIds([...(Array.isArray(patent.inventorOrder) ? patent.inventorOrder : [])
+      .map((item) => item?.memberId).filter((id) => selectedIds.includes(text(id))), ...selectedIds]);
     const memberSnapshots = memberIds.map((id) => saved.get(id) || snapshot(byId.get(id), id));
     const selectedAliases = aliasesForSnapshots(memberSnapshots, byId);
     return {
@@ -95,7 +98,12 @@ export function resolvePatentInventors(patent = {}, members = []) {
     return false;
   }).join(', ');
   const externalInventorsKr = remaining(patent.inventorsKr || patent.inventors);
-  const externalInventorsEn = remaining(patent.inventorsEn);
+  let externalInventorsEn = remaining(patent.inventorsEn);
+  const koreanParts = nameParts(patent.inventorsKr || patent.inventors, aliases);
+  const englishParts = nameParts(patent.inventorsEn, aliases);
+  // A complete old initials-only English credit is not an outside-inventor list.
+  if (koreanParts.length && !externalInventorsKr && englishParts.length === koreanParts.length
+    && englishParts.every((part) => !aliases.has(nameKey(part)) && /\b[A-Za-z]\./.test(part))) externalInventorsEn = '';
   return {
     memberIds,
     memberSnapshots: memberIds.map((id) => snapshot(byId.get(id), id)),
@@ -105,19 +113,118 @@ export function resolvePatentInventors(patent = {}, members = []) {
   };
 }
 
-function composeNames(snapshots, external, language, selectedAliases) {
-  const values = snapshots.map((item) => text(item[language]) || text(item.nameKr) || text(item.nameEn)).filter(Boolean);
-  const known = new Set(values.map(nameKey));
-  for (const part of nameParts(external, selectedAliases)) {
-    const key = nameKey(part);
-    // A repeated Latin fragment may be a surname in "Doe, Jane, Doe, John".
-    // Preserve it when the free text does not establish whole-name boundaries.
-    const wholeName = /\s|\p{Script=Hangul}/u.test(part) || selectedAliases.has(key);
-    if (selectedAliases.has(key) || (wholeName && known.has(key))) continue;
-    values.push(part);
-    known.add(key);
+// Semicolons/newlines establish whole-name boundaries, including "Doe, Jane".
+// When the two languages cannot be paired safely, keep the outside credit as a
+// single movable group instead of guessing which English name belongs to whom.
+function externalOrderEntries(kr, en, selectedAliases, knownOutside = []) {
+  const boundaries = new Map(selectedAliases);
+  for (const item of knownOutside) {
+    for (const value of [item.nameKr, item.nameEn]) {
+      if (nameKey(value)) boundaries.set(nameKey(value), true);
+    }
   }
-  return values.join(', ');
+  const parts = (value) => {
+    const explicit = /[;\r\n、·]/.test(value);
+    const values = explicit ? text(value).split(/[;\r\n、·]+/).map(text).filter(Boolean)
+      : nameParts(value, boundaries);
+    const seen = new Set();
+    return values.filter((part) => {
+      const key = nameKey(part);
+      const wholeName = explicit || /\s|\p{Script=Hangul}/u.test(part);
+      if (selectedAliases.has(key) || (wholeName && seen.has(key))) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const korean = parts(kr);
+  const english = parts(en);
+  if (!korean.length && !english.length) return [];
+  const ambiguous = (values, raw) => !/[;\r\n、·]/.test(raw)
+    && values.length > 1 && values.some((value) => /^[A-Za-z'-]+$/.test(value));
+  if ((korean.length && english.length && korean.length !== english.length)
+    || ambiguous(korean, kr) || ambiguous(english, en)) {
+    return [{ memberId: '', nameKr: korean.join(', '), nameEn: english.join(', ') }];
+  }
+  return Array.from({ length: Math.max(korean.length, english.length) }, (_, index) => ({
+    memberId: '', nameKr: korean[index] || '', nameEn: english[index] || ''
+  }));
+}
+
+const sameExternal = (a, b) => !!a && !!b && !a.memberId && !b.memberId
+  && ((text(a.nameKr) && nameKey(a.nameKr) === nameKey(b.nameKr))
+    || (text(a.nameEn) && nameKey(a.nameEn) === nameKey(b.nameEn)));
+
+// Relate editable free-text names by their original input position, independently
+// of their display position. This keeps a moved inventor in place while typing.
+function externalChanges(before, after) {
+  const matched = new Map();
+  const taken = new Set();
+  for (let index = 0; index < before.length; index += 1) {
+    const next = after.findIndex((item, candidate) => !taken.has(candidate) && sameExternal(before[index], item));
+    if (next >= 0) { matched.set(index, next); taken.add(next); }
+  }
+  // Equal list lengths and a remaining slot at the same index identify an
+  // in-place name edit. With additions/removals, only exact names are retained.
+  if (before.length === after.length) {
+    for (let index = 0; index < before.length; index += 1) {
+      if (!matched.has(index) && !taken.has(index)) { matched.set(index, index); taken.add(index); }
+    }
+  }
+  return matched;
+}
+
+// Matching lab-member anchors in both full credits establish the boundaries of
+// an outside credit ("Doe, Jane") without interpreting its internal commas.
+function anchoredOutsideEntries(previous, aliases) {
+  const split = (value) => {
+    const ids = [];
+    const groups = [[]];
+    for (const part of nameParts(value, aliases)) {
+      const matches = aliases.get(nameKey(part));
+      if (matches?.size === 1) { ids.push([...matches][0]); groups.push([]); }
+      else groups[groups.length - 1].push(part);
+    }
+    return { ids, groups };
+  };
+  const kr = split(previous.inventorsKr || previous.inventors);
+  const en = split(previous.inventorsEn);
+  if (!kr.ids.length || JSON.stringify(kr.ids) !== JSON.stringify(en.ids)
+    || kr.groups.some((group, index) => Boolean(group.length) !== Boolean(en.groups[index].length))) return [];
+  return kr.groups.flatMap((group, index) => group.length ? [{
+    memberId: '', nameKr: group.join(', '), nameEn: en.groups[index].join(', ')
+  }] : []);
+}
+
+function originalInventorOrder(previous, memberEntries, outside, aliases) {
+  const entries = [...memberEntries, ...outside];
+  const matches = new Map();
+  for (const item of memberEntries) {
+    for (const [alias, ids] of aliases) {
+      if (ids.size === 1 && ids.has(item.memberId)) matches.set(alias, item);
+    }
+  }
+  for (const item of outside) {
+    for (const value of [item.nameKr, item.nameEn]) {
+      for (const part of [value, ...nameParts(value, aliases)]) {
+        const key = nameKey(part);
+        if (key && !matches.has(key)) matches.set(key, item);
+      }
+    }
+  }
+  const kr = nameParts(previous.inventorsKr || previous.inventors, aliases);
+  const en = nameParts(previous.inventorsEn, aliases);
+  const linked = (parts) => new Set(parts.map((part) => matches.get(nameKey(part))?.memberId).filter(Boolean)).size;
+  const source = linked(en) > linked(kr) ? en : kr.length ? kr : en;
+  const ordered = [];
+  for (const part of source) {
+    const item = matches.get(nameKey(part));
+    if (item && !ordered.includes(item)) ordered.push(item);
+  }
+  return [...ordered, ...entries.filter((item) => !ordered.includes(item))];
+}
+
+function composeOrderedInventors(order, language) {
+  return order.map((item) => text(item[language]) || text(item.nameKr) || text(item.nameEn)).filter(Boolean).join(', ');
 }
 
 export function buildPatentInventorFields(input = {}, members = [], previous = {}) {
@@ -125,21 +232,56 @@ export function buildPatentInventorFields(input = {}, members = [], previous = {
   const resolved = resolvePatentInventors(previous, members);
   const memberIds = own(input, 'memberIds') ? uniqueIds(input.memberIds) : resolved.memberIds;
   const saved = new Map(resolved.memberSnapshots.map((item) => [item.memberId, item]));
-  const inventorMembers = memberIds.map((id) => byId.has(id)
+  const memberEntries = memberIds.map((id) => byId.has(id)
     ? snapshot(byId.get(id), id) : saved.get(id) || snapshot({}, id));
-  // Include prior spellings when removing a selected member duplicated in free text.
   const selectedAliases = aliasesForSnapshots([
-    ...inventorMembers, ...resolved.memberSnapshots.filter((item) => memberIds.includes(item.memberId))
+    ...memberEntries, ...resolved.memberSnapshots.filter((item) => memberIds.includes(item.memberId))
   ], byId);
   const externalInventorsKr = own(input, 'externalInventorsKr') ? text(input.externalInventorsKr) : resolved.externalInventorsKr;
   const externalInventorsEn = own(input, 'externalInventorsEn') ? text(input.externalInventorsEn) : resolved.externalInventorsEn;
+  const memberAliases = new Map();
+  for (const item of [...memberEntries, ...resolved.memberSnapshots]) {
+    for (const value of [item.nameKr, item.nameEn]) {
+      const key = nameKey(value);
+      if (!key) continue;
+      if (!memberAliases.has(key)) memberAliases.set(key, new Set());
+      memberAliases.get(key).add(item.memberId);
+    }
+  }
+  const explicitOrder = Array.isArray(input.inventorOrder) ? input.inventorOrder
+    : Array.isArray(previous.inventorOrder) ? previous.inventorOrder : null;
+  const knownOutside = explicitOrder?.filter((item) => item && !item.memberId)
+    || anchoredOutsideEntries(previous, memberAliases);
+  const outside = externalOrderEntries(externalInventorsKr, externalInventorsEn, selectedAliases, knownOutside);
+  const priorOutside = externalOrderEntries(resolved.externalInventorsKr, resolved.externalInventorsEn, selectedAliases, knownOutside);
+  const changed = externalChanges(priorOutside, outside);
+  const priorOrder = explicitOrder || originalInventorOrder(previous, resolved.memberSnapshots, priorOutside, memberAliases);
+  const inventorOrder = [];
+  const emittedMembers = new Set();
+  const emittedOutside = new Set();
+  for (const item of priorOrder) {
+    if (!item || typeof item !== 'object') continue;
+    const id = text(item.memberId);
+    if (id) {
+      const current = memberEntries.find((member) => member.memberId === id);
+      if (current && !emittedMembers.has(id)) { inventorOrder.push(current); emittedMembers.add(id); }
+    } else {
+      const priorIndex = priorOutside.findIndex((candidate) => sameExternal(item, candidate));
+      let index = priorIndex >= 0 ? changed.get(priorIndex) : undefined;
+      if (index === undefined) index = outside.findIndex((candidate) => sameExternal(item, candidate));
+      if (index >= 0 && !emittedOutside.has(index)) { inventorOrder.push(outside[index]); emittedOutside.add(index); }
+    }
+  }
+  for (const item of memberEntries) {
+    if (!emittedMembers.has(item.memberId)) inventorOrder.push(item);
+  }
+  outside.forEach((item, index) => { if (!emittedOutside.has(index)) inventorOrder.push(item); });
+  const inventorMembers = inventorOrder.filter((item) => item.memberId);
   return {
-    inventorMemberIds: memberIds,
-    inventorMembers,
-    externalInventorsKr,
-    externalInventorsEn,
-    inventorsKr: composeNames(inventorMembers, externalInventorsKr, 'nameKr', selectedAliases),
-    inventorsEn: composeNames(inventorMembers, externalInventorsEn || externalInventorsKr, 'nameEn', selectedAliases)
+    inventorMemberIds: inventorMembers.map((item) => item.memberId), inventorMembers,
+    externalInventorsKr, externalInventorsEn, inventorOrder,
+    inventorsKr: composeOrderedInventors(inventorOrder, 'nameKr'),
+    inventorsEn: composeOrderedInventors(inventorOrder, 'nameEn')
   };
 }
 
@@ -148,6 +290,10 @@ export function buildPatentInventorFields(input = {}, members = [], previous = {
 // the authority for names that were entered manually.
 export function patentInventorDisplay(patent = {}, members = [], lang = 'kr') {
   const english = lang === 'en';
+  if (Array.isArray(patent.inventorOrder)) {
+    const fields = buildPatentInventorFields({}, members, patent);
+    return english ? fields.inventorsEn : fields.inventorsKr;
+  }
   const resolved = resolvePatentInventors(patent, members);
   const { byId, aliases: rosterAliases } = memberIndex(members);
   const saved = new Map(resolved.memberSnapshots.map((item) => [item.memberId, item]));

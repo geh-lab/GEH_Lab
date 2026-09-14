@@ -21,7 +21,7 @@ const publication = {
 function eventCard(id) {
   const handlers = new Map();
   return {
-    dataset: { publicationId: id },
+    dataset: { publicationId: String(id) },
     closest() { return null; },
     addEventListener(type, callback) {
       const listeners = handlers.get(type) || [];
@@ -46,7 +46,8 @@ function runtime(lang = 'kr', cards = []) {
     body: { dataset: { page: 'home', lang, root: lang === 'en' ? '..' : '.' } },
     documentElement: { classList: { add() {} } }, addEventListener() {},
     querySelector: () => null,
-    querySelectorAll: (selector) => selector.includes('[data-publication-id]') ? cards : []
+    querySelectorAll: (selector) => selector.includes('[data-publication-id]') ? cards
+      : selector === '[data-link]' ? cards.filter((card) => card.dataset.link) : []
   };
   const api = vm.runInNewContext(`(() => { ${source}\n
     openModal = (title, html) => captureModal(title, html);
@@ -75,8 +76,11 @@ function sourceLink(html, href, label) {
   assert.match(anchor, /rel="[^"]*noreferrer[^\"]*"/);
   assert.ok(anchor.includes(label), `Missing source label: ${label}`);
 }
+function localDetailCard(html) {
+  assert.doesNotMatch(html, /<a\b|\b(?:href|target|data-link)=/, 'Home cards must only open same-page details');
+}
 
-check('Home publication cards open details and expose a separately labeled source link in both languages', () => {
+check('Home publication cards open same-page details; the source link appears only inside the popup in both languages', () => {
   for (const [lang, label] of [['kr', '논문 원문'], ['en', 'Read paper']]) {
     const r = runtime(lang);
     const html = r.homePublicationCard(publication);
@@ -84,8 +88,9 @@ check('Home publication cards open details and expose a separately labeled sourc
     assert.match(html, /role="button"/);
     assert.match(html, /tabindex="0"/);
     assert.match(html, /aria-haspopup="dialog"/);
-    assert.doesNotMatch(html, /\bdata-link=/);
-    sourceLink(html, 'https://doi.org/10.1000/home-paper', label);
+    localDetailCard(html);
+    assert.ok(html.includes(lang === 'en' ? 'View details' : '상세 보기'));
+    assert.ok(!html.includes(label), 'The source action must not remain on a home card');
     r.openPublicationModal(publication);
     assert.equal(r.modals[0].title, publication.title);
     assert.equal(r.scrollArea.scrollTop, 0, 'Details must start at the top after another paper was scrolled');
@@ -101,13 +106,13 @@ check('Home publication cards open details and expose a separately labeled sourc
 check('URL-only papers keep their source URL; papers without a source still open useful details', () => {
   const r = runtime();
   const urlOnly = { ...publication, doi: '', url: 'https://example.test/paper?issue=9&source=lab' };
-  sourceLink(r.homePublicationCard(urlOnly), urlOnly.url, '논문 원문');
+  localDetailCard(r.homePublicationCard(urlOnly));
   r.openPublicationModal(urlOnly);
   sourceLink(r.modals.at(-1).html, urlOnly.url, '논문 원문');
   const noSource = { ...publication, doi: '', url: '' };
   const card = r.homePublicationCard(noSource);
   assert.match(card, /data-publication-id="home-paper"/);
-  assert.doesNotMatch(card, /<a\b/);
+  localDetailCard(card);
   r.openPublicationModal(noSource);
   assert.ok(r.modals.at(-1).html.includes(publication.abstract));
   assert.doesNotMatch(r.modals.at(-1).html, /<a\b[^>]*href="(?:undefined|null|#|)"/);
@@ -124,33 +129,47 @@ check('Publication text and source attributes are escaped in home cards and deta
   for (const html of [card, r.modals[0].html]) {
     assert.doesNotMatch(html, /<script>|<svg\b|<img\b/);
     assert.ok(html.includes(utils.escapeHTML(unsafe.authors)));
-    sourceLink(html, unsafe.url, '논문 원문');
   }
+  localDetailCard(card);
+  sourceLink(r.modals[0].html, unsafe.url, '논문 원문');
   assert.ok(card.includes(utils.escapeHTML(unsafe.title)));
   assert.ok(r.modals[0].html.includes(utils.escapeHTML(unsafe.abstract)));
 });
 
-check('Home card click, Enter and Space open one modal; nested source links keep native behavior', () => {
-  const card = eventCard(publication.id);
-  const r = runtime('en', [card]);
-  r.bindInteractiveCards();
-  r.bindInteractiveCards();
-  assert.equal(card.handlerCount('click'), 1, 'Re-render binding must not duplicate click actions');
-  assert.equal(card.handlerCount('keydown'), 1);
-  card.dispatch('click');
-  for (const key of ['Enter', ' ']) assert.equal(card.dispatch('keydown', { key }).prevented, true);
-  assert.equal(r.modals.length, 3);
-  const anchor = { closest: () => anchor };
-  card.dispatch('click', { target: anchor });
-  const anchorKey = card.dispatch('keydown', { key: 'Enter', target: anchor });
-  assert.equal(anchorKey.prevented, false, 'The source anchor must retain its browser navigation');
-  assert.equal(r.modals.length, 3, 'Source link interactions must not also open details');
-  assert.equal(card.dispatch('keydown', { key: 'ArrowDown' }).prevented, false);
-  assert.equal(r.modals.length, 3);
-  assert.equal(r.externalOpens.length, 0, 'The card must never call window.open');
-  r.state.publications = [];
-  card.dispatch('click');
-  assert.equal(r.modals.length, 3, 'A removed record must not open stale details');
+check('Home card, title, authors, detail CTA, Enter and Space open one popup each, including numeric IDs and legacy markup', () => {
+  for (const id of [publication.id, 42]) {
+    const card = eventCard(id);
+    // Old markup must not reactivate the retired window.open handler.
+    card.dataset.link = 'https://doi.org/10.1000/home-paper';
+    const r = runtime('en', [card]);
+    r.state.publications = [{ ...publication, id }];
+    r.bindInteractiveCards();
+    r.bindInteractiveCards();
+    assert.equal(card.handlerCount('click'), 1, 'Re-render binding must not duplicate click actions');
+    assert.equal(card.handlerCount('keydown'), 1);
+    let opened = 0;
+    const expectOnePopup = (run) => {
+      run();
+      opened++;
+      assert.equal(r.modals.length, opened, 'Each interaction must open exactly one popup');
+      assert.equal(r.modals.at(-1).title, publication.title);
+      assert.equal(r.externalOpens.length, 0, 'The home card must never call window.open');
+    };
+    expectOnePopup(() => card.dispatch('click'));
+    for (const tagName of ['H3', 'P', 'SPAN']) {
+      const child = { tagName, closest: () => null };
+      expectOnePopup(() => card.dispatch('click', { target: child }));
+    }
+    for (const key of ['Enter', ' ']) {
+      expectOnePopup(() => assert.equal(card.dispatch('keydown', { key }).prevented, true));
+    }
+    assert.equal(card.dispatch('keydown', { key: 'ArrowDown' }).prevented, false);
+    assert.equal(r.modals.length, opened);
+    r.state.publications = [];
+    card.dispatch('click');
+    assert.equal(r.modals.length, opened, 'A removed record must not open stale details');
+    assert.equal(r.externalOpens.length, 0, 'Legacy data-link must not navigate even when the record is missing');
+  }
 });
 
 check('The standalone publication page retains DOI and disclosure behavior', () => {

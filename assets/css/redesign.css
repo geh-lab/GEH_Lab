@@ -350,6 +350,8 @@
 #geh-site .admin-editor-modal .editor-form { grid-template-columns:minmax(0,1fr) !important; }
 #geh-site .admin-editor-modal :is(.editor-form,.form-grid,.field-grid) > * { min-width:0; }
 #geh-site .admin-editor-modal .field { grid-template-columns:minmax(0,1fr); }
+/* The English country hint must not stretch the neighboring select's grid rows. */
+#geh-site #patent-form .patent-country-field { align-content:start; }
 #geh-site .admin-editor-modal .field :is(input,select,textarea) { min-width:0; max-width:100%; }
 #geh-site .admin-editor-modal,
 #geh-site .admin-editor-modal :is(textarea,.member-editor-panels,.publication-member-picker__list) { scrollbar-width:thin; scrollbar-color:var(--line-strong) transparent; }
@@ -408,7 +410,7 @@
 #geh-site .notice-banner { color:var(--text); background:var(--accent-light); border-color:var(--line-strong); }
 #geh-site :is(.button,.small-button).danger { color:var(--danger) !important; border-color:var(--danger) !important; }
 :root[data-theme="dark"] #geh-site :is(.journal-pill,.index-pill,.member-publication-role) { color:var(--accent) !important; background:var(--accent-soft) !important; border-color:var(--line-strong) !important; }
-:root[data-theme="dark"] #geh-site :is(.index-pill--kci,.member-publication-role--co) { background:#203b33 !important; color:#91dabf !important; }
+:root[data-theme="dark"] #geh-site :is(.index-pill--kci,.member-publication-role--co,.member-patent-summary--granted) { background:#203b33 !important; color:#91dabf !important; }
 :root[data-theme="dark"] #geh-site :is(.journal-pill--tone-purple,.index-pill--esci) { background:#352d48 !important; color:#d1b4ff !important; }
 :root[data-theme="dark"] #geh-site .member-publication-role--corresponding { background:#423924 !important; color:#f2d18a !important; }
 
@@ -609,8 +611,8 @@
   #geh-site .site-nav.is-open { background:var(--card-strong) !important; color:var(--text) !important; }
 }
 
-/* Role totals need the same contrast as individual publication badges. */
-:root[data-theme="dark"] #geh-site .member-publication-role--first { color:var(--accent) !important; background:var(--accent-soft) !important; border-color:var(--line-strong) !important; }
+/* Publication and patent totals share readable dark-mode badge colors. */
+:root[data-theme="dark"] #geh-site :is(.member-publication-role--first,.member-patent-summary--filed) { color:var(--accent) !important; background:var(--accent-soft) !important; border-color:var(--line-strong) !important; }
 
 /* Journal labels follow their content; long names wrap without stretching the pill. */
 #geh-site .publication-topline { display:flex !important; flex-wrap:wrap; align-items:center !important; gap:8px 10px !important; }

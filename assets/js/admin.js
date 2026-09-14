@@ -258,6 +258,7 @@ const elements = {
   patentForm: qs('#patent-form'),
   patentInventorPicker: qs('#patent-inventor-picker'),
   patentInventorPreview: qs('#patent-inventor-preview'),
+  patentInventorOrder: qs('#patent-inventor-order'),
   patentList: qs('#patent-list'),
   patentTitle: qs('#patent-form-title'),
   patentEditorCard: qs('#patent-editor-card'),
@@ -1118,6 +1119,7 @@ function bindEvents() {
   elements.patentForm?.addEventListener('input', onPatentInventorInput);
   elements.patentForm?.addEventListener('change', onPatentInventorInput);
   elements.patentInventorPicker?.addEventListener('change', onPatentInventorSelection);
+  elements.patentInventorOrder?.addEventListener('click', onPatentInventorReorder);
   qs('#patent-reset')?.addEventListener('click', resetPatentForm);
   elements.patentList?.addEventListener('click', onPatentListClick);
   elements.patentSearchInput?.addEventListener('input', (event) => { state.patentQuery = event.currentTarget.value; state.patentPage = 1; renderPatentsList(); });
@@ -2821,12 +2823,17 @@ function patentMembersAvailable() {
 }
 
 function initializePatentInventors(item = {}) {
-  const resolved = resolvePatentInventors(item, patentMembersAvailable() ? state.members : []);
+  const members = patentMembersAvailable() ? state.members : [];
+  const resolved = resolvePatentInventors(item, members);
+  const fields = buildPatentInventorFields(resolved, members, item);
   state.patentInventorDraft = {
     memberIds: [...resolved.memberIds],
     memberSnapshots: [...resolved.memberSnapshots],
+    inventorOrder: fields.inventorOrder,
+    lastFields: fields,
     legacyPending: resolved.legacy && !patentMembersAvailable(),
     externalTouched: false,
+    orderTouched: false,
     renderKey: ''
   };
   state.patentInventorQuery = '';
@@ -2839,10 +2846,12 @@ function collectPatentInventors() {
   const draft = state.patentInventorDraft || { memberIds: [], memberSnapshots: [] };
   return buildPatentInventorFields({
     memberIds: draft.memberIds,
+    inventorOrder: draft.inventorOrder,
     externalInventorsKr: elements.patentForm.elements.namedItem('externalInventorsKr')?.value || '',
     externalInventorsEn: elements.patentForm.elements.namedItem('externalInventorsEn')?.value || ''
   }, patentMembersAvailable() ? state.members : [], {
     ...state.editingPatent,
+    ...draft.lastFields,
     inventorMembers: draft.memberSnapshots
   });
 }
@@ -2850,8 +2859,42 @@ function collectPatentInventors() {
 function updatePatentInventorPreview() {
   if (!elements.patentInventorPreview || !state.patentInventorDraft) return;
   const fields = collectPatentInventors();
-  elements.patentInventorPreview.textContent = [fields.inventorsKr, fields.inventorsEn].filter(Boolean).join(' / ')
+  state.patentInventorDraft.inventorOrder = fields.inventorOrder;
+  state.patentInventorDraft.lastFields = fields;
+  elements.patentInventorPreview.textContent = [fields.inventorsKr && `국문: ${fields.inventorsKr}`, fields.inventorsEn && `영문: ${fields.inventorsEn}`].filter(Boolean).join('\n')
     || '멤버를 선택하거나 발명자 이름을 입력해주세요.';
+  renderPatentInventorOrder(fields.inventorOrder || []);
+}
+
+function renderPatentInventorOrder(items) {
+  const container = elements.patentInventorOrder;
+  if (!container) return;
+  container.innerHTML = items.map((item, index) => {
+    const name = item.nameKr || item.nameEn || `저장된 멤버 (${item.memberId})`;
+    const english = item.nameEn && item.nameEn !== name ? item.nameEn : '';
+    return `<li class="patent-inventor-order__item"><span class="patent-inventor-order__number" aria-hidden="true">${index + 1}</span><span class="patent-inventor-order__name"><strong>${escapeHTML(name)}</strong>${english ? `<small class="muted" lang="en">${escapeHTML(english)}</small>` : ''}<small class="muted">${item.memberId ? '연구실 멤버' : '직접 입력'}</small></span><span class="patent-inventor-order__controls"><button type="button" class="small-button" data-patent-inventor-move="up" data-patent-inventor-index="${index}" aria-label="${escapeHTML(name)} 순서 위로" title="위로" ${index === 0 ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button><button type="button" class="small-button" data-patent-inventor-move="down" data-patent-inventor-index="${index}" aria-label="${escapeHTML(name)} 순서 아래로" title="아래로" ${index === items.length - 1 ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14m-6-6 6 6 6-6"/></svg></button></span></li>`;
+  }).join('');
+}
+
+function onPatentInventorReorder(event) {
+  const button = event.target?.closest('[data-patent-inventor-move]');
+  const draft = state.patentInventorDraft;
+  if (!button || button.disabled || !draft) return;
+  const direction = button.dataset.patentInventorMove;
+  if (!['up', 'down'].includes(direction)) return;
+  const items = collectPatentInventors().inventorOrder || [];
+  const index = Number(button.dataset.patentInventorIndex);
+  const next = index + (direction === 'up' ? -1 : 1);
+  if (!Number.isInteger(index) || index < 0 || index >= items.length || next < 0 || next >= items.length) return;
+  event.preventDefault();
+  [items[index], items[next]] = [items[next], items[index]];
+  draft.inventorOrder = items;
+  draft.orderTouched = true;
+  markFormDirty(elements.patentForm);
+  updatePatentInventorPreview();
+  // Keep keyboard focus with the moved inventor, including at either boundary.
+  const focusDirection = next === 0 ? 'down' : next === items.length - 1 ? 'up' : direction;
+  elements.patentInventorOrder?.querySelector(`[data-patent-inventor-index="${next}"][data-patent-inventor-move="${focusDirection}"]`)?.focus();
 }
 
 function onPatentInventorInput(event) {
@@ -2882,10 +2925,13 @@ function renderPatentInventorPicker() {
   if (draft.legacyPending && available) {
     // A delayed first snapshot may identify old text-only records. Keep anything
     // the administrator already typed instead of replacing it during editing.
-    if (!draft.externalTouched) {
+    if (!draft.externalTouched && !draft.orderTouched) {
       const resolved = resolvePatentInventors(state.editingPatent || {}, state.members);
       draft.memberIds = [...resolved.memberIds];
       draft.memberSnapshots = [...resolved.memberSnapshots];
+      const fields = buildPatentInventorFields(resolved, state.members, state.editingPatent || {});
+      draft.inventorOrder = fields.inventorOrder;
+      draft.lastFields = fields;
       setFormValue(elements.patentForm, 'externalInventorsKr', resolved.externalInventorsKr);
       setFormValue(elements.patentForm, 'externalInventorsEn', resolved.externalInventorsEn);
     }

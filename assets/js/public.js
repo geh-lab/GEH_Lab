@@ -924,7 +924,7 @@ function ensureModal() {
       return;
     }
     if (event.key !== 'Tab') return;
-    const focusable = qsa('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])', wrapper)
+    const focusable = qsa('a[href], button:not([disabled]), summary, input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])', wrapper)
       .filter((element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true' && element.getClientRects().length > 0);
     if (!focusable.length) return;
     const first = focusable[0];
@@ -1044,24 +1044,9 @@ function bindInteractiveCards() {
     if (post) openBoardModal(post);
   });
 
-  qsa('[data-link]').forEach((card) => {
-    if (card.dataset.linkBound === 'true') return;
-    card.dataset.linkBound = 'true';
-    const openLink = () => {
-      const link = card.dataset.link;
-      if (link) window.open(link, '_blank', 'noopener,noreferrer');
-    };
-    card.addEventListener('click', (event) => {
-      const interactive = event.target.closest('a, button');
-      if (interactive && interactive !== card) return;
-      openLink();
-    });
-    card.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        openLink();
-      }
-    });
+  bindCard('.home-publication-card[data-publication-id]', 'publicationId', (id) => () => {
+    const publication = state.publications.find((item) => String(item.id) === id);
+    if (publication) openPublicationModal(publication);
   });
 
   qsa('.detail-open-button, .pi-photo-button').forEach((button) => {
@@ -1158,6 +1143,22 @@ function openProjectModal(project) {
       </div>
     </div>
   `);
+}
+
+function openPublicationModal(publication) {
+  const link = resolvePublicationLink(publication);
+  openModal(publication.title || '', `
+    <div class="detail-modal detail-modal--publication">
+      <div class="publication-detail-summary">
+        ${homePublicationTopline(publication)}
+        ${publication.authors ? `<p class="publication-authors">${escapeHTML(publication.authors)}</p>` : ''}
+        ${link ? `<a class="button primary" href="${escapeHTML(link)}" target="_blank" rel="noopener noreferrer">${lang === 'en' ? 'Read paper' : '논문 원문'}</a>` : ''}
+      </div>
+      ${detailSection('Abstract', publication.abstract || (lang === 'en' ? 'No abstract provided.' : '등록된 초록이 없습니다.'))}
+      ${renderPublicationMemberDetails(publication)}
+    </div>
+  `);
+  modalState.root.querySelector('.site-modal__scroll').scrollTop = 0;
 }
 
 function openBoardModal(post) {
@@ -1731,24 +1732,29 @@ function loadingStateText(kind = '') {
   return emptyState(label);
 }
 
-function homePublicationCard(item = {}) {
-  const link = resolvePublicationLink(item);
+function homePublicationTopline(item = {}) {
   const indexLabel = publicationIndexingLabel(item.indexing, lang);
   const indexClass = indexLabel ? indexLabel.toLowerCase().replace(/[^a-z]+/g, '') : '';
   const journalTone = journalToneClass(item.journal);
   const yearPill = publicationYearMonthLabel(item);
-  const actionAttrs = link ? `data-link="${escapeHTML(link)}" tabindex="0" role="button"` : '';
-  return `<article class="home-publication-card reveal${link ? ' interactive-card' : ''}" ${actionAttrs}${link ? ` aria-label="${escapeHTML(item.title || '')}"` : ''}>
-    <div class="publication-topline home-publication-card__topline">
+  return `<div class="publication-topline home-publication-card__topline">
       ${yearPill ? `<span class="year-pill">${escapeHTML(yearPill)}</span>` : ''}
       <div class="publication-source-group">
         ${item.journal ? `<span class="journal-pill ${journalTone}">${escapeHTML(item.journal)}</span>` : ''}
         ${indexLabel ? `<span class="index-pill ${indexClass ? `index-pill--${escapeHTML(indexClass)}` : ''}">${escapeHTML(indexLabel)}</span>` : ''}
       </div>
-    </div>
+    </div>`;
+}
+
+function homePublicationCard(item = {}) {
+  const detailLabel = lang === 'en' ? 'View details' : '상세 보기';
+  return `<article class="home-publication-card reveal interactive-card" data-publication-id="${escapeHTML(item.id)}" tabindex="0" role="button" aria-haspopup="dialog" aria-label="${escapeHTML(`${item.title || ''} · ${detailLabel}`)}">
+    ${homePublicationTopline(item)}
     <h3>${escapeHTML(item.title || '')}</h3>
     ${item.authors ? `<p class="muted home-publication-card__authors">${escapeHTML(item.authors)}</p>` : ''}
-    ${link ? `<a class="member-link" href="${escapeHTML(link)}" target="_blank" rel="noreferrer">${escapeHTML(copy.doi)}</a>` : ''}
+    <div class="home-publication-card__actions">
+      <span class="member-link" aria-hidden="true">${detailLabel}</span>
+    </div>
   </article>`;
 }
 

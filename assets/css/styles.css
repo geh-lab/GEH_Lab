@@ -5482,9 +5482,46 @@ article#member-editor-card::before,
   line-height: 1.2;
 }
 
-.home-publication-card[data-link] {
+.home-publication-card[data-publication-id] {
   cursor: pointer;
 }
+
+.home-publication-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem 1rem;
+}
+.home-publication-card__actions > .member-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 0;
+}
+.publication-detail-summary { min-width: 0; }
+.publication-detail-summary > .button { margin-top: .75rem; }
+.detail-modal--publication { min-width: 0; overflow-wrap: anywhere; }
+.detail-modal--publication .publication-topline,
+.detail-modal--publication .publication-source-group { display: flex; flex-wrap: wrap; gap: .5rem; }
+.detail-modal--publication .journal-pill { white-space: normal; min-width: 0; max-width: 100%; }
+.detail-modal--publication .publication-authors { margin: .75rem 0 0; }
+#geh-site .site-modal__dialog:has(.detail-modal--publication) .site-modal__scroll {
+  display: block !important;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+#geh-site .site-modal__dialog:has(.detail-modal--publication) .site-modal__head {
+  padding-right: 3rem;
+  margin-bottom: 1rem;
+}
+#geh-site .site-modal__dialog:has(.detail-modal--publication) .site-modal__head h2 {
+  font-size: calc(clamp(1.25rem, 2.6vw, 1.85rem) * var(--reading-scale, 1));
+  line-height: 1.4;
+  letter-spacing: -.025em;
+  overflow-wrap: anywhere;
+}
+#geh-site .site-modal__dialog:has(.detail-modal--publication) .site-modal__content { overflow: visible; }
 
 .home-publication-card__topline {
   margin-bottom: .8rem;
@@ -9747,8 +9784,29 @@ article#member-editor-card::before,
 }
 .patent-inventor-option > span { display: grid; gap: .2rem; min-width: 0; overflow-wrap: anywhere; }
 .patent-inventor-option:has(input:checked) { border-color: var(--accent); }
-.patent-inventor-preview { display: grid; gap: .4rem; min-width: 0; }
-.patent-inventor-preview output { overflow-wrap: anywhere; color: var(--muted); }
+.patent-inventor-preview { display: grid; gap: .4rem; min-width: 0; padding: .8rem; border: 1px solid var(--line); border-radius: 16px; background: var(--card-strong); }
+.patent-inventor-preview output { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
+.patent-inventor-order-section { display: grid; gap: .5rem; min-width: 0; }
+.patent-inventor-order { display: grid; gap: .5rem; list-style: none; padding: 0; margin: 0; }
+.patent-inventor-order__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .65rem;
+  padding: .7rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+.patent-inventor-order__number { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; min-width: 1.25em; text-align: center; }
+.patent-inventor-order__name { display: grid; gap: .15rem; min-width: 0; overflow-wrap: anywhere; }
+.patent-inventor-order__controls { display: flex; flex-wrap: wrap; gap: .35rem; }
+.admin-editor-modal .patent-inventor-order__controls button { width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0; }
+.patent-inventor-order__controls svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.admin-editor-modal .patent-inventor-order__controls button:disabled { opacity: .4; cursor: default; }
+@media (max-width: 600px) {
+  .patent-inventor-order__item { grid-template-columns: auto minmax(0, 1fr); }
+  .patent-inventor-order__controls { grid-column: 2; }
+}
 .detail-block--patents .detail-block__body { display: grid; gap: .8rem; margin-top: .8rem; }
 .member-patent-summary { margin-bottom: 0; }
 .member-patent-summary--granted { color: #087653; background: rgba(16, 185, 129, .12); }

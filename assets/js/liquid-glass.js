@@ -120,6 +120,8 @@ export function attachLiquidGlass(host) {
 export function setupLiquidGlass() {
   const selectors=[
     '.page-hero-card','.home-overview','.stat-card:not(.stat-card--summary)','.project-card','.member-card','.pi-card','.contact-card',
+    // Member overview totals are glass cards too; home totals share their outer panel.
+    '.page-stat-grid .stat-card--summary',
     '.home-publication-card','.home-news-card','.home-contact-card','.publication-card',
     '.board-card','.news-card','.accordion','.archive-item','.patent-card','.login-card',
     '.admin-card','.admin-item-card','.summary-card','.admin-dialog__panel',
