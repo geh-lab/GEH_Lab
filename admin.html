@@ -271,8 +271,18 @@
             <div class="form-grid form-grid--double">
               <label class="field"><span>특허명 (국문) *</span><input name="titleKr" type="text" required></label>
 <label class="field"><span>특허명 (영문)</span><input name="titleEn" type="text"></label>
-<label class="field"><span>발명자 (국문) *</span><input name="inventorsKr" type="text" required></label>
-<label class="field"><span>발명자 (영문)</span><input name="inventorsEn" type="text"></label>
+            </div>
+            <section class="patent-inventor-fields" aria-labelledby="patent-inventor-label">
+              <div class="field-label-row"><strong id="patent-inventor-label">발명자 *</strong><span class="muted">연구실 멤버는 선택하고, 목록에 없는 발명자는 직접 입력하세요.</span></div>
+              <div class="publication-picker patent-inventor-picker" id="patent-inventor-picker"></div>
+              <div class="form-grid form-grid--double">
+                <label class="field"><span>목록에 없는 발명자 (국문)</span><input name="externalInventorsKr" type="text" placeholder="예: 홍길동, 김연구" aria-describedby="patent-inventor-hint"></label>
+                <label class="field"><span>목록에 없는 발명자 (영문)</span><input name="externalInventorsEn" type="text" placeholder="예: Gildong Hong, Research Kim" aria-describedby="patent-inventor-hint"></label>
+              </div>
+              <p class="muted" id="patent-inventor-hint">여러 명은 쉼표로 구분하세요. 선택한 멤버의 특허 건수는 멤버 상세 정보에 반영됩니다.</p>
+              <div class="patent-inventor-preview"><strong>표시될 발명자</strong><output id="patent-inventor-preview" aria-live="polite"></output></div>
+            </section>
+            <div class="form-grid form-grid--double">
 <label class="field"><span>출원인 / 권리자 (국문)</span><input name="applicantKr" type="text"></label>
 <label class="field"><span>출원인 / 권리자 (영문)</span><input name="applicantEn" type="text"></label>
 <label class="field"><span>국가 / 관할 (국문)</span><input name="countryKr" type="text" value="대한민국"></label>

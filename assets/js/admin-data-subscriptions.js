@@ -7,7 +7,7 @@ export function adminSubscriptionKeys({ user, activeTab, openEditorKind, memberE
     keys.add('projects');
     keys.add('publications');
   }
-  if (openEditorKind === 'project' || openEditorKind === 'publication') keys.add('members');
+  if (['project', 'publication', 'patent'].includes(openEditorKind)) keys.add('members');
   return [...keys];
 }
 

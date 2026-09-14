@@ -4,6 +4,7 @@ import { portraitMarkup, refreshImageFallbacks } from './portraits.js';
 import '../css/icons.css';
 import { resolveProjectInvestigator, localizedInvestigatorName } from './project-investigator.js';
 import { sortPatents, filterPatents, patentText, patentStatusLabel } from './patents.js';
+import { patentsForMember } from './patent-inventors.js';
 import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=80';
 import {
   escapeHTML,
@@ -221,6 +222,8 @@ const modalState = {
   closeButton: null,
   trigger: null,
   closeTimer: null,
+  memberId: '',
+  member: null,
   instant: false
 };
 
@@ -674,6 +677,12 @@ const pageCollections = {
   board: [COLLECTIONS.board]
 };
 
+function visibleCollectionNames() {
+  const names = new Set(pageCollections[page] || []);
+  if (modalState.memberId) names.add(COLLECTIONS.patents);
+  return [...names];
+}
+
 function showDataIssues() {
   if (!dataIssues.size) {
     qs('#public-status-notice')?.remove();
@@ -688,7 +697,7 @@ function showDataIssues() {
 
 async function hydrate() {
   if (!hasFirebaseConfig) return;
-  const names = pageCollections[page] || [];
+  const names = visibleCollectionNames();
   const revisions = names.map(getPublicCollectionRevision);
   const results = await Promise.allSettled(names.map((name) => fetchCollectionResult(name)));
   let shouldRender = false;
@@ -714,6 +723,7 @@ async function hydrate() {
     if (previousIssue !== dataIssues.get(key)) shouldRender = true;
   });
   showDataIssues();
+  refreshOpenMemberPatentBlock();
   if (shouldRender) renderPageWithoutInterruptingMemberProfile();
 }
 
@@ -741,7 +751,7 @@ function setupPublicDataRefresh() {
   const schedule = () => {
     stop();
     if (document.hidden) return;
-    const expirations = (pageCollections[page] || []).map((name) => readCachedCollection(name))
+    const expirations = visibleCollectionNames().map((name) => readCachedCollection(name))
       .filter(Boolean).map((entry) => entry.fetchedAt + 600000 - Date.now());
     const delay = Math.max(50, Math.min(60000, ...expirations));
     timer = window.setTimeout(() => {
@@ -755,7 +765,7 @@ function setupPublicDataRefresh() {
   };
   window.addEventListener(PUBLIC_DATA_CHANGED, (event) => {
     const changed = event.detail?.collections || [];
-    if (!(pageCollections[page] || []).some((name) => changed.includes(name))) return;
+    if (!visibleCollectionNames().some((name) => changed.includes(name))) return;
     if (document.hidden) return;
     if (publicRefreshPromise) refreshAfterCurrentRequest = true;
     else refreshPublicData();
@@ -922,6 +932,8 @@ function ensureModal() {
 
 function openModal(title, html) {
   ensureModal();
+  modalState.memberId = '';
+  modalState.member = null;
   window.clearTimeout(modalState.closeTimer);
   const wasOpen = !modalState.root.hidden && modalState.root.classList.contains('is-open');
   if (!wasOpen) modalState.trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -941,6 +953,8 @@ function openModal(title, html) {
 
 function closeModal() {
   if (!modalState.root || modalState.root.hidden) return;
+  modalState.memberId = '';
+  modalState.member = null;
   window.clearTimeout(modalState.closeTimer);
   modalState.root.classList.remove('is-open');
   modalState.root.setAttribute('aria-hidden', 'true');
@@ -1079,6 +1093,7 @@ function openMemberModal(member) {
   ].filter(Boolean).join('');
   const extendedDetailSections = [
     relatedProjectSection,
+    `<article class="detail-block detail-block--patents" data-member-patents="${escapeHTML(member.id)}">${renderMemberPatentBlock(member)}</article>`,
     renderMemberPublicationBlock(member)
   ].filter(Boolean).join('');
   openModal(title, `
@@ -1097,6 +1112,9 @@ function openMemberModal(member) {
       ${extendedDetailSections ? `<div class="detail-grid detail-grid--member-extended">${extendedDetailSections}</div>` : ''}
     </div>
   `);
+  modalState.memberId = String(member.id || '');
+  modalState.member = member;
+  ensureMemberPatents();
 }
 
 function openProjectModal(project) {
@@ -1299,6 +1317,82 @@ function resolveMemberPublicationItems(links = []) {
       _index: index
     };
   }).filter((item) => item.title || item.publicationId);
+}
+
+let memberPatentsPromise = null;
+
+function ensureMemberPatents() {
+  if (!modalState.memberId || document.hidden || !hasFirebaseConfig) return Promise.resolve();
+  if (memberPatentsPromise) return memberPatentsPromise;
+  const cached = readCachedCollection(COLLECTIONS.patents);
+  if (cached) {
+    applyCollectionItems('patents', cached.items);
+    dataIssues.delete('patents');
+    refreshOpenMemberPatentBlock();
+    return Promise.resolve();
+  }
+  const revision = getPublicCollectionRevision(COLLECTIONS.patents);
+  let invalidated = false;
+  state.loadingPatents = !resolvedCollections.has('patents');
+  refreshOpenMemberPatentBlock();
+  memberPatentsPromise = fetchCollectionResult(COLLECTIONS.patents).then((result) => {
+    if (revision !== getPublicCollectionRevision(COLLECTIONS.patents)) { invalidated = true; return; }
+    applyCollectionItems('patents', result.items);
+    if (result.stale) dataIssues.set('patents', result.error || true);
+    else dataIssues.delete('patents');
+  }).catch((error) => {
+    if (revision !== getPublicCollectionRevision(COLLECTIONS.patents)) { invalidated = true; return; }
+    state.loadingPatents = false;
+    state.patentsError = !resolvedCollections.has('patents');
+    dataIssues.set('patents', error);
+  }).finally(() => {
+    memberPatentsPromise = null;
+    refreshOpenMemberPatentBlock();
+    if (invalidated && modalState.memberId && !document.hidden) ensureMemberPatents();
+  });
+  return memberPatentsPromise;
+}
+
+function refreshOpenMemberPatentBlock() {
+  if (!modalState.memberId || !modalState.root || modalState.root.hidden) return;
+  const slot = modalState.body?.querySelector('[data-member-patents]');
+  if (!slot || slot.dataset.memberPatents !== modalState.memberId) return;
+  const member = state.members.find((item) => String(item.id) === modalState.memberId) || modalState.member;
+  if (!member) return;
+  const markup = renderMemberPatentBlock(member);
+  // Preserve the portrait, scroll position and other profile sections when data arrives.
+  if (slot.innerHTML !== markup) slot.innerHTML = markup;
+}
+
+function renderMemberPatentBlock(member = {}) {
+  const en = lang === 'en';
+  const heading = `<h4>${en ? 'Related patents' : '관련 특허'}</h4>`;
+  const issue = dataIssues.get('patents');
+  if (!resolvedCollections.has('patents') && hasFirebaseConfig) {
+    const message = issue || state.patentsError
+      ? (en ? 'Patent counts are unavailable. Please try again shortly.' : '특허 정보를 불러오지 못해 건수를 확인할 수 없습니다. 잠시 후 다시 확인해주세요.')
+      : (en ? 'Loading patent information…' : '특허 정보를 불러오는 중입니다.');
+    return `${heading}<div class="detail-block__body"><p class="muted" role="status">${message}</p></div>`;
+  }
+  const items = patentsForMember(state.patents, member, state.members);
+  const granted = items.filter((item) => item.status === 'granted').length;
+  const filed = items.filter((item) => item.status === 'pending').length;
+  const summary = `<div class="member-publication-summary member-patent-summary">
+    <span class="member-publication-summary-chip member-patent-summary--granted">${en ? `Granted ${granted}` : `등록 ${granted}건`}</span>
+    <span class="member-publication-summary-chip member-patent-summary--filed">${en ? `Filed ${filed}` : `출원 ${filed}건`}</span>
+  </div>`;
+  const notice = issue ? `<p class="muted" role="status">${en ? 'Showing the last available patent information.' : '마지막으로 불러온 특허 정보를 표시합니다.'}</p>` : '';
+  const list = items.length ? `<div class="member-publication-list">${items.map((item) => {
+    const date = item.status === 'granted' ? item.registrationDate : item.applicationDate;
+    const number = item.status === 'granted' ? item.registrationNumber : item.applicationNumber;
+    const meta = [patentStatusLabel(item.status, lang), date, number].filter(Boolean).join(' · ');
+    const href = item.url || `patents.html?item=${encodeURIComponent(item.id)}`;
+    return `<article class="member-publication-item member-publication-item--linked member-patent-item">
+      <div class="member-publication-main"><strong>${escapeHTML(patentText(item, 'title', lang))}</strong><div class="member-publication-meta">${escapeHTML(meta)}</div></div>
+      <a class="member-publication-link" href="${escapeHTML(href)}"${item.url ? ' target="_blank" rel="noopener noreferrer"' : ''}>${en ? 'View patent' : '특허 보기'}</a>
+    </article>`;
+  }).join('')}</div>` : `<p class="muted">${en ? 'No linked patents yet.' : '연결된 특허가 아직 없습니다.'}</p>`;
+  return `${heading}<div class="detail-block__body">${summary}${notice}${list}</div>`;
 }
 
 function renderMemberPublicationBlock(member = {}) {

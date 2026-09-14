@@ -2,6 +2,7 @@ import { setupPublicChrome } from './chrome.js';
 import { adminSubscriptionKeys, createAdminSubscriptions } from './admin-data-subscriptions.js';
 import { resolveProjectInvestigator, localizedInvestigatorName } from './project-investigator.js';
 import { normalizePatent, sortPatents, filterPatents, patentText, patentStatusLabel, validatePatent } from './patents.js';
+import { resolvePatentInventors, buildPatentInventorFields } from './patent-inventors.js';
 import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=80';
 import {
   escapeHTML,
@@ -75,6 +76,8 @@ const state = {
   trash: [],
   patents: [],
   editingPatent: null,
+  patentInventorDraft: null,
+  patentInventorQuery: '',
   patentFilter: 'all',
   patentQuery: '',
   patentPage: 1,
@@ -248,6 +251,8 @@ const elements = {
   projectFigureRemove: qs('#project-figure-remove'),
   projectPrincipalInvestigator: qs('#project-principal-investigator'),
   patentForm: qs('#patent-form'),
+  patentInventorPicker: qs('#patent-inventor-picker'),
+  patentInventorPreview: qs('#patent-inventor-preview'),
   patentList: qs('#patent-list'),
   patentTitle: qs('#patent-form-title'),
   patentEditorCard: qs('#patent-editor-card'),
@@ -1104,6 +1109,9 @@ function bindEvents() {
   elements.patentAddButton?.addEventListener('click', () => { resetPatentForm(); openEditor('patent'); });
   elements.patentForm?.elements.namedItem('status')?.addEventListener('change', updatePatentRegistrationFields);
   elements.patentForm?.addEventListener('submit', handlePatentSubmit);
+  elements.patentForm?.addEventListener('input', onPatentInventorInput);
+  elements.patentForm?.addEventListener('change', onPatentInventorInput);
+  elements.patentInventorPicker?.addEventListener('change', onPatentInventorSelection);
   qs('#patent-reset')?.addEventListener('click', resetPatentForm);
   elements.patentList?.addEventListener('click', onPatentListClick);
   elements.patentSearchInput?.addEventListener('input', (event) => { state.patentQuery = event.currentTarget.value; state.patentPage = 1; renderPatentsList(); });
@@ -1217,8 +1225,12 @@ function bindEvents() {
     if (event.target === elements.dialog || event.target.closest('[data-dialog-close]')) closeDialog(null);
   });
   [elements.memberForm, elements.projectForm, elements.publicationForm, elements.patentForm, elements.boardForm].forEach((form) => {
-    form?.addEventListener('input', () => markFormDirty(form));
-    form?.addEventListener('change', () => markFormDirty(form));
+    const onEdit = (event) => {
+      if (event.target?.matches('[data-patent-inventor-search]')) return;
+      markFormDirty(form);
+    };
+    form?.addEventListener('input', onEdit);
+    form?.addEventListener('change', onEdit);
   });
   window.addEventListener('beforeunload', (event) => {
     if (!state.dirtyForms.size) return;
@@ -1609,6 +1621,7 @@ function renderPendingEditorPickers(key) {
     renderPublicationMemberPicker(resolvePublicationMemberLinks(state.editingPublication || {}));
   }
   if (key === 'members' && state.openEditorKind === 'project' && (elements.projectPrincipalInvestigator?.dataset.ready !== 'true' || !isFormDirty('project'))) renderProjectLeadOptions();
+  if (key === 'members' && state.openEditorKind === 'patent') renderPatentInventorPicker();
 }
 
 function requireEditorMembers() {
@@ -2760,6 +2773,112 @@ function renderProjectsList() {
 }
 
 
+function patentMembersAvailable() {
+  return !useLiveAdminData || Boolean(state.collectionReads.get('members')?.hasData);
+}
+
+function initializePatentInventors(item = {}) {
+  const resolved = resolvePatentInventors(item, patentMembersAvailable() ? state.members : []);
+  state.patentInventorDraft = {
+    memberIds: [...resolved.memberIds],
+    memberSnapshots: [...resolved.memberSnapshots],
+    legacyPending: resolved.legacy && !patentMembersAvailable(),
+    externalTouched: false,
+    renderKey: ''
+  };
+  state.patentInventorQuery = '';
+  setFormValue(elements.patentForm, 'externalInventorsKr', resolved.externalInventorsKr);
+  setFormValue(elements.patentForm, 'externalInventorsEn', resolved.externalInventorsEn);
+  renderPatentInventorPicker();
+}
+
+function collectPatentInventors() {
+  const draft = state.patentInventorDraft || { memberIds: [], memberSnapshots: [] };
+  return buildPatentInventorFields({
+    memberIds: draft.memberIds,
+    externalInventorsKr: elements.patentForm.elements.namedItem('externalInventorsKr')?.value || '',
+    externalInventorsEn: elements.patentForm.elements.namedItem('externalInventorsEn')?.value || ''
+  }, patentMembersAvailable() ? state.members : [], {
+    ...state.editingPatent,
+    inventorMembers: draft.memberSnapshots
+  });
+}
+
+function updatePatentInventorPreview() {
+  if (!elements.patentInventorPreview || !state.patentInventorDraft) return;
+  const fields = collectPatentInventors();
+  elements.patentInventorPreview.textContent = [fields.inventorsKr, fields.inventorsEn].filter(Boolean).join(' / ')
+    || '멤버를 선택하거나 발명자 이름을 입력해주세요.';
+}
+
+function onPatentInventorInput(event) {
+  if (!['externalInventorsKr', 'externalInventorsEn'].includes(event.target?.name)) return;
+  if (state.patentInventorDraft) state.patentInventorDraft.externalTouched = true;
+  updatePatentInventorPreview();
+}
+
+function onPatentInventorSelection(event) {
+  const input = event.target?.closest('[data-patent-inventor-id]');
+  const draft = state.patentInventorDraft;
+  if (!input || !draft) return;
+  const id = input.dataset.patentInventorId;
+  const selected = new Set(draft.memberIds);
+  if (input.checked) selected.add(id);
+  else selected.delete(id);
+  draft.memberIds = [...selected];
+  // Remember selected names so a later missing member document cannot erase them.
+  draft.memberSnapshots = collectPatentInventors().inventorMembers;
+  updatePatentInventorPreview();
+}
+
+function renderPatentInventorPicker() {
+  const container = elements.patentInventorPicker;
+  const draft = state.patentInventorDraft;
+  if (!container || !draft) return;
+  const available = patentMembersAvailable();
+  if (draft.legacyPending && available) {
+    // A delayed first snapshot may identify old text-only records. Keep anything
+    // the administrator already typed instead of replacing it during editing.
+    if (!draft.externalTouched) {
+      const resolved = resolvePatentInventors(state.editingPatent || {}, state.members);
+      draft.memberIds = [...resolved.memberIds];
+      draft.memberSnapshots = [...resolved.memberSnapshots];
+      setFormValue(elements.patentForm, 'externalInventorsKr', resolved.externalInventorsKr);
+      setFormValue(elements.patentForm, 'externalInventorsEn', resolved.externalInventorsEn);
+    }
+    draft.legacyPending = false;
+  }
+  const members = available ? sortMembers(state.members.slice()) : [];
+  const selected = new Set(draft.memberIds);
+  const knownIds = new Set(members.map((member) => String(member.id)));
+  const missing = draft.memberIds.filter((id) => !knownIds.has(id)).map((id) => {
+    const snapshot = draft.memberSnapshots.find((member) => member.memberId === id) || {};
+    return { id, nameKr: snapshot.nameKr, nameEn: snapshot.nameEn, savedInventor: true };
+  });
+  const items = [...members, ...missing];
+  const read = state.collectionReads.get('members');
+  const renderKey = JSON.stringify([items, draft.memberIds, read?.status, available]);
+  if (renderKey === draft.renderKey) { updatePatentInventorPreview(); return; }
+  draft.renderKey = renderKey;
+  container.dataset.ready = String(available);
+  const message = !available ? (read?.status === 'error'
+    ? '멤버 목록을 불러오지 못했습니다. 저장된 발명자는 유지되며, 목록에 없는 발명자는 직접 입력할 수 있습니다.'
+    : '멤버 목록을 불러오는 중입니다. 목록에 없는 발명자는 직접 입력할 수 있습니다.') : '';
+  const searchMarkup = items.length ? `<label class="publication-picker__search-row"><input type="search" class="publication-picker__search-input" data-patent-inventor-search aria-label="발명자로 연결할 멤버 검색" placeholder="멤버 이름, 영문 이름 검색" value="${escapeHTML(state.patentInventorQuery)}"></label>` : '';
+  container.innerHTML = `${message ? `<p class="muted" role="status">${escapeHTML(message)}</p>` : ''}${searchMarkup}${items.length
+    ? `<div class="publication-member-picker__list patent-inventor-picker__list" role="region" aria-label="연구실 발명자 목록" tabindex="0">${items.map((member) => {
+      const name = member.nameKr || member.nameEn || member.name || `저장된 멤버 (${member.id})`;
+      const detail = member.savedInventor ? '저장된 멤버 연결 · 해제하려면 체크를 끄세요.' : member.nameEn || '';
+      return `<label class="publication-picker__item patent-inventor-option" data-search="${escapeHTML(memberSearchableText(member))}"><input type="checkbox" data-patent-inventor-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(name)} 발명자" ${selected.has(String(member.id)) ? 'checked' : ''}><span><strong>${escapeHTML(name)}</strong>${detail ? `<small class="muted">${escapeHTML(detail)}</small>` : ''}</span></label>`;
+    }).join('')}</div>` : available ? '<p class="muted">등록된 멤버가 없습니다. 아래에 발명자를 직접 입력하세요.</p>' : ''}`;
+  bindPublicationSearchInput(container, '[data-patent-inventor-search]', (query) => {
+    state.patentInventorQuery = query;
+    filterPublicationPicker(container, query);
+  });
+  if (items.length) filterPublicationPicker(container, state.patentInventorQuery);
+  updatePatentInventorPreview();
+}
+
 function updatePatentRegistrationFields() {
   const granted = elements.patentForm.elements.namedItem('status').value === 'granted';
   qs('#patent-registration-fields').hidden = !granted;
@@ -2774,6 +2893,7 @@ function resetPatentForm() {
   elements.patentForm.reset();
   state.editingPatent = null;
   elements.patentTitle.textContent = '특허 추가';
+  initializePatentInventors();
   updatePatentRegistrationFields();
   markFormClean(elements.patentForm);
 }
@@ -2785,6 +2905,7 @@ function loadPatentForm(item) {
   for (const field of elements.patentForm.elements) {
     if (field.name) setFormValue(elements.patentForm, field.name, item[field.name] || '');
   }
+  initializePatentInventors(item);
   updatePatentRegistrationFields();
   markFormClean(elements.patentForm);
   openEditor('patent');
@@ -2794,7 +2915,7 @@ async function handlePatentSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget;
   if (form.dataset.busy === 'true' || !state.user) return;
-  const values = Object.fromEntries(new FormData(form));
+  const values = { ...Object.fromEntries(new FormData(form)), ...collectPatentInventors() };
   const validationError = validatePatent(values);
   if (validationError) return showNotice(validationError, 'warning');
   const normalizedNumber = (value) => String(value || '').replace(/[^a-z0-9]/gi, '').toLowerCase();

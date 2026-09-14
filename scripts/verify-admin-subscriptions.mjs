@@ -12,6 +12,7 @@ assert.deepEqual(adminSubscriptionKeys({ user, activeTab: 'members', openEditorK
 assert.deepEqual(adminSubscriptionKeys({ user, activeTab: 'members', openEditorKind: 'member', memberEditorTab: 'research' }), ['members', 'projects', 'publications']);
 assert.deepEqual(adminSubscriptionKeys({ user, activeTab: 'publications', openEditorKind: 'publication' }), ['publications', 'members']);
 assert.deepEqual(adminSubscriptionKeys({ user, activeTab: 'projects', openEditorKind: 'project' }), ['projects', 'members']);
+assert.deepEqual(adminSubscriptionKeys({ user, activeTab: 'patents', openEditorKind: 'patent' }), ['patents', 'members']);
 
 const watches = [];
 const received = [];
