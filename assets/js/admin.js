@@ -1,4 +1,5 @@
 import { setupPublicChrome } from './chrome.js';
+import { adminSubscriptionKeys, createAdminSubscriptions } from './admin-data-subscriptions.js';
 import { resolveProjectInvestigator, localizedInvestigatorName } from './project-investigator.js';
 import { normalizePatent, sortPatents, filterPatents, patentText, patentStatusLabel, validatePatent } from './patents.js';
 import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=80';
@@ -47,7 +48,6 @@ import {
   watchAdminState,
   signInAdminWithGoogle,
   signOutAdmin,
-  fetchCollection,
   listenCollection,
   saveDocument,
   deleteDocumentById,
@@ -91,8 +91,8 @@ const state = {
   pendingBoardPreviews: [],
   boardImageRemoved: false,
   seeded: false,
-  unsubs: [],
   collectionReads: new Map(),
+  authGeneration: 0,
   authResolved: false,
   activeTab: 'members',
   memberFilter: 'all',
@@ -491,7 +491,9 @@ function adminMemberSection(title, items = []) {
 
 function collectMemberProjectLinks() {
   if (!elements.memberProjectPicker) return [];
-  return qsa('#member-project-picker input[data-project-id]:checked').map((input) => {
+  const existing = state.editingMember?.projectLinks || [];
+  if (elements.memberProjectPicker.dataset.ready !== 'true') return structuredClone(existing);
+  const links = qsa('#member-project-picker input[data-project-id]:checked').map((input) => {
     const project = state.projects.find((item) => item.id === input.dataset.projectId);
     if (!project) return null;
     return {
@@ -503,6 +505,8 @@ function collectMemberProjectLinks() {
       status: project.status || 'ongoing'
     };
   }).filter(Boolean);
+  const offeredIds = new Set(qsa('#member-project-picker input[data-project-id]').map((input) => input.dataset.projectId));
+  return [...links, ...existing.filter((link) => !offeredIds.has(String(link.projectId || link.id || '')))];
 }
 
 function memberProjectLinksSummary(items = []) {
@@ -515,6 +519,7 @@ function memberProjectLinksSummary(items = []) {
 function renderMemberProjectPicker(selected = []) {
   const container = elements.memberProjectPicker;
   if (!container) return;
+  if (renderPickerReadState(container, 'projects')) return;
   const selectedIds = new Set((Array.isArray(selected) ? selected : []).map((entry) => String(entry?.projectId || entry?.id || '')));
   const items = state.projects.filter((project) => project.status === 'ongoing');
   if (!items.length) {
@@ -704,6 +709,7 @@ function setMemberEditorTab(tabKey = 'basic', options = {}) {
     if (scrollRegion) scrollRegion.scrollTop = 0;
   }
   if (focusTab) selectedButton.focus({ preventScroll: true });
+  if (state.openEditorKind === 'member') syncAdminSubscriptions();
 }
 
 function openEditor(kind) {
@@ -713,6 +719,7 @@ function openEditor(kind) {
   state.editorReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   state.openEditorKind = kind;
   if (kind === 'member') setMemberEditorTab('basic');
+  syncAdminSubscriptions();
   window.clearTimeout(target._closeTimer);
   target.hidden = false;
   target.classList.remove('is-open');
@@ -732,6 +739,7 @@ function closeEditor(kind) {
   target.classList.remove('is-open');
   document.querySelector('.admin-editor-scrim')?.classList.remove('is-open');
   if (state.openEditorKind === kind) state.openEditorKind = '';
+  syncAdminSubscriptions();
   const returnFocus = state.editorReturnFocus;
   state.editorReturnFocus = null;
   window.clearTimeout(target._closeTimer);
@@ -934,24 +942,26 @@ function resolvePublicationMemberLinks(publication = {}) {
 function renderPublicationMemberPicker(selected = []) {
   const container = elements.publicationMemberPicker;
   if (!container) return;
+  if (renderPickerReadState(container, 'members')) return;
   const selectedMap = new Map();
   (Array.isArray(selected) ? selected : []).forEach((item) => {
     const key = item.memberId || item.id;
     if (key) selectedMap.set(String(key), item);
   });
-  const searchMarkup = `<label class="publication-picker__search-row"><input type="search" class="publication-picker__search-input" data-publication-member-search placeholder="멤버 이름, 영문 이름, 이메일 검색" value="${escapeHTML(state.publicationMemberQuery)}"></label>`;
+  const searchMarkup = `<label class="publication-picker__search-row"><input type="search" class="publication-picker__search-input" data-publication-member-search aria-label="연결할 멤버 검색" placeholder="멤버 이름, 영문 이름, 이메일 검색" value="${escapeHTML(state.publicationMemberQuery)}"></label>`;
   const allMembers = sortMembers(state.members.slice());
   if (!allMembers.length) {
     container.innerHTML = '<p class="muted">등록된 멤버가 없습니다.</p>';
     return;
   }
   const items = allMembers;
-  container.innerHTML = `${searchMarkup}<section class="publication-picker__group"><div class="publication-picker__group-title">멤버</div><div class="publication-picker__table"><div class="publication-picker__row publication-picker__row--head"><span class="publication-picker__cell publication-picker__cell--info">멤버</span><span class="publication-picker__cell publication-picker__cell--role">제1저자</span><span class="publication-picker__cell publication-picker__cell--role">공동저자</span><span class="publication-picker__cell publication-picker__cell--role">교신저자</span></div>${items.map((member) => {
+  const roleOptions = [['first', '제1저자'], ['co', '공동저자'], ['corresponding', '교신저자']];
+  container.innerHTML = `${searchMarkup}<div class="publication-member-picker__list" role="region" aria-label="연결할 멤버 목록" tabindex="0"><section class="publication-picker__group"><div class="publication-picker__table">${items.map((member) => {
     const picked = selectedMap.get(member.id) || {};
     const roles = Array.isArray(picked.roles) ? picked.roles : [];
     const detail = [member.email].filter(Boolean).join(' · ');
-    return `<article class="publication-picker__row publication-picker__item" data-search="${escapeHTML(memberSearchableText(member))}"><div class="publication-picker__cell publication-picker__cell--info"><strong>${escapeHTML(memberDisplayName(member,'kr'))}</strong>${detail ? `<small class="muted">${escapeHTML(detail)}</small>` : ''}</div><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="first" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member,'kr'))} 제1저자" ${roles.includes('first') ? 'checked' : ''}></label><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="co" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member,'kr'))} 공동저자" ${roles.includes('co') ? 'checked' : ''}></label><label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="corresponding" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member,'kr'))} 교신저자" ${roles.includes('corresponding') ? 'checked' : ''}></label></article>`;
-  }).join('')}</div></section>`;
+    return `<article class="publication-picker__row publication-picker__item" data-search="${escapeHTML(memberSearchableText(member))}"><div class="publication-picker__cell publication-picker__cell--info"><strong>${escapeHTML(memberDisplayName(member,'kr'))}</strong>${detail ? `<small class="muted">${escapeHTML(detail)}</small>` : ''}</div>${roleOptions.map(([role, label]) => `<label class="publication-picker__cell publication-picker__cell--role publication-picker__check"><input type="checkbox" data-publication-member-role="${role}" data-member-id="${escapeHTML(member.id)}" aria-label="${escapeHTML(memberDisplayName(member,'kr'))} ${label}" ${roles.includes(role) ? 'checked' : ''}><span>${label}</span></label>`).join('')}</article>`;
+  }).join('')}</div></section></div>`;
   bindPublicationSearchInput(container, '[data-publication-member-search]', (query) => { state.publicationMemberQuery = query; filterPublicationPicker(container, query); });
   filterPublicationPicker(container, state.publicationMemberQuery);
 }
@@ -1085,7 +1095,7 @@ function bindEvents() {
     if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + elements.tabButtons.length) % elements.tabButtons.length;
     if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % elements.tabButtons.length;
     const nextButton = elements.tabButtons[nextIndex];
-    setActiveTab(nextButton.dataset.adminTab);
+    nextButton.click();
     nextButton.focus();
   }));
   elements.memberAddButton?.addEventListener('click', () => { resetMemberForm(); openEditor('member'); });
@@ -1291,6 +1301,7 @@ function updateMemberEducationVisibility() {
 function renderMemberPublicationPicker(selected = []) {
   const container = qs('#member-publication-picker');
   if (!container) return;
+  if (renderPickerReadState(container, 'publications')) return;
   const selectedItems = Array.isArray(selected) ? selected : [];
   const selectedMap = new Map();
   selectedItems.forEach((item) => {
@@ -1355,6 +1366,7 @@ function onPublicationPickerClick(event) {
   const picker = qs('#member-publication-picker');
   if (!picker) return;
   const action = button.dataset.publicationBulk;
+  markFormDirty(elements.memberForm);
   if (action === 'clear') {
     picker.querySelectorAll('[data-pub-role]').forEach((input) => {
       input.checked = false;
@@ -1375,6 +1387,8 @@ function onPublicationPickerClick(event) {
 function collectMemberPublicationLinks() {
   const picker = qs('#member-publication-picker');
   if (!picker) return [];
+  const existing = state.editingMember?.publicationLinks || [];
+  if (picker.dataset.ready !== 'true') return structuredClone(existing);
   const roleMap = new Map();
   Array.from(picker.querySelectorAll('[data-pub-role]:checked')).forEach((el) => {
     const id = el.dataset.pubId;
@@ -1382,7 +1396,7 @@ function collectMemberPublicationLinks() {
     if (!roleMap.has(id)) roleMap.set(id, []);
     roleMap.get(id).push(el.dataset.pubRole);
   });
-  return Array.from(roleMap.entries()).map(([id, roles]) => {
+  const links = Array.from(roleMap.entries()).map(([id, roles]) => {
     const pub = state.publications.find((item) => item.id === id);
     return {
       publicationId: id,
@@ -1393,6 +1407,8 @@ function collectMemberPublicationLinks() {
       roles
     };
   });
+  const offeredIds = new Set(Array.from(picker.querySelectorAll('[data-pub-id]')).map((input) => input.dataset.pubId));
+  return [...links, ...existing.filter((link) => !offeredIds.has(String(link.publicationId || link.id || '')))];
 }
 
 function publicationLinksSummary(links = []) {
@@ -1451,20 +1467,25 @@ async function handleGoogleLogin() {
 }
 
 async function handleAuthState(user) {
+  const generation = ++state.authGeneration;
   const previousUid = state.user?.uid || '';
   state.user = user || null;
   state.authResolved = true;
   togglePending(false);
   toggleViews(Boolean(state.user));
   setTopbarAuthState(Boolean(state.user), state.user?.email || '');
+  if (previousUid && previousUid !== state.user?.uid) teardownListeners();
   if (!state.user) {
+    if (state.openEditorKind) closeEditor(state.openEditorKind);
     teardownListeners();
     state.seeded = false;
     renderProjectLeadOptions();
     return;
   }
+  if (previousUid === state.user.uid && adminSubscriptions.keys().length) return;
   renderAdminLoadingState();
   await ensureSeeded();
+  if (generation !== state.authGeneration || !state.user) return;
   attachListeners();
   setActiveTab(state.activeTab || 'members');
   renderProjectLeadOptions();
@@ -1502,78 +1523,107 @@ function renderAdminLoadingState() {
 }
 
 
+const adminSubscriptions = createAdminSubscriptions({
+  subscribe(key, onData, onError) {
+    const { name } = ADMIN_COLLECTIONS.find((item) => item.key === key);
+    return listenCollection(name, onData, onError);
+  },
+  onStart(key) {
+    state.collectionReads.set(key, { ...state.collectionReads.get(key), status: 'loading', error: null });
+    renderAdminCollection(key);
+  },
+  onStop(key) {
+    state.collectionReads.set(key, { ...state.collectionReads.get(key), status: 'idle' });
+  },
+  onData(key, items) {
+    state.collectionReads.set(key, { status: 'ready', hasData: true });
+    if (key === 'members') state.members = activeItems(useLiveAdminData ? sortMembers(items) : sortMembers(mergeMembers(FALLBACK_MEMBERS, items)));
+    if (key === 'projects') state.projects = activeItems(useLiveAdminData ? sortProjects(items) : sortProjects(mergeProjects(FALLBACK_PROJECTS, items)));
+    if (key === 'publications') state.publications = activeItems(useLiveAdminData ? sortPublications(items) : sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items)));
+    if (key === 'patents') state.patents = activeItems(sortPatents(items));
+    if (key === 'board') state.board = activeItems(useLiveAdminData ? sortBoardPosts(items) : sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items)));
+    if (key === 'trash') state.trash = sortTrashItems(items);
+    renderAdminCollection(key);
+    renderPendingEditorPickers(key);
+    renderSummary();
+    renderAdminReadNotice();
+    if (key === 'trash') cleanupExpiredTrash().catch((error) => console.error(error));
+  },
+  onError(key, error) {
+    state.collectionReads.set(key, { ...state.collectionReads.get(key), status: 'error', error });
+    renderAdminCollection(key);
+    renderPendingEditorPickers(key);
+    renderSummary();
+    renderAdminReadNotice();
+  }
+});
+
+function renderAdminCollection(key) {
+  if (key !== state.activeTab) return;
+  const render = { members: renderMembersList, projects: renderProjectsList, publications: renderPublicationsList, patents: renderPatentsList, board: renderBoardList, trash: renderTrashList };
+  render[key]?.();
+}
+
+function syncAdminSubscriptions() {
+  adminSubscriptions.sync(adminSubscriptionKeys(state));
+  adminSubscriptions.keys().forEach(renderPendingEditorPickers);
+  renderSummary();
+  renderAdminReadNotice();
+}
+
 function attachListeners() {
   teardownListeners();
-  ADMIN_COLLECTIONS.forEach(({ key }) => state.collectionReads.set(key, { status: 'loading', hasData: false }));
-  renderAdminReadNotice();
-  const watch = (key, onItems, renderList) => {
-    const { name } = ADMIN_COLLECTIONS.find((item) => item.key === key);
-    const onError = (error) => {
-      console.error(`${name} 데이터 읽기 실패`, error);
-      state.collectionReads.set(key, { ...state.collectionReads.get(key), status: 'error', error });
-      renderList();
-      renderSummary();
-      renderAdminReadNotice();
-    };
-    try {
-      return listenCollection(name, (items) => {
-        state.collectionReads.set(key, { status: 'ready', hasData: true });
-        onItems(items);
-        renderAdminReadNotice();
-      }, onError);
-    } catch (error) {
-      onError(error);
-      return () => {};
-    }
-  };
-  state.unsubs = [
-    watch('members', (items) => {
-      state.members = activeItems(useLiveAdminData ? sortMembers(items) : sortMembers(mergeMembers(FALLBACK_MEMBERS, items)));
-      renderMembersList();
-      renderProjectLeadOptions();
-      renderMemberPublicationPicker(state.editingMember?.publicationLinks || []);
-      renderSummary();
-    }, renderMembersList),
-    watch('projects', (items) => {
-      state.projects = activeItems(useLiveAdminData ? sortProjects(items) : sortProjects(mergeProjects(FALLBACK_PROJECTS, items)));
-      renderProjectsList();
-      renderSummary();
-    }, renderProjectsList),
-    watch('publications', (items) => {
-      state.publications = activeItems(useLiveAdminData ? sortPublications(items) : sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items)));
-      renderPublicationsList();
-      renderSummary();
-    }, renderPublicationsList),
-    watch('patents', (items) => {
-      state.patents = activeItems(sortPatents(items));
-      renderPatentsList();
-      renderSummary();
-    }, renderPatentsList),
-    watch('board', (items) => {
-      state.board = activeItems(useLiveAdminData ? sortBoardPosts(items) : sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items)));
-      renderBoardList();
-      renderSummary();
-    }, renderBoardList),
-    watch('trash', (items) => {
-      state.trash = sortTrashItems(items);
-      renderTrashList();
-      renderSummary();
-      cleanupExpiredTrash().catch((error) => console.error(error));
-    }, renderTrashList)
-  ];
+  ADMIN_COLLECTIONS.forEach(({ key }) => state.collectionReads.set(key, { status: 'idle', hasData: !useLiveAdminData }));
+  syncAdminSubscriptions();
 }
 
 function teardownListeners() {
-  state.unsubs.forEach((unsub) => { try { unsub(); } catch {} });
-  state.unsubs = [];
+  adminSubscriptions.clear();
   state.collectionReads.clear();
   renderAdminReadNotice();
+}
+
+function renderPickerReadState(container, key) {
+  const read = state.collectionReads.get(key);
+  if (!useLiveAdminData || read?.hasData) {
+    container.dataset.ready = 'true';
+    return false;
+  }
+  container.dataset.ready = 'false';
+  const text = read?.status === 'error' ? adminReadErrorMessage(key)
+    : read?.status === 'loading' ? '연결할 목록을 불러오는 중입니다.' : '연구 연결 탭을 열면 목록을 불러옵니다.';
+  container.innerHTML = `<p class="muted" role="status">${escapeHTML(text)}</p>`;
+  return true;
+}
+
+// Refresh untouched controls, but never replace choices or text that an
+// administrator is editing. A dependency arriving for the first time still
+// populates its empty picker even if other fields have already been changed.
+function renderPendingEditorPickers(key) {
+  if (state.openEditorKind === 'member' && state.memberEditorTab === 'research') {
+    if (key === 'projects' && (elements.memberProjectPicker?.dataset.ready !== 'true' || !isFormDirty('member'))) renderMemberProjectPicker(state.editingMember?.projectLinks || []);
+    const picker = qs('#member-publication-picker');
+    if (key === 'publications' && (picker?.dataset.ready !== 'true' || !isFormDirty('member'))) renderMemberPublicationPicker(state.editingMember?.publicationLinks || []);
+  }
+  if (key === 'members' && state.openEditorKind === 'publication' && (elements.publicationMemberPicker?.dataset.ready !== 'true' || !isFormDirty('publication'))) {
+    renderPublicationMemberPicker(resolvePublicationMemberLinks(state.editingPublication || {}));
+  }
+  if (key === 'members' && state.openEditorKind === 'project' && (elements.projectPrincipalInvestigator?.dataset.ready !== 'true' || !isFormDirty('project'))) renderProjectLeadOptions();
+}
+
+function requireEditorMembers() {
+  if (!useLiveAdminData || (state.collectionReads.get('members')?.hasData && state.collectionReads.get('members')?.status === 'ready')) return true;
+  showNotice('연결할 멤버 목록을 먼저 불러와야 저장할 수 있습니다. 목록을 불러오는 중이거나 읽기 오류가 있는지 확인해주세요.', 'warning');
+  return false;
 }
 
 function renderSummary() {
   ADMIN_COLLECTIONS.forEach(({ key, summary }) => {
     const read = state.collectionReads.get(key);
-    if (elements[summary]) elements[summary].textContent = read && !read.hasData ? '—' : state[key].length;
+    if (elements[summary]) {
+      elements[summary].textContent = useLiveAdminData && !read?.hasData ? '—' : state[key].length;
+      elements[summary].title = read?.hasData && read.status === 'idle' ? '마지막으로 불러온 항목 수' : '';
+    }
   });
 }
 
@@ -1587,7 +1637,8 @@ function adminReadErrorMessage(key) {
 function renderAdminReadNotice() {
   const notice = qs('#admin-data-notice');
   if (!notice) return;
-  const failed = ADMIN_COLLECTIONS.filter(({ key }) => state.collectionReads.get(key)?.status === 'error');
+  const required = new Set(adminSubscriptionKeys(state));
+  const failed = ADMIN_COLLECTIONS.filter(({ key }) => required.has(key) && state.collectionReads.get(key)?.status === 'error');
   notice.textContent = failed.map(({ key }) => adminReadErrorMessage(key)).join(' ');
   notice.hidden = failed.length === 0;
 }
@@ -1757,6 +1808,14 @@ function renderProjectLeadOptions() {
   const currentProject = state.editingProject || {};
   const currentMember = resolveProjectInvestigatorMember(currentProject);
   const currentValue = currentMember?.id || currentProject.principalInvestigatorId || currentProject.principalInvestigator || '';
+  if (useLiveAdminData && !state.collectionReads.get('members')?.hasData) {
+    elements.projectPrincipalInvestigator.dataset.ready = 'false';
+    elements.projectPrincipalInvestigator.disabled = true;
+    elements.projectPrincipalInvestigator.innerHTML = `<option value="${escapeHTML(currentValue)}">${escapeHTML(currentProject.principalInvestigator || '멤버 목록을 불러오는 중입니다.')}</option>`;
+    return;
+  }
+  elements.projectPrincipalInvestigator.dataset.ready = 'true';
+  elements.projectPrincipalInvestigator.disabled = false;
   const candidates = sortMembers(state.members).filter((member) => member.status !== 'alumni' && ['pi', 'researchProfessor'].includes(member.group));
   const seen = new Set();
   const options = ['<option value="">선택</option>'];
@@ -1796,6 +1855,8 @@ function setActiveTab(tabName) {
     panel.setAttribute('aria-labelledby', `admin-tab-${panel.dataset.panel}`);
     panel.hidden = !selected;
   });
+  syncAdminSubscriptions();
+  renderAdminCollection(tabName);
 }
 
 function onMemberFilterClick(event) {
@@ -2255,8 +2316,10 @@ async function handleMemberSubmit(event) {
   payload.experienceKr = buildExperienceText(payload.experienceEntries, 'kr');
   payload.experienceEn = buildExperienceText(payload.experienceEntries, 'en');
   payload.experience = firstFilledValue(payload.experienceKr, payload.experienceEn);
-  payload.authorshipNote = publicationLinksSummary(payload.publicationLinks);
-  payload.relatedProjects = memberProjectLinksSummary(payload.projectLinks);
+  payload.authorshipNote = qs('#member-publication-picker')?.dataset.ready === 'true'
+    ? publicationLinksSummary(payload.publicationLinks) : state.editingMember?.authorshipNote || publicationLinksSummary(payload.publicationLinks);
+  payload.relatedProjects = elements.memberProjectPicker?.dataset.ready === 'true'
+    ? memberProjectLinksSummary(payload.projectLinks) : state.editingMember?.relatedProjects || memberProjectLinksSummary(payload.projectLinks);
   if (!(payload.group === 'pi' || payload.course === 'professor')) {
     payload.courseSchedule = [];
     payload.coursesInfo = '';
@@ -2320,6 +2383,7 @@ function extractYearFromPeriod(period = '') {
 
 async function handleProjectSubmit(event) {
   event.preventDefault();
+  if (!requireEditorMembers()) return;
   const form = event.currentTarget;
   const formData = new FormData(form);
   const period = normalizeProjectPeriod(String(formData.get('period') || '').trim());
@@ -2375,6 +2439,7 @@ async function handleProjectSubmit(event) {
 
 async function handlePublicationSubmit(event) {
   event.preventDefault();
+  if (!requireEditorMembers()) return;
   const form = event.currentTarget;
   const formData = new FormData(form);
   const payload = {

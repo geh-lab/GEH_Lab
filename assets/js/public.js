@@ -34,7 +34,8 @@ import {
   setupAdaptiveGlass,
   setSpatialOrigin
 } from './utils.js?v=111';
-import { hasFirebaseConfig, isLocalDevMode, fetchCollection, listenCollection, COLLECTIONS } from './firebase-public.js?v=82';
+import { hasFirebaseConfig, isLocalDevMode, fetchCollectionResult, readCachedCollection, COLLECTIONS } from './firebase-public.js?v=83';
+import { PUBLIC_DATA_CHANGED, getPublicCollectionRevision } from './public-data-cache.js';
 
 document.documentElement.classList.add('js');
 
@@ -184,8 +185,7 @@ const state = {
   patentFilter: 'all',
   boardTab: 'all',
   boardView: savedBoardView(),
-  boardSort: savedBoardSort(),
-  unsubs: []
+  boardSort: savedBoardSort()
 };
 
 let renderedMemberSignature = page === 'members' && prerenderedMembers.length
@@ -243,87 +243,33 @@ function renderPageWithoutInterruptingMemberProfile() {
   renderPage();
 }
 
-const PUBLIC_CACHE_KEY = 'geh-public-cache-v81';
-const LEGACY_PUBLIC_CACHE_KEYS = ['geh-public-cache-v75', 'geh-public-cache-v76', 'geh-public-cache-v77', 'geh-public-cache-v80'];
-
+// Discard the old page-wide snapshot: it stamped unfetched/empty collections as fresh.
 try {
-  LEGACY_PUBLIC_CACHE_KEYS.forEach((key) => localStorage.removeItem(key));
-} catch {
-  // Storage may be unavailable in privacy-restricted browsing contexts.
-}
+  ['75', '76', '77', '80', '81'].forEach((version) => localStorage.removeItem(`geh-public-cache-v${version}`));
+} catch { /* Persistent storage is optional. */ }
 
+const dataIssues = new Map();
+const resolvedCollections = new Set(prerenderedMembers.length ? ['members'] : []);
+const loadingKeyFor = (key) => `loading${key[0].toUpperCase()}${key.slice(1)}`;
 
-function cacheFresh(cache = {}, minutes = 15) {
-  const savedAt = Number(cache?.savedAt || 0);
-  if (!savedAt) return false;
-  return (Date.now() - savedAt) <= minutes * 60 * 1000;
-}
-
-function snapshotSerializableState() {
-  return {
-    members: Array.isArray(state.members) ? state.members : [],
-    projects: Array.isArray(state.projects) ? state.projects : [],
-    publications: Array.isArray(state.publications) ? state.publications : [],
-    patents: Array.isArray(state.patents) ? state.patents : [],
-    board: Array.isArray(state.board) ? state.board : [],
-    savedAt: Date.now()
-  };
-}
-
-function readPublicCache() {
-  try {
-    const raw = localStorage.getItem(PUBLIC_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return null;
-    return parsed;
-  } catch (error) {
-    console.warn('공개 캐시를 읽지 못했습니다.', error);
-    return null;
-  }
-}
-
-function writePublicCache() {
-  try {
-    localStorage.setItem(PUBLIC_CACHE_KEY, JSON.stringify(snapshotSerializableState()));
-  } catch (error) {
-    console.warn('공개 캐시를 저장하지 못했습니다.', error);
-  }
+function applyCollectionItems(key, items) {
+  let nextItems;
+  if (key === 'members') nextItems = dedupeMembers(sortMembers(useLiveData ? items : mergeMembers(FALLBACK_MEMBERS, items)).filter(isActiveItem));
+  else if (key === 'projects') nextItems = mergedProjectsForPage(items);
+  else if (key === 'publications') nextItems = sortPublications(useLiveData ? items : mergePublications(FALLBACK_PUBLICATIONS, items)).filter(isActiveItem);
+  else if (key === 'board') nextItems = mergedBoardForPage(items);
+  else nextItems = sortPatents(items).filter(isActiveItem);
+  resolvedCollections.add(key);
+  if (key === 'patents') state.patentsError = false;
+  return replaceCollectionState(key, nextItems, loadingKeyFor(key));
 }
 
 function applyCachedState() {
-  // 현재 버전에서 실제로 동기화된 최신 데이터만 먼저 보여주고,
-  // Firestore 서버 응답은 백그라운드에서 다시 확인합니다.
-  const cache = readPublicCache();
-  if (!cache) return false;
-  let applied = false;
-  const fresh = cacheFresh(cache, 15);
-  if (!prerenderedMembers.length && Array.isArray(cache.members) && cache.members.length && fresh) {
-    state.members = dedupeMembers(useLiveData ? sortMembers(cache.members).filter(isActiveItem) : sortMembers(mergeMembers(FALLBACK_MEMBERS, cache.members)).filter(isActiveItem));
-    state.loadingMembers = false;
-    applied = true;
-  }
-  if (Array.isArray(cache.projects) && cache.projects.length && fresh) {
-    state.projects = mergedProjectsForPage(cache.projects);
-    state.loadingProjects = false;
-    applied = true;
-  }
-  if (Array.isArray(cache.publications) && cache.publications.length && fresh) {
-    state.publications = useLiveData ? sortPublications(cache.publications).filter(isActiveItem) : sortPublications(mergePublications(FALLBACK_PUBLICATIONS, cache.publications)).filter(isActiveItem);
-    state.loadingPublications = false;
-    applied = true;
-  }
-  if (Array.isArray(cache.board) && cache.board.length && fresh && (!useLiveBoardOnly() || boardCacheFresh(cache))) {
-    state.board = mergedBoardForPage(cache.board);
-    state.loadingBoard = false;
-    applied = true;
-  }
-  // Other pages can cache an unfetched empty array; wait for a verified count.
-  if (Array.isArray(cache.patents) && cache.patents.length && fresh) {
-    state.patents = sortPatents(cache.patents).filter(isActiveItem);
-    state.loadingPatents = false;
-  }
-  return applied;
+  if (!useLiveData) return;
+  Object.entries(COLLECTIONS).forEach(([key, name]) => {
+    const record = readCachedCollection(name);
+    if (record) applyCollectionItems(key, record.items);
+  });
 }
 
 
@@ -344,11 +290,6 @@ function mergedBoardForPage(items = []) {
   return sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items)).filter(isActiveItem);
 }
 
-function boardCacheFresh(cache = {}) {
-  const savedAt = Number(cache?.savedAt || 0);
-  if (!savedAt) return false;
-  return (Date.now() - savedAt) <= 10 * 60 * 1000;
-}
 
 function normalizeProjectsForPage(items = []) {
   return sortProjects((Array.isArray(items) ? items : []).filter(isActiveItem));
@@ -717,129 +658,117 @@ document.addEventListener('DOMContentLoaded', () => {
   setupSearch();
   if (page === 'home') setupHeroSlider();
 
-  // Firestore 데이터를 불러오기 전에는 로딩 상태를 보여줍니다.
-  // 로컬/오프라인 모드에서만 캐시 또는 기본 데이터를 사용합니다.
+  // A fresh per-collection cache avoids another server read on navigation.
   applyCachedState();
   renderPage();
-  hydrate().catch((error) => console.warn('초기 데이터 동기화 실패', error));
+  refreshPublicData();
+  setupPublicDataRefresh();
 });
+
+const pageCollections = {
+  home: [COLLECTIONS.members, COLLECTIONS.projects, COLLECTIONS.publications, COLLECTIONS.patents, COLLECTIONS.board],
+  members: [COLLECTIONS.members, COLLECTIONS.publications],
+  projects: [COLLECTIONS.projects, COLLECTIONS.members],
+  patents: [COLLECTIONS.patents],
+  publications: [COLLECTIONS.publications, COLLECTIONS.members],
+  board: [COLLECTIONS.board]
+};
+
+function showDataIssues() {
+  if (!dataIssues.size) {
+    qs('#public-status-notice')?.remove();
+    return;
+  }
+  const hasMissing = [...dataIssues.keys()].some((key) => !resolvedCollections.has(key));
+  showPublicNotice(lang === 'en'
+    ? (hasMissing ? 'Some data could not be loaded. Please try again shortly.' : 'The latest data could not be checked. Showing the last available content.')
+    : (hasMissing ? '일부 데이터를 불러오지 못했습니다. 잠시 후 다시 확인해주세요.' : '최신 데이터를 확인하지 못해 마지막으로 불러온 내용을 표시합니다.'),
+  hasMissing ? 'danger' : 'warning');
+}
 
 async function hydrate() {
   if (!hasFirebaseConfig) return;
-  const readSafely = async (collectionName) => {
-    try {
-      return await fetchCollection(collectionName);
-    } catch (error) {
-      if (collectionName === COLLECTIONS.patents) state.patentsError = true;
-      console.warn(`${collectionName} 컬렉션을 불러오지 못했습니다.`, error);
-      if (page !== 'home' || collectionName !== COLLECTIONS.patents) {
-        showPublicNotice(lang === 'en'
-          ? 'Some live content could not be loaded. Please try again shortly.'
-          : '일부 실시간 콘텐츠를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.', 'danger');
-      }
-      return [];
-    }
-  };
-
-  const pageCollections = {
-    home: [COLLECTIONS.members, COLLECTIONS.projects, COLLECTIONS.publications, COLLECTIONS.patents, COLLECTIONS.board],
-    members: [COLLECTIONS.members, COLLECTIONS.publications],
-    projects: [COLLECTIONS.projects, COLLECTIONS.members],
-    patents: [COLLECTIONS.patents],
-    publications: [COLLECTIONS.publications, COLLECTIONS.members],
-    board: [COLLECTIONS.board]
-  };
-  const collectionNames = (pageCollections[page] || []).filter(Boolean);
-  if (!collectionNames.length) return;
-
-  const resultMap = new Map();
-  const settled = await Promise.allSettled(collectionNames.map((collectionName) => readSafely(collectionName)));
-  settled.forEach((result, index) => {
-    const collectionName = collectionNames[index];
-    resultMap.set(collectionName, result.status === 'fulfilled' ? result.value : []);
-  });
-
-  const members = resultMap.get(COLLECTIONS.members) || [];
-  const projects = resultMap.get(COLLECTIONS.projects) || [];
-  const publications = resultMap.get(COLLECTIONS.publications) || [];
-  const board = COLLECTIONS.board ? (resultMap.get(COLLECTIONS.board) || []) : [];
+  const names = pageCollections[page] || [];
+  const revisions = names.map(getPublicCollectionRevision);
+  const results = await Promise.allSettled(names.map((name) => fetchCollectionResult(name)));
   let shouldRender = false;
-
-  if (resultMap.has(COLLECTIONS.members)) {
-    const nextItems = dedupeMembers(useLiveData ? sortMembers(members).filter(isActiveItem) : sortMembers(mergeMembers(FALLBACK_MEMBERS, members)).filter(isActiveItem));
-    const changed = replaceCollectionState('members', nextItems, 'loadingMembers');
-    shouldRender = shouldRender || (changed && collectionAffectsCurrentPage('members'));
-  }
-  if (resultMap.has(COLLECTIONS.projects)) {
-    const changed = replaceCollectionState('projects', mergedProjectsForPage(projects), 'loadingProjects');
-    shouldRender = shouldRender || (changed && collectionAffectsCurrentPage('projects'));
-  }
-  if (resultMap.has(COLLECTIONS.publications)) {
-    const nextItems = useLiveData ? sortPublications(publications).filter(isActiveItem) : sortPublications(mergePublications(FALLBACK_PUBLICATIONS, publications)).filter(isActiveItem);
-    const changed = replaceCollectionState('publications', nextItems, 'loadingPublications');
-    shouldRender = shouldRender || (changed && collectionAffectsCurrentPage('publications'));
-  }
-  if (resultMap.has(COLLECTIONS.patents)) {
-    const changed = replaceCollectionState('patents', sortPatents(resultMap.get(COLLECTIONS.patents)).filter(isActiveItem), 'loadingPatents');
-    shouldRender = shouldRender || changed || page === 'patents';
-  }
-  if (resultMap.has(COLLECTIONS.board)) {
-    const changed = replaceCollectionState('board', mergedBoardForPage(board), 'loadingBoard');
-    shouldRender = shouldRender || (changed && collectionAffectsCurrentPage('board'));
-  }
-
-  writePublicCache();
-  if (shouldRender) renderPageWithoutInterruptingMemberProfile();
-
-  state.unsubs.forEach((unsub) => { try { unsub(); } catch {} });
-  state.unsubs = [];
-  const addListener = (collectionName, onItems) => {
-    try {
-      state.unsubs.push(listenCollection(collectionName, onItems, (error) => {
-        console.warn(`${collectionName} 실시간 동기화 실패`, error);
-        if (page !== 'home' || collectionName !== COLLECTIONS.patents) {
-          showPublicNotice(lang === 'en'
-            ? 'Live updates are temporarily unavailable. The latest loaded content remains visible.'
-            : '실시간 업데이트 연결이 일시적으로 중단되었습니다. 마지막으로 불러온 내용을 표시합니다.', 'warning');
-        }
-      }));
-    } catch (error) {
-      console.warn(`${collectionName} 리스너 연결 실패`, error);
+  results.forEach((result, index) => {
+    if (revisions[index] !== getPublicCollectionRevision(names[index])) {
+      refreshAfterCurrentRequest = true;
+      return;
     }
-  };
+    const key = Object.keys(COLLECTIONS).find((key) => COLLECTIONS[key] === names[index]);
+    const previousIssue = dataIssues.get(key);
+    if (result.status === 'fulfilled') {
+      const changed = applyCollectionItems(key, result.value.items);
+      if (result.value.stale) dataIssues.set(key, result.value.error || true);
+      else dataIssues.delete(key);
+      shouldRender = (changed && collectionAffectsCurrentPage(key)) || shouldRender;
+    } else {
+      dataIssues.set(key, result.reason);
+      // Never turn a failed request into an empty successful collection/cache.
+      state[loadingKeyFor(key)] = false;
+      if (key === 'patents') state.patentsError = !resolvedCollections.has(key);
+      shouldRender = true;
+    }
+    if (previousIssue !== dataIssues.get(key)) shouldRender = true;
+  });
+  showDataIssues();
+  if (shouldRender) renderPageWithoutInterruptingMemberProfile();
+}
 
-  if (collectionNames.includes(COLLECTIONS.members)) addListener(COLLECTIONS.members, (items) => {
-    const nextItems = dedupeMembers(useLiveData ? sortMembers(items).filter(isActiveItem) : sortMembers(mergeMembers(FALLBACK_MEMBERS, items)).filter(isActiveItem));
-    const changed = replaceCollectionState('members', nextItems, 'loadingMembers');
-    writePublicCache();
-    if (changed && collectionAffectsCurrentPage('members')) renderPageWithoutInterruptingMemberProfile();
+let publicRefreshPromise = null;
+let refreshAfterCurrentRequest = false;
+function refreshPublicData() {
+  if (publicRefreshPromise) return publicRefreshPromise;
+  if (document.hidden) return Promise.resolve();
+  refreshAfterCurrentRequest = false;
+  publicRefreshPromise = hydrate().catch((error) => console.warn('데이터 조회 실패', error)).finally(() => {
+    publicRefreshPromise = null;
+    if (refreshAfterCurrentRequest && !document.hidden) {
+      refreshAfterCurrentRequest = false;
+      refreshPublicData();
+    }
   });
-  if (collectionNames.includes(COLLECTIONS.projects)) addListener(COLLECTIONS.projects, (items) => {
-    const changed = replaceCollectionState('projects', mergedProjectsForPage(items), 'loadingProjects');
-    writePublicCache();
-    if (changed && collectionAffectsCurrentPage('projects')) renderPage();
+  return publicRefreshPromise;
+}
+
+function setupPublicDataRefresh() {
+  // No Firestore snapshot listeners on public pages. Only visible pages recheck
+  // expiry; fresh entries and a short failure cooldown do not contact the server.
+  let timer = null;
+  const stop = () => { window.clearTimeout(timer); timer = null; };
+  const schedule = () => {
+    stop();
+    if (document.hidden) return;
+    const expirations = (pageCollections[page] || []).map((name) => readCachedCollection(name))
+      .filter(Boolean).map((entry) => entry.fetchedAt + 600000 - Date.now());
+    const delay = Math.max(50, Math.min(60000, ...expirations));
+    timer = window.setTimeout(() => {
+      refreshPublicData().finally(schedule);
+    }, delay);
+  };
+  const resume = () => {
+    if (document.hidden) { stop(); return; }
+    refreshPublicData();
+    schedule();
+  };
+  window.addEventListener(PUBLIC_DATA_CHANGED, (event) => {
+    const changed = event.detail?.collections || [];
+    if (!(pageCollections[page] || []).some((name) => changed.includes(name))) return;
+    if (document.hidden) return;
+    if (publicRefreshPromise) refreshAfterCurrentRequest = true;
+    else refreshPublicData();
   });
-  if (collectionNames.includes(COLLECTIONS.publications)) addListener(COLLECTIONS.publications, (items) => {
-    const nextItems = useLiveData ? sortPublications(items).filter(isActiveItem) : sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items)).filter(isActiveItem);
-    const changed = replaceCollectionState('publications', nextItems, 'loadingPublications');
-    writePublicCache();
-    if (changed && collectionAffectsCurrentPage('publications')) renderPage();
+  // The localhost editor writes a separate fixture store, never the live database.
+  window.addEventListener('storage', (event) => {
+    if (isLocalDevMode && (event.key === null || event.key?.startsWith('geh-local-collection:'))) resume();
   });
-  if (collectionNames.includes(COLLECTIONS.patents)) addListener(COLLECTIONS.patents, (items) => {
-    const recovered = state.patentsError;
-    state.patentsError = false;
-    if (recovered && page === 'patents') qs('#public-status-notice')?.remove();
-    const changed = replaceCollectionState('patents', sortPatents(items).filter(isActiveItem), 'loadingPatents');
-    writePublicCache();
-    if ((changed || recovered) && collectionAffectsCurrentPage('patents')) renderPage();
-  });
-  if (collectionNames.includes(COLLECTIONS.board)) {
-    addListener(COLLECTIONS.board, (items) => {
-      const changed = replaceCollectionState('board', mergedBoardForPage(items), 'loadingBoard');
-      writePublicCache();
-      if (changed && collectionAffectsCurrentPage('board')) renderPage();
-    });
-  }
+  document.addEventListener('visibilitychange', resume);
+  window.addEventListener('pageshow', resume);
+  window.addEventListener('pagehide', stop);
+  window.addEventListener('focus', resume);
+  schedule();
 }
 
 let requestedSearchItemOpened = false;
@@ -907,23 +836,26 @@ function setupMapControlLabels() {
   observer.observe(map, { childList: true, subtree: true });
 }
 
-async function loadGlobalSearch() {
+async function loadGlobalSearch(attempt = 0) {
   const keys = ['members', 'projects', 'publications', 'patents', 'board'];
-  const results = await Promise.allSettled(keys.map(async key => {
+  const revisions = keys.map((key) => getPublicCollectionRevision(COLLECTIONS[key]));
+  // Shares the page's requests and per-collection cache, including valid empty results.
+  const results = await Promise.allSettled(keys.map(async (key) => {
     let timer;
     try {
       return await Promise.race([
-        fetchCollection(COLLECTIONS[key]),
+        fetchCollectionResult(COLLECTIONS[key]),
         new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Search timeout')), 10000); })
       ]);
-    } finally {
-      clearTimeout(timer);
-    }
+    } finally { clearTimeout(timer); }
   }));
+  const invalidated = keys.map((key, index) => revisions[index] !== getPublicCollectionRevision(COLLECTIONS[key]));
+  if (invalidated.some(Boolean) && attempt === 0 && !document.hidden) return loadGlobalSearch(1);
   const collections = {};
   results.forEach((result, index) => {
     const key = keys[index];
-    collections[key] = (result.status === 'fulfilled' && (useLiveData || result.value.length) ? result.value : state[key] || []).filter(isActiveItem);
+    const items = invalidated[index] ? [] : result.status === 'fulfilled' ? result.value.items : state[key];
+    collections[key] = (useLiveData ? items : (items?.length ? items : state[key]) || []).filter(isActiveItem);
   });
   const labels = lang === 'en' ? ['Members','Projects','Publications','Patents','Board'] : ['멤버','과제','논문','특허','게시판'];
   const pages = ['members','projects','publications','patents','news'];
@@ -934,7 +866,7 @@ async function loadGlobalSearch() {
     patents: item => patentText(item, 'title', lang),
     board: item => (lang === 'en' ? item.titleEn : item.titleKr) || item.titleKr || item.titleEn || item.title
   };
-  return { partial: results.some(result => result.status === 'rejected'), items: keys.flatMap((key, index) => collections[key].map(item => ({
+  return { partial: invalidated.some(Boolean) || results.some(result => result.status === 'rejected' || result.value.stale), items: keys.flatMap((key, index) => collections[key].map(item => ({
     title: titleFor[key](item) || labels[index], group: labels[index],
     search: [item.nameKr, item.nameEn, item.titleKr, item.titleEn, item.authors, item.year, item.applicationNumber, item.registrationNumber].filter(Boolean).join(' '),
     href: `${pages[index]}.html?item=${encodeURIComponent(item.id)}`
@@ -1589,6 +1521,14 @@ function homeLoadingSummaryCard(title) {
   return '<article class="stat-card stat-card--summary stat-card--skeleton stat-card--loading reveal" aria-hidden="true"><strong class="skeleton-line skeleton-line--number"></strong><span>' + escapeHTML(title) + '</span><div class="stat-card__meta"><small class="skeleton-chip"></small><small class="skeleton-chip skeleton-chip--short"></small></div></article>';
 }
 
+function homeCollectionSummaryCard(key, title, value, lines) {
+  if (useLiveData && !resolvedCollections.has(key)) {
+    if (state[loadingKeyFor(key)]) return homeLoadingSummaryCard(title);
+    return homeSummaryCard(title, null, [lang === 'en' ? 'Count unavailable' : '집계 정보를 불러오지 못했습니다.']);
+  }
+  return homeSummaryCard(title, value, lines);
+}
+
 function homePatentSummaryCard() {
   const title = lang === 'en' ? 'Patents' : '특허';
   if (state.loadingPatents) return homeLoadingSummaryCard(title);
@@ -1723,11 +1663,11 @@ function renderHome() {
       ].join('');
     } else {
       heroStat.innerHTML = [
-        homeSummaryCard(lang === 'en' ? 'Members' : '구성원', memberCounts.total, [lang === 'en' ? `PI ${piCount} · Research ${researchProfessors}` : `지도교수 ${piCount} · 연구교수 ${researchProfessors}`, lang === 'en' ? `Graduate ${graduateStudents.length} · Undergraduate ${undergrads}` : `대학원생 ${graduateStudents.length} · 학부연구생 ${undergrads}`]),
-        homeSummaryCard(lang === 'en' ? 'Projects' : '과제', state.projects.length, [lang === 'en' ? `Ongoing ${ongoingProjects.length}` : `진행 중 ${ongoingProjects.length}`, lang === 'en' ? `Archived ${completedProjects.length}` : `종료 ${completedProjects.length}`]),
-        homeSummaryCard(lang === 'en' ? 'Publications' : '논문', state.publications.length, publicationSummaryLines(currentYearPubs, currentYear)),
+        homeCollectionSummaryCard('members', lang === 'en' ? 'Members' : '구성원', memberCounts.total, [lang === 'en' ? `PI ${piCount} · Research ${researchProfessors}` : `지도교수 ${piCount} · 연구교수 ${researchProfessors}`, lang === 'en' ? `Graduate ${graduateStudents.length} · Undergraduate ${undergrads}` : `대학원생 ${graduateStudents.length} · 학부연구생 ${undergrads}`]),
+        homeCollectionSummaryCard('projects', lang === 'en' ? 'Projects' : '과제', state.projects.length, [lang === 'en' ? `Ongoing ${ongoingProjects.length}` : `진행 중 ${ongoingProjects.length}`, lang === 'en' ? `Archived ${completedProjects.length}` : `종료 ${completedProjects.length}`]),
+        homeCollectionSummaryCard('publications', lang === 'en' ? 'Publications' : '논문', state.publications.length, publicationSummaryLines(currentYearPubs, currentYear)),
         homePatentSummaryCard(),
-        homeSummaryCard(lang === 'en' ? 'Board' : '게시판', state.board.length, [lang === 'en' ? `Articles ${boardOtherCount} · Conference ${boardConferenceCount}` : `기사 ${boardOtherCount} · 학회 ${boardConferenceCount}`, lang === 'en' ? `Workshop ${boardWorkshopCount} · Lab equipment ${boardEquipmentCount}` : `워크숍 ${boardWorkshopCount} · 실험실 장비 목록 ${boardEquipmentCount}`])
+        homeCollectionSummaryCard('board', lang === 'en' ? 'Board' : '게시판', state.board.length, [lang === 'en' ? `Articles ${boardOtherCount} · Conference ${boardConferenceCount}` : `기사 ${boardOtherCount} · 학회 ${boardConferenceCount}`, lang === 'en' ? `Workshop ${boardWorkshopCount} · Lab equipment ${boardEquipmentCount}` : `워크숍 ${boardWorkshopCount} · 실험실 장비 목록 ${boardEquipmentCount}`])
       ].join('');
     }
   }

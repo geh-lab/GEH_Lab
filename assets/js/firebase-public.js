@@ -1,3 +1,5 @@
+import { publicCollectionCache } from './public-data-cache.js';
+
 export const COLLECTIONS = {
   members: 'members',
   projects: 'projects',
@@ -7,18 +9,17 @@ export const COLLECTIONS = {
 };
 
 const firebaseConfig = window.GEH_FIREBASE_CONFIG?.apiKey ? window.GEH_FIREBASE_CONFIG : null;
-const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 const isLocalRuntime = LOCAL_HOSTS.has(window.location.hostname) || window.location.protocol === 'file:';
 export const isLocalDevMode = window.GEH_LOCAL_DEV_MODE === true
   ? true
   : window.GEH_LOCAL_DEV_MODE === false
     ? false
-    : (!firebaseConfig && isLocalRuntime);
+    : isLocalRuntime;
 
 export const hasFirebaseConfig = Boolean(firebaseConfig) || isLocalDevMode;
 
 const LOCAL_PREFIX = 'geh-local-collection:';
-const localSubscribers = new Map();
 let firestoreContext = null;
 let firestoreReady = null;
 
@@ -70,45 +71,35 @@ function snapshotToItems(snapshot) {
   return snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
 }
 
-export async function fetchCollection(name) {
-  if (isLocalDevMode) return readLocalCollection(name);
-  const context = await ensureFirestore();
-  if (!context?.db) return [];
+export function readCachedCollection(name, options) {
+  return isLocalDevMode ? null : publicCollectionCache.read(name, options);
+}
+
+export async function fetchCollectionResult(name, options) {
+  if (isLocalDevMode) {
+    return { items: readLocalCollection(name), fetchedAt: Date.now(), stale: false, source: 'local' };
+  }
+  if (!firebaseConfig) return { items: [], fetchedAt: Date.now(), stale: false, source: 'local' };
+  const loader = async () => {
+    const context = await ensureFirestore();
+    let timer;
+    try {
+      const snapshot = await Promise.race([
+        context.getDocsFromServer(context.collection(context.db, name)),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(Object.assign(new Error('Data request timed out.'), { code: 'deadline-exceeded' })), 15000); })
+      ]);
+      return snapshotToItems(snapshot);
+    } finally { clearTimeout(timer); }
+  };
   try {
-    const snapshot = await context.getDocsFromServer(context.collection(context.db, name));
-    return snapshotToItems(snapshot);
+    return await publicCollectionCache.load(name, loader, options);
   } catch (error) {
-    console.warn('getDocsFromServer failed, falling back to getDocs', error);
-    const snapshot = await context.getDocs(context.collection(context.db, name));
-    return snapshotToItems(snapshot);
+    // An administrator saved while this request was running. Do not restore old data.
+    if (error?.code === 'cache/invalidated' && !document.hidden) return publicCollectionCache.load(name, loader, options);
+    throw error;
   }
 }
 
-export function listenCollection(name, onData, onError) {
-  if (isLocalDevMode) {
-    onData(readLocalCollection(name));
-    const subscribers = localSubscribers.get(name) || new Set();
-    subscribers.add(onData);
-    localSubscribers.set(name, subscribers);
-    const storageHandler = (event) => {
-      if (event.key === localCollectionKey(name)) onData(readLocalCollection(name));
-    };
-    window.addEventListener('storage', storageHandler);
-    return () => {
-      subscribers.delete(onData);
-      window.removeEventListener('storage', storageHandler);
-    };
-  }
-  if (!firestoreContext?.db) {
-    onData([]);
-    return () => {};
-  }
-  return firestoreContext.onSnapshot(
-    firestoreContext.collection(firestoreContext.db, name),
-    (snapshot) => onData(snapshotToItems(snapshot)),
-    (error) => {
-      console.error(error);
-      onError?.(error);
-    }
-  );
+export async function fetchCollection(name, options) {
+  return (await fetchCollectionResult(name, options)).items;
 }

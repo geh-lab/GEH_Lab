@@ -1,3 +1,4 @@
+import { PUBLIC_DATA_CHANGED } from './public-data-cache.js';
 import { escapeHTML } from './utils.js';
 import { setupImageFallbacks } from './portraits.js';
 import { setupReadingPreferences } from './reading-preferences.js';
@@ -251,8 +252,10 @@ export function setupPublicChrome({ lang, page, loadSearch }) {
   const searchStatus = search.querySelector('[data-search-status]');
   let searchItems = [];
   let searchLoading = false;
-  let searchLoaded = false;
   let partial = false;
+  let searchRevision = 0;
+  let searchQueued = false;
+  let searchTimer = null;
   function renderSearch() {
     const query = searchInput.value.trim().toLocaleLowerCase();
     const matches = searchItems.filter(item => `${item.title} ${item.search || ''} ${item.group}`.toLocaleLowerCase().includes(query));
@@ -264,20 +267,51 @@ export function setupPublicChrome({ lang, page, loadSearch }) {
         : matches.length ? (en ? `${matches.length} results${matches.length > 6 ? ' · first 6 shown' : ''}` : `${matches.length}건${matches.length > 6 ? ' · 상위 6건 표시' : ''}`)
           : (en ? 'No results found.' : '검색 결과가 없습니다.');
   }
+  function refreshSearch() {
+    window.clearTimeout(searchTimer);
+    if (search.hidden || document.hidden) return;
+    if (searchLoading) { searchQueued = true; return; }
+    const revision = searchRevision;
+    searchLoading = true;
+    renderSearch();
+    Promise.resolve().then(loadSearch).then(data => {
+      if (revision !== searchRevision) { searchQueued = true; return; }
+      searchItems = data.items;
+      partial = data.partial;
+    }).catch(() => { partial = true; }).finally(() => {
+      searchLoading = false;
+      if (searchQueued && !search.hidden && !document.hidden) {
+        searchQueued = false;
+        refreshSearch();
+      } else {
+        searchQueued = false;
+        renderSearch();
+        if (!search.hidden && !document.hidden) searchTimer = window.setTimeout(refreshSearch, 60000);
+      }
+    });
+  }
   function setSearch(open, restore = false) {
     search.hidden = !open;
     searchButton.setAttribute('aria-expanded', String(open));
     header.classList.toggle('is-searching', open);
     if (open) {
       setPreferences(false); setMenu(false); searchInput.focus({ preventScroll: true });
-      if (!searchLoaded && !searchLoading) {
-        searchLoading = true; renderSearch();
-        Promise.resolve().then(loadSearch).then(data => {
-          searchItems = data.items; partial = data.partial; searchLoaded = !partial;
-        }).catch(() => { partial = true; }).finally(() => { searchLoading = false; renderSearch(); });
-      } else renderSearch();
-    } else if (restore) searchButton.focus({ preventScroll: true });
+      refreshSearch();
+    } else {
+      window.clearTimeout(searchTimer);
+      if (restore) searchButton.focus({ preventScroll: true });
+    }
   }
+  window.addEventListener(PUBLIC_DATA_CHANGED, () => {
+    searchRevision += 1;
+    refreshSearch();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) window.clearTimeout(searchTimer);
+    else refreshSearch();
+  });
+  window.addEventListener('pagehide', () => window.clearTimeout(searchTimer));
+  window.addEventListener('pageshow', refreshSearch);
   searchButton.addEventListener('click', () => setSearch(search.hidden, !search.hidden));
   search.querySelector('[data-search-close]').addEventListener('click', () => setSearch(false, true));
   search.querySelector('form').addEventListener('submit', event => event.preventDefault());

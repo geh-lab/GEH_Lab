@@ -1,3 +1,4 @@
+import { invalidatePublicCollection } from './public-data-cache.js';
 import { allowsAdminPreview } from './admin-preview.js';
 import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js';
 import {
@@ -41,19 +42,19 @@ export const COLLECTIONS = {
 
 export const isLocalAdminPreview = allowsAdminPreview(window.location);
 const firebaseConfig = !isLocalAdminPreview && window.GEH_FIREBASE_CONFIG?.apiKey ? window.GEH_FIREBASE_CONFIG : null;
-const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 const isLocalRuntime = LOCAL_HOSTS.has(window.location.hostname) || window.location.protocol === 'file:';
 export const isLocalDevMode = isLocalAdminPreview || (window.GEH_LOCAL_DEV_MODE === true
   ? true
   : window.GEH_LOCAL_DEV_MODE === false
     ? false
-    : (!firebaseConfig && isLocalRuntime));
+    : isLocalRuntime);
 export const hasFirebaseConfig = Boolean(firebaseConfig) || isLocalDevMode;
 export const ADMIN_EMAILS = Array.isArray(window.GEH_ADMIN_EMAILS)
   ? window.GEH_ADMIN_EMAILS.map((email) => String(email).trim().toLowerCase()).filter(Boolean)
   : [];
 
-const app = firebaseConfig ? (getApps().length ? getApp() : initializeApp(firebaseConfig)) : null;
+const app = firebaseConfig && !isLocalDevMode ? (getApps().length ? getApp() : initializeApp(firebaseConfig)) : null;
 export const auth = app ? getAuth(app) : null;
 export const db = app ? getFirestore(app) : null;
 export const storage = app ? getStorage(app) : null;
@@ -439,6 +440,7 @@ export async function saveDocument(collectionName, documentId, payload) {
     if (index >= 0) items[index] = next;
     else items.push(next);
     writeLocalCollection(collectionName, items);
+    invalidatePublicCollection(collectionName);
     return targetId;
   }
   if (!db) throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
@@ -454,6 +456,7 @@ export async function saveDocument(collectionName, documentId, payload) {
     },
     { merge: true }
   );
+  invalidatePublicCollection(collectionName);
   return targetRef.id;
 }
 
@@ -461,10 +464,12 @@ export async function deleteDocumentById(collectionName, documentId) {
   if (isLocalDevMode) {
     const items = readLocalCollection(collectionName).filter((item) => item.id !== documentId);
     writeLocalCollection(collectionName, items);
+    invalidatePublicCollection(collectionName);
     return;
   }
   if (!db) throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
   await deleteDoc(doc(db, collectionName, documentId));
+  invalidatePublicCollection(collectionName);
 }
 
 export async function uploadAsset(file, folder = 'uploads') {
