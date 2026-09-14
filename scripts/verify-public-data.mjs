@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import { createCollectionCache } from '../assets/js/collection-cache.js';
 import * as utils from '../assets/js/utils.js';
 import * as patents from '../assets/js/patents.js';
+import * as inventors from '../assets/js/patent-inventors.js';
 import * as data from '../assets/js/data.js';
 
 // Execute production data modules with fake time, storage and Firestore. No browser,
@@ -85,8 +86,11 @@ function fixture(initial = {}) {
         summary: key === 'patents' ? homePatentSummaryCard() : homeCollectionSummaryCard(key, key, state[key].length, [])
       }])));
       showPublicNotice = (message, tone) => captureNotice({ message, tone });
-      return { applyCachedState, hydrate, refreshPublicData, setupPublicDataRefresh, loadGlobalSearch, state, dataIssues, resolvedCollections };
-    })()`, { ...base, ...bus, ...adapter, ...utils, ...patents, ...data,
+      return { applyCachedState, hydrate, refreshPublicData, setupPublicDataRefresh, loadGlobalSearch, state, dataIssues, resolvedCollections,
+        bindInteractiveCards, renderPatents, visibleCollectionNames,
+        usePatentRenderer() { renderPage = () => { renderPatents(); bindInteractiveCards(); }; } };
+    })()`, { ...base, ...bus, ...adapter, ...utils, ...patents, ...inventors, ...data,
+      refreshImageFallbacks() {},
       subscribeCollection: firestore.onSnapshot,
       captureRender: value => renders.push(plain(value)), captureNotice: value => notices.push(value)
     }, { filename: 'public.js' });
@@ -408,6 +412,173 @@ await check('Visible scheduler and focus reuse fresh data; expiry refreshes once
   await flush();
   assert.equal(Object.values(f.reads).reduce((sum, value) => sum + value, 0), 15);
   assert.equal(f.subscriptions(), 0);
+});
+
+// Minimal native-details surface for the production patent renderer. Only nodes
+// queried by that renderer are modeled; the cache and request lifecycle stay real.
+function attachPatentDocument(runtime) {
+  let details = [];
+  let years = [];
+  let renders = 0;
+  const matching = (selector) => {
+    if (selector === '[data-accordion-key]') return years;
+    if (!selector.includes('data-patent-')) return [];
+    const attributes = [...selector.matchAll(/\[data-patent-(contributors|details)\]/g)].map(([, type]) => type);
+    return details.filter((item) => attributes.includes(item.type) && (!selector.includes('[open]') || item.open));
+  };
+  const container = {
+    _html: '',
+    get innerHTML() { return this._html; },
+    set innerHTML(html) {
+      this._html = html; renders++;
+      years = [...html.matchAll(/<article\b([^>]*data-accordion-key="([^"]+)"[^>]*)>/g)].map(([, attributes, key]) => {
+        const classes = new Set((attributes.match(/class="([^"]*)"/)?.[1] || '').split(/\s+/));
+        return { dataset: { accordionKey: key }, classList: {
+          contains: (name) => classes.has(name),
+          toggle(name, enabled) { if (enabled ?? !classes.has(name)) classes.add(name); else classes.delete(name); }
+        } };
+      });
+      details.forEach((item) => { item.isConnected = false; });
+      details = [...html.matchAll(/<details\b([^>]*)>([\s\S]*?)<\/details>/g)].flatMap(([, attributes, body]) => {
+        const match = attributes.match(/data-patent-(contributors|details)="([^"]+)"/);
+        if (!match) return [];
+        const [, type, id] = match;
+        const content = { innerHTML: body.match(/data-patent-contributors-content>([\s\S]*)<\/div>/)?.[1] || '' };
+        return [{ ...events(), type, open: false, isConnected: true,
+          dataset: type === 'contributors' ? { patentContributors: id } : { patentDetails: id },
+          hasAttribute: (name) => name === `data-patent-${type}`,
+          querySelector: (selector) => selector === '[data-patent-contributors-content]' ? content : null,
+          content }];
+      });
+    },
+    querySelectorAll: matching
+  };
+  const stats = { innerHTML: '' };
+  const results = { textContent: '' };
+  runtime.document.querySelector = (selector) => ({ '#patent-accordion': container, '#patent-stat-grid': stats,
+    '#patent-results': results }[selector] || matching(selector)[0] || null);
+  runtime.document.querySelectorAll = matching;
+  runtime.usePatentRenderer();
+  return {
+    container, renders: () => renders,
+    node: (type = 'contributors', id) => details.find((item) => item.type === type
+      && (!id || (item.dataset.patentContributors || item.dataset.patentDetails) === id)),
+    year: (year) => years.find((item) => item.dataset.accordionKey === `patent-${year}`),
+    toggle(item, open) { item.open = open; item.dispatchEvent({ type: 'toggle' }); }
+  };
+}
+const linkedPatent = { id: 'linked-patent', titleKr: '연결 특허', status: 'pending',
+  inventorsKr: '테스트 멤버, 외부 발명자', inventorMemberIds: ['member'],
+  applicationNumber: '10-2026-0012345', applicationDate: '2026-09-01' };
+
+await check('Patent inventor profiles load only on opening and reuse cache without extra public listeners', async () => {
+  const f = fixture({ patents: [linkedPatent] });
+  const r = f.runtime('patents');
+  const dom = attachPatentDocument(r);
+  await r.refreshPublicData();
+  assert.deepEqual(f.reads, { patents: 1 });
+  const original = dom.node();
+  dom.toggle(original, true);
+  await r.refreshPublicData();
+  assert.deepEqual(f.reads, { patents: 1, members: 1 });
+  assert.equal(dom.node(), original, 'Roster arrival patches only the inventor content, retaining the open details node');
+  assert.match(original.content.innerHTML, /data-member-id="member"/);
+  assert.doesNotMatch(original.content.innerHTML, /mailto:/);
+  dom.toggle(original, false);
+  dom.toggle(original, true);
+  await r.refreshPublicData();
+  assert.deepEqual(f.reads, { patents: 1, members: 1 });
+  dom.toggle(original, false);
+  await f.advance(600001);
+  await r.refreshPublicData();
+  assert.deepEqual(f.reads, { patents: 2, members: 1 }, 'Closed inventor sections do not refresh an expired member cache');
+  r.setupPublicDataRefresh();
+  r.invalidatePublicCollection('members');
+  await flush();
+  assert.equal(f.reads.members, 1, 'Member invalidation does not fetch a roster for a closed section');
+  dom.toggle(dom.node(), true);
+  await r.refreshPublicData();
+  assert.equal(f.reads.members, 2);
+  assert.equal(f.subscriptions(), 0);
+});
+
+await check('Opening inventors during an existing patent refresh queues the newly required roster', async () => {
+  const f = fixture({ patents: [linkedPatent] });
+  const r = f.runtime('patents');
+  const dom = attachPatentDocument(r);
+  await r.refreshPublicData();
+  await f.advance(600001);
+  const gate = deferred();
+  f.responses.set('patents', () => gate.promise);
+  const pending = r.refreshPublicData();
+  await flush();
+  dom.toggle(dom.node(), true);
+  gate.resolve([linkedPatent]);
+  await pending;
+  await flush();
+  assert.equal(f.reads.patents, 2);
+  assert.equal(f.reads.members, 1, 'The newly opened section must not wait for the periodic refresh');
+  assert.match(dom.node().content.innerHTML, /data-member-id="member"/);
+});
+
+await check('Patent refresh preserves expanded disclosures and restored toggles do not retry a denied roster', async () => {
+  const f = fixture({ patents: [linkedPatent], members: errorWith('permission-denied') });
+  const r = f.runtime('patents');
+  const dom = attachPatentDocument(r);
+  await r.refreshPublicData();
+  dom.toggle(dom.node('details'), true);
+  dom.toggle(dom.node(), true);
+  await r.refreshPublicData();
+  assert.equal(dom.node().open, true);
+  assert.equal(dom.node('details').open, true);
+  assert.match(dom.node().content.innerHTML, /불러오지 못했습니다/);
+  const before = { ...f.reads };
+  // Browsers deliver a toggle after .open is restored during card replacement.
+  dom.node().dispatchEvent({ type: 'toggle' });
+  await flush();
+  assert.deepEqual(f.reads, before, 'Restored-open native events must not cause an error retry loop');
+  f.responses.set('patents', [{ ...linkedPatent, titleKr: '수정된 연결 특허' }]);
+  r.invalidatePublicCollection('patents');
+  await r.refreshPublicData();
+  assert.match(dom.container.innerHTML, /수정된 연결 특허/);
+  assert.equal(dom.node().open, true);
+  assert.equal(dom.node('details').open, true);
+  dom.toggle(dom.node(), false);
+  const membersBeforeHide = f.reads.members;
+  r.document.hidden = true;
+  dom.toggle(dom.node(), true);
+  await flush();
+  assert.equal(f.reads.members, membersBeforeHide, 'A hidden page must not request a roster');
+});
+
+await check('An older expanded patent year stays open and the collapsed newest year stays closed after errors and updates', async () => {
+  const olderPatent = { ...linkedPatent, id: 'older-patent', titleKr: '이전 연도 특허', applicationDate: '2024-06-12',
+    applicationNumber: '10-2024-0067890' };
+  const f = fixture({ patents: [linkedPatent, olderPatent], members: errorWith('permission-denied') });
+  const r = f.runtime('patents');
+  const dom = attachPatentDocument(r);
+  await r.refreshPublicData();
+  assert.equal(dom.year(2026).classList.contains('is-open'), true);
+  assert.equal(dom.year(2024).classList.contains('is-open'), false);
+  dom.year(2026).classList.toggle('is-open', false);
+  dom.year(2024).classList.toggle('is-open', true);
+  dom.toggle(dom.node('details', olderPatent.id), true);
+  dom.toggle(dom.node('contributors', olderPatent.id), true);
+  const rendersBeforeFailure = dom.renders();
+  await r.refreshPublicData();
+  assert.ok(dom.renders() > rendersBeforeFailure, 'The failed roster must exercise the actual patent rerender path');
+  assert.equal(dom.year(2026).classList.contains('is-open'), false);
+  assert.equal(dom.year(2024).classList.contains('is-open'), true);
+  assert.equal(dom.node('details', olderPatent.id).open, true);
+  assert.equal(dom.node('contributors', olderPatent.id).open, true);
+  f.responses.set('patents', [linkedPatent, { ...olderPatent, titleKr: '이전 연도 특허 수정' }]);
+  r.invalidatePublicCollection('patents');
+  await r.refreshPublicData();
+  assert.match(dom.container.innerHTML, /이전 연도 특허 수정/);
+  assert.equal(dom.year(2026).classList.contains('is-open'), false);
+  assert.equal(dom.year(2024).classList.contains('is-open'), true);
+  assert.equal(dom.node('details', olderPatent.id).open, true);
+  assert.equal(dom.node('contributors', olderPatent.id).open, true);
 });
 
 console.log(`Public data verification passed: ${checks} offline integration checks, no live Firebase access.`);

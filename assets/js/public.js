@@ -3,8 +3,8 @@ import { setupPublicChrome } from './chrome.js';
 import { portraitMarkup, refreshImageFallbacks } from './portraits.js';
 import '../css/icons.css';
 import { resolveProjectInvestigator, localizedInvestigatorName } from './project-investigator.js';
-import { sortPatents, filterPatents, patentText, patentStatusLabel } from './patents.js';
-import { patentsForMember } from './patent-inventors.js';
+import { sortPatents, filterPatents, patentText, patentStatusLabel, normalizePatent, safePatentUrl } from './patents.js';
+import { patentsForMember, resolvePatentInventors } from './patent-inventors.js';
 import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=80';
 import {
   escapeHTML,
@@ -680,6 +680,7 @@ const pageCollections = {
 function visibleCollectionNames() {
   const names = new Set(pageCollections[page] || []);
   if (modalState.memberId) names.add(COLLECTIONS.patents);
+  if (page === 'patents' && (modalState.memberId || qs('[data-patent-contributors][open]'))) names.add(COLLECTIONS.members);
   return [...names];
 }
 
@@ -724,6 +725,7 @@ async function hydrate() {
   });
   showDataIssues();
   refreshOpenMemberPatentBlock();
+  refreshPatentInventorBlocks();
   if (shouldRender) renderPageWithoutInterruptingMemberProfile();
 }
 
@@ -1012,6 +1014,19 @@ function bindInteractiveCards() {
     if (member) openMemberModal(member);
   });
 
+  qsa('[data-patent-contributors]').forEach((details) => {
+    if (details.dataset.contributorsBound === 'true') return;
+    details.dataset.contributorsBound = 'true';
+    let wasOpen = details.open;
+    details.addEventListener('toggle', () => {
+      if (wasOpen === details.open) return;
+      wasOpen = details.open;
+      if (!details.open || !details.isConnected) return;
+      if (publicRefreshPromise) refreshAfterCurrentRequest = true;
+      else refreshPublicData();
+    });
+  });
+
   bindCard('[data-project-id]', 'projectId', (id) => () => {
     const project = state.projects.find((item) => item.id === id);
     if (project) openProjectModal(project);
@@ -1243,46 +1258,87 @@ function sortRoles(roles = []) {
 
 function resolvePublicationMemberItems(publication = {}) {
   const direct = Array.isArray(publication.memberLinks) ? publication.memberLinks : [];
-  if (direct.length) {
-    return direct.map((item) => {
-      const member = state.members.find((entry) => String(entry.id) === String(item.memberId || item.id || ''));
-      return {
-        memberId: item.memberId || item.id || member?.id || '',
-        memberName: memberDisplayName(member || { nameKr: item.memberName, nameEn: item.memberName, name: item.memberName }),
-        email: member?.email || item.email || '',
-        roles: Array.isArray(item.roles) ? item.roles : []
-      };
-    }).sort((a, b) => rolePriority(a.roles) - rolePriority(b.roles) || String(a.memberName || '').localeCompare(String(b.memberName || ''), 'ko'));
+  const links = direct.length ? direct : state.members.flatMap((member) =>
+    (Array.isArray(member.publicationLinks) ? member.publicationLinks : [])
+      .filter((link) => String(link.publicationId || link.id || '') === String(publication.id || ''))
+      .map((link) => ({ ...link, memberId: member.id })));
+  const items = new Map();
+  for (const link of links) {
+    const memberId = String(link.memberId || link.id || '');
+    const member = state.members.find((entry) => String(entry.id) === memberId);
+    const memberName = memberDisplayName(member || { nameKr: link.memberName, nameEn: link.memberName, name: link.memberName });
+    if (!memberName) continue;
+    const key = memberId || memberName;
+    const item = items.get(key) || { memberId, memberName, roles: [] };
+    item.roles = sortRoles([...new Set([...item.roles, ...(Array.isArray(link.roles) ? link.roles : [])])])
+      .filter((role) => ['first', 'co', 'corresponding'].includes(role));
+    items.set(key, item);
   }
-  const derived = state.members.map((member) => {
-    const link = (Array.isArray(member.publicationLinks) ? member.publicationLinks : []).find((entry) => String(entry.publicationId || entry.id || '') === String(publication.id || ''));
-    if (!link) return null;
-    return { memberId: member.id, memberName: memberDisplayName(member), email: member.email || '', roles: Array.isArray(link.roles) ? link.roles : [] };
-  }).filter(Boolean);
-  return derived.sort((a, b) => rolePriority(a.roles) - rolePriority(b.roles) || String(a.memberName || '').localeCompare(String(b.memberName || ''), 'ko'));
+  return [...items.values()].sort((a, b) => rolePriority(a.roles) - rolePriority(b.roles)
+    || a.memberName.localeCompare(b.memberName, lang === 'en' ? 'en' : 'ko'));
 }
 
+function renderRecordContributors(items = [], { kind = 'authors' } = {}) {
+  if (!items.length) return '';
+  return `<ul class="record-contributors__list">${items.map((item) => {
+    const linked = state.members.some((member) => String(member.id) === String(item.memberId));
+    const name = escapeHTML(item.memberName);
+    const roles = kind === 'authors' ? sortRoles(item.roles).filter((role) => ['first', 'co', 'corresponding'].includes(role)) : [];
+    return `<li class="record-contributors__item">
+      ${linked ? `<button type="button" class="record-contributors__profile" data-member-id="${escapeHTML(item.memberId)}" aria-label="${name} ${lang === 'en' ? 'profile' : '프로필 보기'}"><span>${name}</span><span class="record-contributors__arrow" aria-hidden="true">↗</span></button>` : `<span class="record-contributors__name">${name}</span>`}
+      ${roles.length ? `<span class="record-contributors__roles">${roles.map((role) => `<span class="record-contributors__role record-contributors__role--${role}">${escapeHTML(publicationRoleLabel(role, lang))}</span>`).join('')}</span>` : ''}
+    </li>`;
+  }).join('')}</ul>`;
+}
 
 function renderPublicationMemberDetails(publication = {}) {
   const items = resolvePublicationMemberItems(publication);
   if (!items.length) return '';
-  return `
-    <details class="publication-abstract publication-members">
-      <summary><span class="publication-abstract__label">Members</span><span class="publication-abstract__icon" aria-hidden="true">▾</span></summary>
-      <div class="publication-abstract__content">
-        <div class="publication-members__list">${items.map((item) => {
-          const orderedRoles = sortRoles(item.roles);
-          return `
-          <article class="publication-members__item publication-members__item--compact">
-            <div class="publication-members__main">
-              ${state.members.some(member => String(member.id) === String(item.memberId)) ? `<button type="button" class="publication-member-profile" data-member-id="${escapeHTML(item.memberId)}" aria-label="${escapeHTML(item.memberName)} ${lang === 'en' ? 'profile' : '프로필 보기'}"><strong>${escapeHTML(item.memberName)}</strong></button>` : `<strong>${escapeHTML(item.memberName || '')}</strong>`}
-              ${item.email ? `<a class="publication-member-email muted" href="mailto:${escapeHTML(item.email)}">${escapeHTML(item.email)}</a>` : ''}
-            </div>
-            ${orderedRoles.length ? `<div class="member-publication-roles">${orderedRoles.map((role) => `<span class="member-publication-role member-publication-role--${escapeHTML(role)}">${escapeHTML(publicationRoleLabel(role, lang))}</span>`).join('')}</div>` : ''}
-          </article>`;
-        }).join('')}</div>
-      </div>
-    </details>`;
+  return `<details class="publication-abstract record-contributors">
+    <summary><span class="publication-abstract__label">${lang === 'en' ? 'Lab authors' : '연구실 저자'}</span><span class="publication-abstract__icon" aria-hidden="true">▾</span></summary>
+    <div class="publication-abstract__content">${renderRecordContributors(items, { kind: 'authors' })}</div>
+  </details>`;
+}
+
+function renderPatentInventorContent(item = {}) {
+  if (hasFirebaseConfig && !resolvedCollections.has('members')) {
+    return `<p class="muted" role="status">${dataIssues.has('members')
+      ? (lang === 'en' ? 'Lab inventor profiles could not be loaded. Please try again shortly.' : '연구실 발명자 정보를 불러오지 못했습니다. 잠시 후 다시 확인해주세요.')
+      : (lang === 'en' ? 'Loading lab inventor profiles…' : '연구실 발명자 정보를 불러오는 중입니다.')}</p>`;
+  }
+  const resolved = resolvePatentInventors(item, state.members);
+  const items = resolved.memberIds.map((memberId) => {
+    const member = state.members.find((entry) => String(entry.id) === memberId)
+      || resolved.memberSnapshots.find((entry) => entry.memberId === memberId);
+    return { memberId, memberName: member ? memberDisplayName(member) : '' };
+  }).filter((entry) => entry.memberName);
+  const notice = dataIssues.has('members') ? `<p class="muted" role="status">${lang === 'en' ? 'Showing the last available lab inventor profiles.' : '마지막으로 불러온 연구실 발명자 정보를 표시합니다.'}</p>` : '';
+  return notice + (items.length ? renderRecordContributors(items, { kind: 'inventors' })
+    : `<p class="muted">${lang === 'en' ? 'No linked lab inventors.' : '연결된 연구실 발명자가 없습니다.'}</p>`);
+}
+
+function renderPatentInventorDetails(item = {}) {
+  const resolved = resolvePatentInventors(item, state.members);
+  // Explicitly external-only records need no profile section. Legacy names may
+  // link once the visitor opens this section and the roster arrives from cache.
+  if (!resolved.legacy && !resolved.memberIds.length) return '';
+  if (resolved.legacy && (resolvedCollections.has('members') || !hasFirebaseConfig) && !resolved.memberIds.length) return '';
+  return `<details class="publication-abstract record-contributors" data-patent-contributors="${escapeHTML(item.id)}">
+    <summary><span class="publication-abstract__label">${lang === 'en' ? 'Lab inventors' : '연구실 발명자'}</span><span class="publication-abstract__icon" aria-hidden="true">▾</span></summary>
+    <div class="publication-abstract__content" data-patent-contributors-content>${renderPatentInventorContent(item)}</div>
+  </details>`;
+}
+
+function refreshPatentInventorBlocks() {
+  if (page !== 'patents') return;
+  qsa('[data-patent-contributors]').forEach((details) => {
+    const item = state.patents.find((entry) => String(entry.id) === details.dataset.patentContributors);
+    const content = details.querySelector('[data-patent-contributors-content]');
+    if (!item || !content) return;
+    const html = renderPatentInventorContent(item);
+    if (content.innerHTML !== html) content.innerHTML = html;
+  });
+  bindInteractiveCards();
 }
 
 function publicationRoleLabel(role, locale = lang) {
@@ -2041,22 +2097,38 @@ function renderPublications() {
 }
 
 
-function patentCard(item) {
+function patentCard(record) {
+  const item = normalizePatent(record);
   const en = lang === 'en';
+  const granted = item.status === 'granted';
+  const date = granted ? item.registrationDate : item.applicationDate;
   const meta = [
-    [en ? 'Inventors' : '발명자', patentText(item, 'inventors', lang)],
     [en ? 'Applicant / Assignee' : '출원인 / 권리자', patentText(item, 'applicant', lang)],
     [en ? 'Application no.' : '출원번호', item.applicationNumber],
     [en ? 'Filed on' : '출원일', item.applicationDate],
-    ...(item.status === 'granted' ? [[en ? 'Registration no.' : '등록번호', item.registrationNumber], [en ? 'Granted on' : '등록일', item.registrationDate]] : [])
+    ...(granted ? [[en ? 'Registration no.' : '등록번호', item.registrationNumber], [en ? 'Granted on' : '등록일', item.registrationDate]] : [])
   ].filter(([, value]) => value);
   const description = patentText(item, 'description', lang);
+  const url = safePatentUrl(item.url);
   return `<article class="publication-card patent-card reveal">
-    <div class="publication-topline"><span class="status-pill ${item.status === 'granted' ? 'patent-status--granted' : ''}">${escapeHTML(patentStatusLabel(item.status, lang))}</span>${patentText(item, 'country', lang) ? `<span class="year-pill">${escapeHTML(patentText(item, 'country', lang))}</span>` : ''}</div>
+    <div class="publication-head-row"><div class="publication-topline">
+      ${date ? `<span class="year-pill">${escapeHTML(date.slice(0, 7).replace('-', '.'))}</span>` : ''}
+      <span class="status-pill ${granted ? 'patent-status--granted' : ''}">${escapeHTML(patentStatusLabel(item.status, lang))}</span>
+      ${patentText(item, 'country', lang) ? `<span class="year-pill">${escapeHTML(patentText(item, 'country', lang))}</span>` : ''}
+    </div></div>
     <h3>${escapeHTML(patentText(item, 'title', lang))}</h3>
-    <dl class="patent-details">${meta.map(([label, value]) => `<div><dt>${escapeHTML(label)}</dt><dd>${escapeHTML(value)}</dd></div>`).join('')}</dl>
-    ${description ? `<details class="publication-abstract"><summary><span class="publication-abstract__label">${en ? 'Summary' : '요약'}</span><span class="publication-abstract__icon" aria-hidden="true">▾</span></summary><div class="publication-abstract__content"><p class="muted">${escapeHTML(description)}</p></div></details>` : ''}
-    ${item.url ? `<a class="publication-doi-link patent-source-link" href="${escapeHTML(item.url)}" target="_blank" rel="noopener noreferrer">${en ? 'View patent' : '특허 정보 보기'}</a>` : ''}
+    <div class="publication-meta-row">
+      <p class="publication-authors"><span class="patent-inventor-label">${en ? 'Inventors' : '발명자'}</span> ${escapeHTML(patentText(item, 'inventors', lang))}</p>
+      ${url ? `<a class="publication-doi-link patent-source-link" href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer">${en ? 'View patent' : '특허 원문'}</a>` : ''}
+    </div>
+    ${meta.length || description ? `<details class="publication-abstract patent-record-details" data-patent-details="${escapeHTML(item.id)}">
+      <summary><span class="publication-abstract__label">${en ? 'Patent details' : '특허 상세 정보'}</span><span class="publication-abstract__icon" aria-hidden="true">▾</span></summary>
+      <div class="publication-abstract__content">
+        <dl class="patent-details">${meta.map(([label, value]) => `<div><dt>${escapeHTML(label)}</dt><dd>${escapeHTML(value)}</dd></div>`).join('')}</dl>
+        ${description ? `<div class="patent-record-summary"><h4>${en ? 'Summary' : '요약'}</h4><p class="muted">${escapeHTML(description)}</p></div>` : ''}
+      </div>
+    </details>` : ''}
+    ${renderPatentInventorDetails(item)}
   </article>`;
 }
 
@@ -2086,8 +2158,17 @@ function renderPatents() {
   }
   const groups = Object.entries(groupBy(filtered, (item) => item.year || (en ? 'Unspecified' : '미정')))
     .sort((a, b) => yearSort(b[0]) - yearSort(a[0]));
+  const yearStates = new Map(qsa('[data-accordion-key]', container)
+    .map((article) => [article.dataset.accordionKey, article.classList.contains('is-open')]));
+  const opened = new Set(qsa('[data-patent-contributors][open], [data-patent-details][open]', container)
+    .map((details) => `${details.hasAttribute('data-patent-contributors') ? 'inventors' : 'details'}:${details.dataset.patentContributors || details.dataset.patentDetails}`));
   container.innerHTML = groups.map(([year, items], index) => accordionMarkup(year, items.length,
-    `<div class="publication-list">${items.map(patentCard).join('')}</div>`, Boolean(state.patentQuery) || index === 0)).join('');
+    `<div class="publication-list">${items.map(patentCard).join('')}</div>`,
+    Boolean(state.patentQuery) || (yearStates.get(`patent-${year}`) ?? index === 0), `patent-${year}`)).join('');
+  qsa('[data-patent-contributors], [data-patent-details]', container).forEach((details) => {
+    const key = `${details.hasAttribute('data-patent-contributors') ? 'inventors' : 'details'}:${details.dataset.patentContributors || details.dataset.patentDetails}`;
+    details.open = opened.has(key);
+  });
 }
 
 function boardSkeletonMarkup() {
@@ -2598,12 +2679,12 @@ function boardCard(post) {
 
 let accordionId = 0;
 
-function accordionMarkup(title, count, content, open = false) {
+function accordionMarkup(title, count, content, open = false, key = '') {
   accordionId += 1;
   const triggerId = `accordion-trigger-${accordionId}`;
   const panelId = `accordion-panel-${accordionId}`;
   return `
-    <article class="accordion${open ? ' is-open' : ''}">
+    <article class="accordion${open ? ' is-open' : ''}"${key ? ` data-accordion-key="${escapeHTML(key)}"` : ''}>
       <button class="accordion-trigger" id="${triggerId}" type="button" aria-expanded="${open ? 'true' : 'false'}" aria-controls="${panelId}">
         <span class="accordion-copy">
           <span>${escapeHTML(title)}</span>
