@@ -17,6 +17,9 @@ import {
   collection,
   getDocs,
   getDocsFromServer,
+  getCountFromServer,
+  query,
+  where,
   onSnapshot,
   doc,
   setDoc,
@@ -381,6 +384,35 @@ function snapshotToItems(snapshot) {
   return snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
 }
 
+const collectionWriteSubscribers = new Set();
+
+export function watchCollectionWrites(callback) {
+  collectionWriteSubscribers.add(callback);
+  return () => collectionWriteSubscribers.delete(callback);
+}
+
+function notifyDocumentWrite(name) {
+  invalidatePublicCollection(name);
+  collectionWriteSubscribers.forEach((callback) => {
+    try { callback(name); } catch (error) { console.error(error); }
+  });
+}
+
+export async function fetchCollectionCount(name, { includeDeleted = false } = {}) {
+  if (isLocalDevMode) {
+    return readLocalCollection(name).filter((item) => includeDeleted || item?.deleted !== true).length;
+  }
+  if (!db) throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
+  const source = collection(db, name);
+  // Older documents have no deleted field, so querying deleted == false would
+  // omit real records. Both calls return only counts; no documents are loaded.
+  const [total, deleted] = await withOperationTimeout(Promise.all([
+    getCountFromServer(source),
+    includeDeleted ? Promise.resolve(null) : getCountFromServer(query(source, where('deleted', '==', true)))
+  ]), 15000, '항목 수를 불러오는 시간이 초과되었습니다.');
+  return Math.max(0, total.data().count - (deleted?.data().count || 0));
+}
+
 export async function fetchCollection(name) {
   if (isLocalDevMode) return readLocalCollection(name);
   if (!db) return [];
@@ -440,7 +472,7 @@ export async function saveDocument(collectionName, documentId, payload) {
     if (index >= 0) items[index] = next;
     else items.push(next);
     writeLocalCollection(collectionName, items);
-    invalidatePublicCollection(collectionName);
+    notifyDocumentWrite(collectionName);
     return targetId;
   }
   if (!db) throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
@@ -456,7 +488,7 @@ export async function saveDocument(collectionName, documentId, payload) {
     },
     { merge: true }
   );
-  invalidatePublicCollection(collectionName);
+  notifyDocumentWrite(collectionName);
   return targetRef.id;
 }
 
@@ -464,12 +496,12 @@ export async function deleteDocumentById(collectionName, documentId) {
   if (isLocalDevMode) {
     const items = readLocalCollection(collectionName).filter((item) => item.id !== documentId);
     writeLocalCollection(collectionName, items);
-    invalidatePublicCollection(collectionName);
+    notifyDocumentWrite(collectionName);
     return;
   }
   if (!db) throw new Error('Firebase 설정이 아직 연결되지 않았습니다.');
   await deleteDoc(doc(db, collectionName, documentId));
-  invalidatePublicCollection(collectionName);
+  notifyDocumentWrite(collectionName);
 }
 
 export async function uploadAsset(file, folder = 'uploads') {

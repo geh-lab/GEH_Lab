@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { adminSubscriptionKeys, createAdminSubscriptions } from '../assets/js/admin-data-subscriptions.js';
+import { createAdminCounts } from '../assets/js/admin-counts.js';
 
 const user = { uid: 'admin-test', email: 'admin@example.test' };
 assert.deepEqual(adminSubscriptionKeys({ activeTab: 'members' }), []);
@@ -58,11 +59,14 @@ function makeHarness(local = false) {
   const lists = new Map();
   const callbacks = [];
   const writes = [];
+  const countReads = [];
+  const countValues = { members: 45, projects: 22, publications: 102, patents: 9, boardPosts: 18, trash: 2 };
+  const writeWatchers = new Set();
   const fallback = [{ id: 'local-member', nameKr: '로컬 멤버' }];
   const passthrough = (items = []) => [...items];
   const context = vm.createContext({
     console, structuredClone, URL, TextEncoder,
-    adminSubscriptionKeys, createAdminSubscriptions,
+    adminSubscriptionKeys, createAdminSubscriptions, createAdminCounts,
     hasFirebaseConfig: true, isLocalDevMode: local, isLocalAdminPreview: local,
     FALLBACK_MEMBERS: fallback, FALLBACK_PROJECTS: [], FALLBACK_PUBLICATIONS: [], FALLBACK_BOARD_POSTS: [],
     sortMembers: passthrough, sortProjects: passthrough, sortPublications: passthrough, sortBoardPosts: passthrough, sortPatents: passthrough,
@@ -78,6 +82,9 @@ function makeHarness(local = false) {
       if (local) onData([]);
       return () => { record.stopped = true; };
     },
+    fetchCollection: async () => [],
+    fetchCollectionCount: async (name) => { countReads.push(name); return countValues[name]; },
+    watchCollectionWrites: (callback) => { writeWatchers.add(callback); return () => writeWatchers.delete(callback); },
     saveDocument: async (collection, id, payload) => { writes.push({ collection, id, payload }); return id; },
     deleteDocumentById: async (collection, id) => { writes.push({ collection, id, deleted: true }); },
     document: {
@@ -89,7 +96,8 @@ function makeHarness(local = false) {
     window: { matchMedia: () => ({ matches: false }), clearTimeout() {}, setTimeout() {} }
   });
   vm.runInContext(`${stripped}\nglobalThis.adminTest = {state, elements, adminSubscriptions, attachListeners, teardownListeners, setActiveTab, syncAdminSubscriptions, renderSummary, renderPendingEditorPickers, collectMemberProjectLinks, collectMemberPublicationLinks, requireEditorMembers, handleAuthState, restoreTrashItem};`, context);
-  return { ...context.adminTest, selectors, lists, callbacks, writes };
+  return { ...context.adminTest, selectors, lists, callbacks, writes, countReads, countValues, writeWatchers,
+    changed(name) { writeWatchers.forEach((callback) => callback(name)); } };
 }
 
 const admin = makeHarness();
@@ -101,8 +109,19 @@ assert.equal(admin.callbacks.length, 1, 'Login subscribes only the initial tab')
 assert.equal(admin.callbacks[0].name, 'members');
 assert.equal(admin.elements.summaryMembers.textContent, '—');
 assert.equal(admin.elements.summaryProjects.textContent, '—', 'Unopened collection is not reported as zero');
+await new Promise(setImmediate);
+assert.equal(admin.elements.summaryProjects.textContent, 22, 'Unopened totals arrive without clicking tabs');
+assert.deepEqual(admin.countReads.sort(), ['boardPosts', 'patents', 'projects', 'publications', 'trash']);
+assert.equal(admin.callbacks.length, 1, 'Counting never opens additional document subscriptions');
 admin.callbacks[0].onData([{ id: 'm1' }]);
 assert.equal(admin.elements.summaryMembers.textContent, 1);
+admin.countValues.projects = 23;
+admin.changed('projects');
+admin.changed('members');
+await new Promise(setImmediate);
+assert.equal(admin.elements.summaryProjects.textContent, 23, 'Saving to an unopened collection refreshes its count');
+assert.equal(admin.countReads.filter((name) => name === 'projects').length, 2);
+assert.equal(admin.countReads.includes('members'), false, 'Active snapshots supply their counts without extra queries');
 admin.setActiveTab('board');
 assert.equal(admin.callbacks.length, 2);
 assert.ok(admin.callbacks[0].stopped);
@@ -173,6 +192,7 @@ await localAdmin.handleAuthState(user);
 assert.equal(localAdmin.callbacks.length, 1, 'Repeated login notification does not duplicate subscriptions');
 await localAdmin.handleAuthState(null);
 assert.ok(localAdmin.callbacks.every((item) => item.stopped));
+assert.equal(localAdmin.writeWatchers.size, 0, 'Logout removes count write notifications');
 
 const authRace = makeHarness();
 const pendingLogin = authRace.handleAuthState(user);
@@ -190,4 +210,4 @@ await nextAccountLogin;
 authRace.callbacks.at(-1).onData([{ id: 'second-account-data' }]);
 assert.equal(authRace.state.members[0].id, 'second-account-data');
 
-console.log('Admin subscription checks passed: active tabs, lazy editor dependencies, local login/preview, unsubscribe races, retained data, unloaded counts, preserved links/dirty choices and restoration refresh.');
+console.log('Admin subscription checks passed: active tabs, lazy editor dependencies, automatic counts without document downloads, mutation counts, local login/preview, logout races, retained data, preserved links/dirty choices and restoration refresh.');

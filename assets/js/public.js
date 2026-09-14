@@ -4,7 +4,7 @@ import { portraitMarkup, refreshImageFallbacks } from './portraits.js';
 import '../css/icons.css';
 import { resolveProjectInvestigator, localizedInvestigatorName } from './project-investigator.js';
 import { sortPatents, filterPatents, patentText, patentStatusLabel, normalizePatent, safePatentUrl } from './patents.js';
-import { patentsForMember, resolvePatentInventors } from './patent-inventors.js';
+import { patentsForMember, resolvePatentInventors, patentInventorDisplay } from './patent-inventors.js';
 import { BUILD_DATE, SITE_COPY, FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=80';
 import {
   escapeHTML,
@@ -203,6 +203,11 @@ function replaceCollectionState(key, nextItems, loadingKey) {
 }
 
 function collectionAffectsCurrentPage(key) {
+  if (page === 'patents' && key === 'members') {
+    if (state.patentQuery.trim()) return true;
+    const shown = new Set(qsa('[data-patent-contributors]').map((element) => element.dataset.patentContributors));
+    return filteredPublicPatents().some((item) => patentInventorSectionNeeded(item) !== shown.has(String(item.id)));
+  }
   const visibleCollections = {
     home: new Set(['members', 'projects', 'publications', 'patents', 'board']),
     members: new Set(['members']),
@@ -680,7 +685,9 @@ const pageCollections = {
 function visibleCollectionNames() {
   const names = new Set(pageCollections[page] || []);
   if (modalState.memberId) names.add(COLLECTIONS.patents);
-  if (page === 'patents' && (modalState.memberId || qs('[data-patent-contributors][open]'))) names.add(COLLECTIONS.members);
+  // English inventor credits need the registered member names even while the
+  // profile disclosure is closed. This reuses the shared roster cache.
+  if (page === 'patents' && (lang === 'en' || modalState.memberId || qs('[data-patent-contributors][open]'))) names.add(COLLECTIONS.members);
   return [...names];
 }
 
@@ -1285,7 +1292,7 @@ function renderRecordContributors(items = [], { kind = 'authors' } = {}) {
     const name = escapeHTML(item.memberName);
     const roles = kind === 'authors' ? sortRoles(item.roles).filter((role) => ['first', 'co', 'corresponding'].includes(role)) : [];
     return `<li class="record-contributors__item">
-      ${linked ? `<button type="button" class="record-contributors__profile" data-member-id="${escapeHTML(item.memberId)}" aria-label="${name} ${lang === 'en' ? 'profile' : '프로필 보기'}"><span>${name}</span><span class="record-contributors__arrow" aria-hidden="true">↗</span></button>` : `<span class="record-contributors__name">${name}</span>`}
+      ${linked ? `<button type="button" class="record-contributors__profile" data-member-id="${escapeHTML(item.memberId)}" aria-label="${name} ${lang === 'en' ? 'profile' : '프로필 보기'}"><span>${name}</span></button>` : `<span class="record-contributors__name">${name}</span>`}
       ${roles.length ? `<span class="record-contributors__roles">${roles.map((role) => `<span class="record-contributors__role record-contributors__role--${role}">${escapeHTML(publicationRoleLabel(role, lang))}</span>`).join('')}</span>` : ''}
     </li>`;
   }).join('')}</ul>`;
@@ -1295,7 +1302,7 @@ function renderPublicationMemberDetails(publication = {}) {
   const items = resolvePublicationMemberItems(publication);
   if (!items.length) return '';
   return `<details class="publication-abstract record-contributors">
-    <summary><span class="publication-abstract__label">${lang === 'en' ? 'Lab authors' : '연구실 저자'}</span><span class="publication-abstract__icon" aria-hidden="true">▾</span></summary>
+    <summary><span class="publication-abstract__label" lang="en">Lab authors</span><span class="publication-abstract__icon" aria-hidden="true">▾</span></summary>
     <div class="publication-abstract__content">${renderRecordContributors(items, { kind: 'authors' })}</div>
   </details>`;
 }
@@ -1317,12 +1324,17 @@ function renderPatentInventorContent(item = {}) {
     : `<p class="muted">${lang === 'en' ? 'No linked lab inventors.' : '연결된 연구실 발명자가 없습니다.'}</p>`);
 }
 
-function renderPatentInventorDetails(item = {}) {
+function patentInventorSectionNeeded(item = {}) {
   const resolved = resolvePatentInventors(item, state.members);
   // Explicitly external-only records need no profile section. Legacy names may
   // link once the visitor opens this section and the roster arrives from cache.
-  if (!resolved.legacy && !resolved.memberIds.length) return '';
-  if (resolved.legacy && (resolvedCollections.has('members') || !hasFirebaseConfig) && !resolved.memberIds.length) return '';
+  if (!resolved.legacy && !resolved.memberIds.length) return false;
+  if (resolved.legacy && (resolvedCollections.has('members') || !hasFirebaseConfig) && !resolved.memberIds.length) return false;
+  return true;
+}
+
+function renderPatentInventorDetails(item = {}) {
+  if (!patentInventorSectionNeeded(item)) return '';
   return `<details class="publication-abstract record-contributors" data-patent-contributors="${escapeHTML(item.id)}">
     <summary><span class="publication-abstract__label">${lang === 'en' ? 'Lab inventors' : '연구실 발명자'}</span><span class="publication-abstract__icon" aria-hidden="true">▾</span></summary>
     <div class="publication-abstract__content" data-patent-contributors-content>${renderPatentInventorContent(item)}</div>
@@ -1331,6 +1343,10 @@ function renderPatentInventorDetails(item = {}) {
 
 function refreshPatentInventorBlocks() {
   if (page !== 'patents') return;
+  qsa('[data-patent-inventor-names]').forEach((element) => {
+    const item = state.patents.find((entry) => String(entry.id) === element.dataset.patentInventorNames);
+    if (item) element.textContent = patentInventorDisplay(item, state.members, lang);
+  });
   qsa('[data-patent-contributors]').forEach((details) => {
     const item = state.patents.find((entry) => String(entry.id) === details.dataset.patentContributors);
     const content = details.querySelector('[data-patent-contributors-content]');
@@ -1339,6 +1355,14 @@ function refreshPatentInventorBlocks() {
     if (content.innerHTML !== html) content.innerHTML = html;
   });
   bindInteractiveCards();
+}
+
+function filteredPublicPatents() {
+  const candidates = filterPatents(state.patents, '', state.patentFilter);
+  const query = state.patentQuery.trim().toLowerCase();
+  if (!query) return candidates;
+  return candidates.filter((item) => filterPatents([item], query).length
+    || patentInventorDisplay(item, state.members, lang).toLowerCase().includes(query));
 }
 
 function publicationRoleLabel(role, locale = lang) {
@@ -2118,7 +2142,7 @@ function patentCard(record) {
     </div></div>
     <h3>${escapeHTML(patentText(item, 'title', lang))}</h3>
     <div class="publication-meta-row">
-      <p class="publication-authors"><span class="patent-inventor-label">${en ? 'Inventors' : '발명자'}</span> ${escapeHTML(patentText(item, 'inventors', lang))}</p>
+      <p class="publication-authors"><span class="patent-inventor-label">${en ? 'Inventors' : '발명자'}</span> <span data-patent-inventor-names="${escapeHTML(item.id)}">${escapeHTML(patentInventorDisplay(item, state.members, lang))}</span></p>
       ${url ? `<a class="publication-doi-link patent-source-link" href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer">${en ? 'View patent' : '특허 원문'}</a>` : ''}
     </div>
     ${meta.length || description ? `<details class="publication-abstract patent-record-details" data-patent-details="${escapeHTML(item.id)}">
@@ -2148,7 +2172,7 @@ function renderPatents() {
     container.innerHTML = emptyState(en ? 'Patents could not be loaded. Please reload this page to try again.' : '특허 정보를 불러오지 못했습니다. 페이지를 새로고침해 다시 시도해주세요.');
     return;
   }
-  const filtered = filterPatents(state.patents, state.patentQuery, state.patentFilter);
+  const filtered = filteredPublicPatents();
   qs('#patent-results').textContent = en ? `${filtered.length} ${filtered.length === 1 ? 'result' : 'results'}` : `${filtered.length}건`;
   if (!filtered.length) {
     container.innerHTML = emptyState(state.patents.length

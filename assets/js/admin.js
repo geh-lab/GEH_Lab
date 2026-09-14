@@ -1,8 +1,10 @@
 import { setupPublicChrome } from './chrome.js';
 import { adminSubscriptionKeys, createAdminSubscriptions } from './admin-data-subscriptions.js';
+import { createAdminCounts } from './admin-counts.js';
 import { resolveProjectInvestigator, localizedInvestigatorName } from './project-investigator.js';
 import { normalizePatent, sortPatents, filterPatents, patentText, patentStatusLabel, validatePatent } from './patents.js';
 import { resolvePatentInventors, buildPatentInventorFields } from './patent-inventors.js';
+import { resolvePatentCountry, patentCountryOptions, patentCountryFields } from './patent-countries.js';
 import { FALLBACK_MEMBERS, FALLBACK_PROJECTS, FALLBACK_PUBLICATIONS, FALLBACK_BOARD_POSTS } from './data.js?v=80';
 import {
   escapeHTML,
@@ -50,6 +52,9 @@ import {
   signInAdminWithGoogle,
   signOutAdmin,
   listenCollection,
+  fetchCollection,
+  fetchCollectionCount,
+  watchCollectionWrites,
   saveDocument,
   deleteDocumentById,
   uploadMemberPhoto,
@@ -1108,6 +1113,7 @@ function bindEvents() {
   elements.publicationAddButton?.addEventListener('click', () => { resetPublicationForm(); openEditor('publication'); });
   elements.patentAddButton?.addEventListener('click', () => { resetPatentForm(); openEditor('patent'); });
   elements.patentForm?.elements.namedItem('status')?.addEventListener('change', updatePatentRegistrationFields);
+  qs('#patent-country')?.addEventListener('change', updatePatentCountryFields);
   elements.patentForm?.addEventListener('submit', handlePatentSubmit);
   elements.patentForm?.addEventListener('input', onPatentInventorInput);
   elements.patentForm?.addEventListener('change', onPatentInventorInput);
@@ -1535,6 +1541,31 @@ function renderAdminLoadingState() {
 }
 
 
+function normalizedAdminItems(key, items) {
+  if (key === 'members') return activeItems(useLiveAdminData ? sortMembers(items) : sortMembers(mergeMembers(FALLBACK_MEMBERS, items)));
+  if (key === 'projects') return activeItems(useLiveAdminData ? sortProjects(items) : sortProjects(mergeProjects(FALLBACK_PROJECTS, items)));
+  if (key === 'publications') return activeItems(useLiveAdminData ? sortPublications(items) : sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items)));
+  if (key === 'patents') return activeItems(sortPatents(items));
+  if (key === 'board') return activeItems(useLiveAdminData ? sortBoardPosts(items) : sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items)));
+  return sortTrashItems(items);
+}
+
+const adminCounts = createAdminCounts({
+  keys: ADMIN_COLLECTIONS.map(({ key }) => key),
+  async readCount(key) {
+    const { name } = ADMIN_COLLECTIONS.find((item) => item.key === key);
+    // Local previews merge fixtures with local edits; production reads only the
+    // aggregation result and never loads unopened collections for these totals.
+    if (!useLiveAdminData) return normalizedAdminItems(key, await fetchCollection(name)).length;
+    return fetchCollectionCount(name, { includeDeleted: key === 'trash' });
+  },
+  onChange() {
+    renderSummary();
+    renderAdminReadNotice();
+  }
+});
+let stopCountWrites = null;
+
 const adminSubscriptions = createAdminSubscriptions({
   subscribe(key, onData, onError) {
     const { name } = ADMIN_COLLECTIONS.find((item) => item.key === key);
@@ -1549,12 +1580,8 @@ const adminSubscriptions = createAdminSubscriptions({
   },
   onData(key, items) {
     state.collectionReads.set(key, { status: 'ready', hasData: true });
-    if (key === 'members') state.members = activeItems(useLiveAdminData ? sortMembers(items) : sortMembers(mergeMembers(FALLBACK_MEMBERS, items)));
-    if (key === 'projects') state.projects = activeItems(useLiveAdminData ? sortProjects(items) : sortProjects(mergeProjects(FALLBACK_PROJECTS, items)));
-    if (key === 'publications') state.publications = activeItems(useLiveAdminData ? sortPublications(items) : sortPublications(mergePublications(FALLBACK_PUBLICATIONS, items)));
-    if (key === 'patents') state.patents = activeItems(sortPatents(items));
-    if (key === 'board') state.board = activeItems(useLiveAdminData ? sortBoardPosts(items) : sortBoardPosts(mergeBoardPosts(FALLBACK_BOARD_POSTS, items)));
-    if (key === 'trash') state.trash = sortTrashItems(items);
+    state[key] = normalizedAdminItems(key, items);
+    adminCounts.accept(key, state[key].length);
     renderAdminCollection(key);
     renderPendingEditorPickers(key);
     renderSummary();
@@ -1586,10 +1613,20 @@ function syncAdminSubscriptions() {
 function attachListeners() {
   teardownListeners();
   ADMIN_COLLECTIONS.forEach(({ key }) => state.collectionReads.set(key, { status: 'idle', hasData: !useLiveAdminData }));
+  adminCounts.start();
+  stopCountWrites = watchCollectionWrites((name) => {
+    const entry = ADMIN_COLLECTIONS.find((item) => item.name === name);
+    if (!entry || !state.user || adminSubscriptions.keys().includes(entry.key)) return;
+    adminCounts.refresh([entry.key], { force: true });
+  });
   syncAdminSubscriptions();
+  adminCounts.refresh(ADMIN_COLLECTIONS.map(({ key }) => key).filter((key) => !adminSubscriptions.keys().includes(key)));
 }
 
 function teardownListeners() {
+  stopCountWrites?.();
+  stopCountWrites = null;
+  adminCounts.clear();
   adminSubscriptions.clear();
   state.collectionReads.clear();
   renderAdminReadNotice();
@@ -1633,9 +1670,11 @@ function requireEditorMembers() {
 function renderSummary() {
   ADMIN_COLLECTIONS.forEach(({ key, summary }) => {
     const read = state.collectionReads.get(key);
+    const count = adminCounts.get(key);
     if (elements[summary]) {
-      elements[summary].textContent = useLiveAdminData && !read?.hasData ? '—' : state[key].length;
-      elements[summary].title = read?.hasData && read.status === 'idle' ? '마지막으로 불러온 항목 수' : '';
+      elements[summary].textContent = count?.count ?? (useLiveAdminData && !read?.hasData ? '—' : state[key].length);
+      elements[summary].title = count?.status === 'error' ? '항목 수를 갱신하지 못했습니다. 페이지를 새로고침하여 다시 확인해주세요.'
+        : read?.hasData && read.status === 'idle' ? '마지막으로 불러온 항목 수' : '';
     }
   });
 }
@@ -1652,8 +1691,12 @@ function renderAdminReadNotice() {
   if (!notice) return;
   const required = new Set(adminSubscriptionKeys(state));
   const failed = ADMIN_COLLECTIONS.filter(({ key }) => required.has(key) && state.collectionReads.get(key)?.status === 'error');
-  notice.textContent = failed.map(({ key }) => adminReadErrorMessage(key)).join(' ');
-  notice.hidden = failed.length === 0;
+  const countFailed = ADMIN_COLLECTIONS.filter(({ key }) => adminCounts.get(key)?.status === 'error' && !failed.some((item) => item.key === key));
+  notice.textContent = [
+    ...failed.map(({ key }) => adminReadErrorMessage(key)),
+    ...countFailed.map(({ key, name, label }) => adminErrorMessage(adminCounts.get(key).error, `${label} 항목 수를 불러오지 못했습니다.`, { collection: name, operation: 'read' }))
+  ].join(' ');
+  notice.hidden = failed.length + countFailed.length === 0;
 }
 
 function renderCollectionReadState(key) {
@@ -2889,11 +2932,33 @@ function updatePatentRegistrationFields() {
   }
 }
 
+function updatePatentCountryFields() {
+  const selector = qs('#patent-country');
+  if (!selector) return;
+  const fields = patentCountryFields(selector.value, state.editingPatent);
+  for (const [name, value] of Object.entries(fields)) setFormValue(elements.patentForm, name, value);
+}
+
+function initializePatentCountry(item) {
+  const selector = qs('#patent-country');
+  if (!selector) return;
+  const labels = { major: '주요 국가', other: '국가·지역 (가나다순)', jurisdiction: '기타 특허 관할', legacy: '기존 입력값' };
+  const options = patentCountryOptions(item);
+  selector.innerHTML = Object.entries(labels).map(([group, label]) => {
+    const entries = options.filter((option) => option.group === group);
+    if (!entries.length) return '';
+    return `<optgroup label="${label}">${entries.map((option) => `<option value="${escapeHTML(option.code)}">${escapeHTML(option.countryKr || option.countryEn || '미지정')}${option.legacy ? ' (기존값)' : ''}</option>`).join('')}</optgroup>`;
+  }).join('');
+  selector.value = resolvePatentCountry(item).code;
+  updatePatentCountryFields();
+}
+
 function resetPatentForm() {
   elements.patentForm.reset();
   state.editingPatent = null;
   elements.patentTitle.textContent = '특허 추가';
   initializePatentInventors();
+  initializePatentCountry();
   updatePatentRegistrationFields();
   markFormClean(elements.patentForm);
 }
@@ -2906,6 +2971,7 @@ function loadPatentForm(item) {
     if (field.name) setFormValue(elements.patentForm, field.name, item[field.name] || '');
   }
   initializePatentInventors(item);
+  initializePatentCountry(item);
   updatePatentRegistrationFields();
   markFormClean(elements.patentForm);
   openEditor('patent');

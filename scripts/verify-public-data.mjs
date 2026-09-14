@@ -109,9 +109,10 @@ function fixture(initial = {}) {
   function admin(runtime) {
     // Use the actual production write functions, stubbing only SDK and local-store dependencies.
     const functions = sources.firebase.slice(sources.firebase.indexOf('export async function saveDocument('), sources.firebase.indexOf('export async function uploadAsset('));
+    const notifications = sources.firebase.slice(sources.firebase.indexOf('const collectionWriteSubscribers ='), sources.firebase.indexOf('export async function fetchCollectionCount('));
     let fail = false;
     const writes = [];
-    const api = vm.runInNewContext(`(() => { ${stripImports(functions)} return { saveDocument, deleteDocumentById }; })()`, {
+    const api = vm.runInNewContext(`(() => { ${stripImports(notifications)} ${stripImports(functions)} return { saveDocument, deleteDocumentById }; })()`, {
       isLocalDevMode: false, db: {}, invalidatePublicCollection: runtime.invalidatePublicCollection,
       collection: (_db, name) => ({ name }), doc: (_db, name, id) => ({ name, id: id || 'new' }), serverTimestamp: () => 'timestamp',
       setDoc: async (target, payload) => {
@@ -419,9 +420,11 @@ await check('Visible scheduler and focus reuse fresh data; expiry refreshes once
 function attachPatentDocument(runtime) {
   let details = [];
   let years = [];
+  let inventorNames = [];
   let renders = 0;
   const matching = (selector) => {
     if (selector === '[data-accordion-key]') return years;
+    if (selector === '[data-patent-inventor-names]') return inventorNames;
     if (!selector.includes('data-patent-')) return [];
     const attributes = [...selector.matchAll(/\[data-patent-(contributors|details)\]/g)].map(([, type]) => type);
     return details.filter((item) => attributes.includes(item.type) && (!selector.includes('[open]') || item.open));
@@ -431,6 +434,8 @@ function attachPatentDocument(runtime) {
     get innerHTML() { return this._html; },
     set innerHTML(html) {
       this._html = html; renders++;
+      inventorNames = [...html.matchAll(/<span data-patent-inventor-names="([^"]+)">([^<]*)<\/span>/g)]
+        .map(([, id, textContent]) => ({ dataset: { patentInventorNames: id }, textContent }));
       years = [...html.matchAll(/<article\b([^>]*data-accordion-key="([^"]+)"[^>]*)>/g)].map(([, attributes, key]) => {
         const classes = new Set((attributes.match(/class="([^"]*)"/)?.[1] || '').split(/\s+/));
         return { dataset: { accordionKey: key }, classList: {
@@ -461,6 +466,7 @@ function attachPatentDocument(runtime) {
   runtime.usePatentRenderer();
   return {
     container, renders: () => renders,
+    inventorNames: (id) => inventorNames.find((item) => item.dataset.patentInventorNames === id)?.textContent,
     node: (type = 'contributors', id) => details.find((item) => item.type === type
       && (!id || (item.dataset.patentContributors || item.dataset.patentDetails) === id)),
     year: (year) => years.find((item) => item.dataset.accordionKey === `patent-${year}`),
@@ -470,6 +476,59 @@ function attachPatentDocument(runtime) {
 const linkedPatent = { id: 'linked-patent', titleKr: '연결 특허', status: 'pending',
   inventorsKr: '테스트 멤버, 외부 발명자', inventorMemberIds: ['member'],
   applicationNumber: '10-2026-0012345', applicationDate: '2026-09-01' };
+
+await check('English patents automatically resolve member names without opening profiles and reuse the shared roster cache', async () => {
+  const f = fixture({ patents: [linkedPatent], members: [{ id: 'member', nameKr: '테스트 멤버', nameEn: 'Test Member' }] });
+  const korean = f.runtime('patents');
+  attachPatentDocument(korean);
+  await korean.refreshPublicData();
+  assert.deepEqual(f.reads, { patents: 1 });
+  const english = f.runtime('patents', 'en');
+  const dom = attachPatentDocument(english);
+  await english.refreshPublicData();
+  assert.deepEqual(f.reads, { patents: 1, members: 1 });
+  assert.equal(dom.node().open, false);
+  assert.equal(dom.inventorNames(linkedPatent.id), 'Test Member, 외부 발명자');
+  const original = dom.node();
+  f.responses.set('members', [{ id: 'member', nameKr: '테스트 멤버', nameEn: 'Updated Member' }]);
+  english.invalidatePublicCollection('members');
+  await english.refreshPublicData();
+  assert.equal(dom.inventorNames(linkedPatent.id), 'Updated Member, 외부 발명자');
+  assert.equal(dom.node(), original, 'Name updates must not replace or collapse the disclosure');
+  dom.toggle(original, true);
+  await english.refreshPublicData();
+  assert.deepEqual(f.reads, { patents: 1, members: 2 }, 'Opening the profile section reuses the name lookup');
+  english.state.patentQuery = 'Updated Member';
+  english.renderPatents();
+  assert.match(dom.container.innerHTML, /연결 특허/);
+  f.responses.set('members', [{ id: 'member', nameKr: '테스트 멤버', nameEn: 'Renamed Member' }]);
+  english.invalidatePublicCollection('members');
+  await english.refreshPublicData();
+  assert.match(dom.container.innerHTML, /No patents match/);
+  english.state.patentQuery = 'Renamed Member';
+  english.renderPatents();
+  assert.match(dom.container.innerHTML, /연결 특허/);
+  assert.equal(f.subscriptions(), 0);
+});
+
+await check('English patent profiles appear or disappear when a refreshed roster changes a legacy name match', async () => {
+  const { inventorMemberIds, ...legacy } = linkedPatent;
+  const f = fixture({ patents: [legacy], members: [] });
+  const r = f.runtime('patents', 'en');
+  const dom = attachPatentDocument(r);
+  await r.refreshPublicData();
+  assert.equal(dom.node(), undefined);
+  f.responses.set('members', [{ id: 'member', nameKr: '테스트 멤버', nameEn: 'Test Member' }]);
+  r.invalidatePublicCollection('members');
+  await r.refreshPublicData();
+  assert.ok(dom.node());
+  assert.equal(dom.inventorNames(legacy.id), 'Test Member, 외부 발명자');
+  f.responses.set('members', []);
+  r.invalidatePublicCollection('members');
+  await r.refreshPublicData();
+  assert.equal(dom.node(), undefined);
+  assert.equal(dom.inventorNames(legacy.id), '테스트 멤버, 외부 발명자');
+});
 
 await check('Patent inventor profiles load only on opening and reuse cache without extra public listeners', async () => {
   const f = fixture({ patents: [linkedPatent] });

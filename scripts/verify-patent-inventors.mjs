@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildPatentInventorFields, patentsForMember, resolvePatentInventors } from '../assets/js/patent-inventors.js';
+import { buildPatentInventorFields, patentInventorDisplay, patentsForMember, resolvePatentInventors } from '../assets/js/patent-inventors.js';
 import { normalizePatent } from '../assets/js/patents.js';
 
 const park = { id: 'park', nameKr: '박종석', nameEn: 'Jongseok Park' };
@@ -125,6 +125,83 @@ check('a deleted member cannot receive new legacy matches or profile counts', ()
   const deleted = { ...ham, deleted: true };
   assert.deepEqual(resolvePatentInventors({ inventorsKr: '함승용' }, [deleted]).memberIds, []);
   assert.deepEqual(patentsForMember([{ inventorMemberIds: ['ham'] }], deleted, [deleted]), []);
+});
+
+check('English display localizes legacy Korean names, including a Korean English-field fallback', () => {
+  const item = { inventorsKr: '박종석, 함승용, 김외부' };
+  assert.equal(patentInventorDisplay(item, members, 'en'), 'Jongseok Park, Seungyong Ham, 김외부');
+  assert.equal(patentInventorDisplay({ ...item, inventorsEn: item.inventorsKr }, members, 'en'), 'Jongseok Park, Seungyong Ham, 김외부');
+  assert.equal(patentInventorDisplay(item, members, 'kr'), item.inventorsKr);
+});
+
+check('localized legacy names retain outside English names and original inventor order', () => {
+  const item = { inventorsKr: '박종석, 김외부, 함승용', inventorsEn: '박종석, Jane Doe, 함승용' };
+  assert.equal(patentInventorDisplay(item, members, 'en'), 'Jongseok Park, Jane Doe, Seungyong Ham');
+  // An older English field may have contained only the manually entered name.
+  assert.equal(patentInventorDisplay({ ...item, inventorsEn: 'Jane Doe' }, members, 'en'), 'Jongseok Park, Jane Doe, Seungyong Ham');
+});
+
+check('structured display uses current member names while recognizing saved spellings', () => {
+  const item = buildPatentInventorFields({ memberIds: ['park', 'ham'], externalInventorsKr: '김외부', externalInventorsEn: 'Jane Doe' }, members);
+  const renamed = { ...park, nameKr: '박새이름', nameEn: 'New Name Park' };
+  assert.equal(patentInventorDisplay(item, [renamed, ham], 'en'), 'New Name Park, Seungyong Ham, Jane Doe');
+  assert.equal(patentInventorDisplay(item, [renamed, ham], 'kr'), '박새이름, 함승용, 김외부');
+  assert.equal(item.inventorsEn, 'Jongseok Park, Seungyong Ham, Jane Doe');
+});
+
+check('structured display prefers the external English field when the full English display is stale', () => {
+  const item = {
+    ...buildPatentInventorFields({ memberIds: ['park', 'ham'], externalInventorsKr: '김외부', externalInventorsEn: 'Jane Doe' }, members),
+    inventorsKr: '박종석, 김외부, 함승용', inventorsEn: '박종석, 김외부, 함승용'
+  };
+  assert.equal(patentInventorDisplay(item, members, 'en'), 'Jongseok Park, Jane Doe, Seungyong Ham');
+});
+
+check('English display honors explicit unlink and does not translate unselected external members', () => {
+  assert.equal(patentInventorDisplay({ inventorMemberIds: [], inventorsKr: '박종석' }, members, 'en'), '박종석');
+  const item = buildPatentInventorFields({ memberIds: ['park'], externalInventorsKr: '함승용', externalInventorsEn: '' }, members);
+  assert.equal(patentInventorDisplay(item, members, 'en'), 'Jongseok Park, 함승용');
+  assert.equal(patentInventorDisplay({ inventorMemberIds: [], externalInventorsKr: '', externalInventorsEn: '', inventorsKr: '박종석' }, members, 'en'), '');
+});
+
+check('English display never infers names from ambiguous matches or partial names', () => {
+  const roster = [...members, { id: 'kim1', nameKr: '김민수', nameEn: 'Minsu Kim' }, { id: 'kim2', nameKr: '김민수', nameEn: 'Minsoo Kim' }];
+  assert.equal(patentInventorDisplay({ inventorsKr: '김민수, 박종석 연구원' }, roster, 'en'), '김민수, 박종석 연구원');
+});
+
+check('display retains stored snapshots when members are absent or deleted', () => {
+  const item = buildPatentInventorFields({ memberIds: ['park', 'ham'] }, members);
+  assert.equal(patentInventorDisplay(item, [], 'en'), 'Jongseok Park, Seungyong Ham');
+  assert.equal(patentInventorDisplay(item, [{ ...park, deleted: true }, ham], 'en'), 'Jongseok Park, Seungyong Ham');
+  assert.equal(patentInventorDisplay({ inventorMemberIds: ['park'], inventorsKr: '박종석', externalInventorsKr: '', externalInventorsEn: '' }, [], 'en'), '박종석');
+});
+
+check('display uses Korean fallback rather than inventing a missing English member name', () => {
+  const item = buildPatentInventorFields({ memberIds: ['park'] }, members);
+  assert.equal(patentInventorDisplay(item, [{ ...park, nameEn: '' }], 'en'), '박종석');
+  assert.equal(patentInventorDisplay({ inventorsKr: '김외부' }, [], 'en'), '김외부');
+  assert.equal(patentInventorDisplay({}, members, 'en'), '');
+});
+
+check('localized comma-formatted member names and external repeated surnames remain intact', () => {
+  const roster = [{ ...park, nameEn: 'Park, Jongseok' }];
+  const item = { inventorsKr: '박종석', inventorsEn: 'Park, Jongseok, Doe, Jane, Doe, John' };
+  assert.equal(patentInventorDisplay(item, roster, 'en'), item.inventorsEn);
+});
+
+check('a complete legacy English credit with unregistered initials is preserved without duplicating inventors', () => {
+  const item = { inventorsKr: '박종석, 함승용', inventorsEn: 'J. Park, S. Ham' };
+  assert.equal(patentInventorDisplay(item, members, 'en'), item.inventorsEn);
+  assert.equal(patentInventorDisplay(item, members, 'kr'), item.inventorsKr);
+  const withOutside = {
+    ...item, inventorMemberIds: ['park', 'ham'],
+    externalInventorsKr: '외부 발명자', externalInventorsEn: 'A. Outside'
+  };
+  assert.equal(patentInventorDisplay(withOutside, members, 'en'), 'Jongseok Park, Seungyong Ham, A. Outside');
+  const incomplete = { inventorsKr: '박종석, 함승용, 외부 발명자', inventorsEn: 'J. Park, S. Ham, A. Outside' };
+  const displayed = patentInventorDisplay(incomplete, members, 'en');
+  assert.ok(displayed.includes('Jongseok Park'));
+  assert.ok(displayed.includes('A. Outside'), 'An uncertain initials match must not erase an outside inventor');
 });
 
 console.log(`Patent inventor verification passed (${checks} checks).`);

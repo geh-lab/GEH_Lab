@@ -56,6 +56,7 @@ function assertCompact(html) {
   assert.match(html, /record-contributors/);
   assert.doesNotMatch(html, /mailto:|private-[ab]@example\.test|publication-member-email/);
   assert.doesNotMatch(html, /<article\b|member-card|publication-members__item/);
+  assert.doesNotMatch(html, /record-contributors__arrow|↗/);
 }
 
 let checks = 0;
@@ -118,6 +119,8 @@ check('Publication contributors merge repeated member IDs and preserve only reco
     { memberId: 'member-b', roles: [] }
   ] });
   assertCompact(html);
+  assert.ok(disclosure(html, 'Lab authors'), 'The Korean publication page uses the English section label too');
+  assert.doesNotMatch(html, /연구실 저자/);
   assert.equal(occurrences(html, 'data-member-id="member-a"'), 1);
   assert.equal(occurrences(html, 'data-member-id="member-b"'), 1);
   assert.equal(occurrences(html, '>제1저자<'), 1);

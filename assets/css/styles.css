@@ -9760,11 +9760,11 @@ article#member-editor-card::before,
   .patent-inventor-fields { padding: .75rem; }
 }
 
-/* Research records use one card; linked people are compact rows inside it. */
+/* Linked names and roles share a compact row and wrap when space runs out. */
 .record-contributors__list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem 1.75rem;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -9773,12 +9773,12 @@ article#member-editor-card::before,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: .25rem .75rem;
+  justify-content: flex-start;
+  gap: .25rem .5rem;
   min-width: 0;
+  max-width: 100%;
   min-height: 48px;
   padding: .4rem 0;
-  border-bottom: 1px solid var(--line);
 }
 .record-contributors__profile,
 .record-contributors__name {
@@ -9800,7 +9800,6 @@ article#member-editor-card::before,
   overflow-wrap: anywhere;
 }
 .record-contributors__profile { cursor: pointer; }
-.record-contributors__arrow { color: var(--accent); flex-shrink: 0; }
 .record-contributors__profile:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .record-contributors__profile:active { background: var(--accent-light); }
 .record-contributors > summary,
@@ -9825,7 +9824,7 @@ article#member-editor-card::before,
 .patent-record-summary p { margin: 0; white-space: pre-line; }
 .patent-card .patent-source-link { margin-top: 0; }
 @media (max-width: 680px) {
-  .record-contributors__list { grid-template-columns: minmax(0, 1fr); }
+  .record-contributors__list { column-gap: 1.25rem; }
   .patent-card .publication-meta-row { grid-template-columns: minmax(0, 1fr) !important; }
   .patent-card .patent-source-link { justify-self: start !important; margin-left: 0 !important; }
 }

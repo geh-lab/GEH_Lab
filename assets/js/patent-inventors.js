@@ -143,6 +143,83 @@ export function buildPatentInventorFields(input = {}, members = [], previous = {
   };
 }
 
+// Display linked names from the current roster without rewriting saved patent data.
+// The full inventor fields provide the ordering; external bilingual fields remain
+// the authority for names that were entered manually.
+export function patentInventorDisplay(patent = {}, members = [], lang = 'kr') {
+  const english = lang === 'en';
+  const resolved = resolvePatentInventors(patent, members);
+  const { byId, aliases: rosterAliases } = memberIndex(members);
+  const saved = new Map(resolved.memberSnapshots.map((item) => [item.memberId, item]));
+  const labels = new Map(resolved.memberIds.map((id) => {
+    const member = byId.has(id) ? snapshot(byId.get(id), id) : saved.get(id) || {};
+    return [id, text(english ? member.nameEn : member.nameKr) || text(member.nameKr) || text(member.nameEn)];
+  }));
+  const aliases = new Map();
+  for (const id of resolved.memberIds) {
+    const prior = saved.get(id) || {};
+    const current = byId.get(id) || {};
+    for (const value of [prior.nameKr, prior.nameEn, current.nameKr, current.nameEn, current.name]) {
+      const key = nameKey(value);
+      if (!key || (resolved.legacy && rosterAliases.get(key)?.size > 1)) continue;
+      if (!aliases.has(key)) aliases.set(key, new Set());
+      aliases.get(key).add(id);
+    }
+  }
+  const memberIdFor = (part) => {
+    const ids = aliases.get(nameKey(part));
+    return ids?.size === 1 ? [...ids][0] : '';
+  };
+  const kr = text(patent.inventorsKr || patent.inventors);
+  const en = text(patent.inventorsEn);
+  const koreanParts = nameParts(kr, aliases);
+  const englishParts = nameParts(en, aliases);
+  const koreanIds = new Set(koreanParts.map(memberIdFor).filter(Boolean));
+  // A complete old English credit may use initials that the roster does not
+  // store. Keep that credit intact rather than guessing identities or adding
+  // a second copy of every inventor. Explicit outside-name fields always win.
+  if (en && !own(patent, 'externalInventorsKr') && !own(patent, 'externalInventorsEn')
+    && !/\p{Script=Hangul}/u.test(en)
+    && koreanIds.size === resolved.memberIds.length && koreanIds.size === koreanParts.length
+    && englishParts.length === koreanParts.length
+    && englishParts.every((part) => !memberIdFor(part) && /\b[A-Za-z]\./.test(part))) {
+    return english ? en : koreanParts.map((part) => labels.get(memberIdFor(part)) || part).join(', ');
+  }
+  const external = english
+    ? resolved.externalInventorsEn || resolved.externalInventorsKr
+    : resolved.externalInventorsKr || resolved.externalInventorsEn;
+  const externalParts = nameParts(external, aliases).filter((part) => !memberIdFor(part));
+  let parts = english ? (en ? englishParts : koreanParts) : (kr ? koreanParts : englishParts);
+  const alternate = english ? koreanParts : englishParts;
+  const linkedCount = (values) => new Set(values.map(memberIdFor).filter(Boolean)).size;
+  // Some old English fields contain only the outside inventors. Use the fuller
+  // field to retain the interleaving of lab and outside inventors in that case.
+  if (linkedCount(alternate) > linkedCount(parts)) parts = alternate;
+  const outsideCount = parts.filter((part) => !memberIdFor(part)).length;
+  const values = [];
+  const emitted = new Set();
+  let outsideIndex = 0;
+  for (const part of parts) {
+    const id = memberIdFor(part);
+    if (id) {
+      if (!emitted.has(id)) values.push(labels.get(id) || part);
+      emitted.add(id);
+    } else if (outsideCount === externalParts.length) {
+      values.push(externalParts[outsideIndex++]);
+    } else if (outsideIndex++ === 0) {
+      values.push(...externalParts);
+    }
+  }
+  for (const [id, label] of labels) {
+    if (!emitted.has(id) && label) values.push(label);
+  }
+  if (!outsideCount) values.push(...externalParts);
+  // A record with IDs but no available roster or snapshots can still display
+  // its saved names. Explicitly unlinked, empty external fields stay empty.
+  if (!values.some(Boolean) && resolved.memberIds.length) return english ? en || kr : kr || en;
+  return values.filter(Boolean).join(', ');
+}
+
 export function patentsForMember(patents = [], member = {}, members = []) {
   const id = text(member.id || member.memberId);
   if (!id || member.deleted === true) return [];

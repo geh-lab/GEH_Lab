@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { resolvePatentInventors, buildPatentInventorFields } from '../assets/js/patent-inventors.js';
+import { resolvePatentCountry, patentCountryOptions, patentCountryFields } from '../assets/js/patent-countries.js';
 import { normalizePatent, validatePatent, sortPatents, patentText } from '../assets/js/patents.js';
 import { adminSubscriptionKeys, createAdminSubscriptions } from '../assets/js/admin-data-subscriptions.js';
+import { createAdminCounts } from '../assets/js/admin-counts.js';
 
 // Execute the real editor, subscription callbacks and save handler. The small
 // form/DOM below substitutes browser layout only; Firebase is never contacted.
@@ -14,6 +16,8 @@ assert.match(html, /id="patent-inventor-picker"/);
 assert.match(html, /name="externalInventorsKr"/);
 assert.match(html, /name="externalInventorsEn"/);
 assert.doesNotMatch(html, /name="inventorsKr"[^>]*required/);
+assert.match(html, /<select id="patent-country">/);
+assert.match(html, /name="countryEn"[^>]*readonly/);
 const members = [
   { id: 'park', nameKr: '박종석', nameEn: 'Jong Seok Park' },
   { id: 'ham', nameKr: '함승용', nameEn: 'Seung Yong Ham' }
@@ -47,14 +51,15 @@ function harness({ ready = true } = {}) {
     appendChild() {}
   };
   const selectors = new Map([
-    ['#patent-form', form], ['#patent-inventor-picker', picker], ['#patent-inventor-preview', {}],
+    ['#patent-form', form], ['#patent-country', { value: 'KR', innerHTML: '' }], ['#patent-inventor-picker', picker], ['#patent-inventor-preview', {}],
     ['#patent-form-title', {}], ['#patent-registration-fields', {}], ['#patent-search-admin', {}]
   ]);
   const copy = (items = []) => [...items];
   const context = vm.createContext({
     console, structuredClone, URL, TextEncoder,
     resolvePatentInventors, buildPatentInventorFields, normalizePatent, validatePatent, sortPatents, patentText,
-    adminSubscriptionKeys, createAdminSubscriptions, escapeHTML,
+    resolvePatentCountry, patentCountryOptions, patentCountryFields,
+    adminSubscriptionKeys, createAdminSubscriptions, createAdminCounts, escapeHTML,
     hasFirebaseConfig: true, isLocalDevMode: false, isLocalAdminPreview: false,
     FALLBACK_MEMBERS: [], FALLBACK_PROJECTS: [], FALLBACK_PUBLICATIONS: [], FALLBACK_BOARD_POSTS: [],
     sortMembers: copy, sortProjects: copy, sortPublications: copy, sortBoardPosts: copy,
@@ -75,7 +80,7 @@ function harness({ ready = true } = {}) {
     openEditor = (kind) => { state.openEditorKind = kind; syncAdminSubscriptions(); };
     closeEditor = () => { state.openEditorKind = ''; syncAdminSubscriptions(); };
     showNotice = recordNotice;
-    globalThis.test = { state, elements, adminSubscriptions, loadPatentForm, resetPatentForm, collectPatentInventors, handlePatentSubmit, onPatentInventorInput, onPatentInventorSelection, renderPendingEditorPickers };
+    globalThis.test = { state, elements, adminSubscriptions, loadPatentForm, resetPatentForm, updatePatentCountryFields, collectPatentInventors, handlePatentSubmit, onPatentInventorInput, onPatentInventorSelection, renderPendingEditorPickers };
   `, context);
   const test = context.test;
   test.state.user = { uid: 'test-admin' };
@@ -91,7 +96,7 @@ function harness({ ready = true } = {}) {
   const select = (id, checked) => test.onPatentInventorSelection({ target: { closest: () => ({ dataset: { patentInventorId: id }, checked }) } });
   const submit = () => test.handlePatentSubmit({ preventDefault() {}, currentTarget: form });
   const arrive = (items = members) => callbacks.findLast((callback) => callback.name === 'members' && !callback.stopped).onData(items);
-  return { ...test, callbacks, writes, notices, picker, value, type, select, submit, arrive };
+  return { ...test, callbacks, writes, notices, picker, country: selectors.get('#patent-country'), value, type, select, submit, arrive };
 }
 
 let count = 0;
@@ -176,6 +181,39 @@ await check('No inventor prevents saving, and reset clears inventor state', asyn
   assert.deepEqual(plain(h.state.patentInventorDraft.memberIds), []);
   assert.equal(h.value('externalInventorsKr'), '');
   assert.equal(h.value('externalInventorsEn'), '');
+});
+
+await check('Country selection defaults to Korea and synchronizes the saved bilingual values', async () => {
+  const h = harness(); h.resetPatentForm();
+  assert.equal(h.country.value, 'KR');
+  assert.equal(h.value('countryKr'), '대한민국');
+  assert.equal(h.value('countryEn'), 'Republic of Korea');
+  h.loadPatentForm(base);
+  h.country.value = 'US'; h.updatePatentCountryFields();
+  assert.equal(h.value('countryKr'), '미국');
+  assert.equal(h.value('countryEn'), 'United States');
+  await h.submit();
+  assert.equal(h.writes[0].payload.countryKr, '미국');
+  assert.equal(h.writes[0].payload.countryEn, 'United States');
+  h.loadPatentForm({ ...h.writes[0].payload, id: 'p1' });
+  assert.equal(h.country.value, 'US');
+});
+
+await check('Unknown existing jurisdictions survive an unrelated edit and can be replaced with a listed country', async () => {
+  const h = harness();
+  h.loadPatentForm({ ...base, countryKr: '기존 관할 <A>', countryEn: 'Custom jurisdiction A' });
+  assert.equal(h.country.value, 'legacy');
+  assert.match(h.country.innerHTML, /기존 관할 &lt;A&gt;/);
+  h.value('titleKr', '제목만 변경');
+  await h.submit();
+  assert.equal(h.writes[0].payload.countryKr, '기존 관할 <A>');
+  assert.equal(h.writes[0].payload.countryEn, 'Custom jurisdiction A');
+  h.loadPatentForm({ ...h.writes[0].payload, id: 'p1' });
+  h.country.value = 'JP'; h.updatePatentCountryFields();
+  assert.equal(h.value('countryEn'), 'Japan');
+  h.resetPatentForm();
+  assert.equal(h.country.value, 'KR');
+  assert.doesNotMatch(h.country.innerHTML, /기존 관할/);
 });
 
 console.log(`Patent admin verification passed (${count} checks, no network).`);
