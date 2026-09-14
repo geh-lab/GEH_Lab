@@ -279,14 +279,19 @@
                 <label class="field"><span>목록에 없는 발명자 (국문)</span><input name="externalInventorsKr" type="text" placeholder="예: 홍길동, 김연구" aria-describedby="patent-inventor-hint"></label>
                 <label class="field"><span>목록에 없는 발명자 (영문)</span><input name="externalInventorsEn" type="text" placeholder="예: Gildong Hong, Research Kim" aria-describedby="patent-inventor-hint"></label>
               </div>
-              <p class="muted" id="patent-inventor-hint">여러 명은 쉼표로 구분하세요. 선택한 멤버의 특허 건수는 멤버 상세 정보에 반영됩니다.</p>
+              <p class="muted" id="patent-inventor-hint">국문과 영문은 같은 순서로 입력하세요. 여러 명은 쉼표로 구분하며, 이름 안에 쉼표가 있으면 세미콜론(;)으로 구분하세요. 선택한 멤버의 특허 건수는 멤버 상세 정보에 반영됩니다.</p>
+              <div class="patent-inventor-order-section">
+                <strong id="patent-inventor-order-label">공보상 발명자 순서</strong>
+                <p class="muted" id="patent-inventor-order-hint">위·아래 화살표로 공보에 기재된 순서에 맞춰주세요. 국문과 영문에 함께 적용됩니다.</p>
+                <ol class="patent-inventor-order" id="patent-inventor-order" aria-labelledby="patent-inventor-order-label" aria-describedby="patent-inventor-order-hint"></ol>
+              </div>
               <div class="patent-inventor-preview"><strong>표시될 발명자</strong><output id="patent-inventor-preview" aria-live="polite"></output></div>
             </section>
             <div class="form-grid form-grid--double">
 <label class="field"><span>출원인 / 권리자 (국문)</span><input name="applicantKr" type="text"></label>
 <label class="field"><span>출원인 / 권리자 (영문)</span><input name="applicantEn" type="text"></label>
-<label class="field"><span>국가 / 관할 (국문)</span><select id="patent-country"><option value="KR">대한민국</option></select><input name="countryKr" type="hidden" value="대한민국"></label>
-<label class="field"><span>국가 / 관할 (영문)</span><input name="countryEn" type="text" value="Republic of Korea" readonly aria-describedby="patent-country-hint"><small class="muted" id="patent-country-hint">선택한 국가의 영문명이 자동으로 표시됩니다.</small></label>
+<label class="field patent-country-field"><span>국가 / 관할 (국문)</span><select id="patent-country"><option value="KR">대한민국</option></select><input name="countryKr" type="hidden" value="대한민국"></label>
+<label class="field patent-country-field"><span>국가 / 관할 (영문)</span><input name="countryEn" type="text" value="Republic of Korea" readonly aria-describedby="patent-country-hint"><small class="muted" id="patent-country-hint">선택한 국가의 영문명이 자동으로 표시됩니다.</small></label>
 <label class="field"><span>출원번호 *</span><input name="applicationNumber" type="text" required></label>
 <label class="field"><span>출원일 *</span><input name="applicationDate" type="date" required></label>
               <label class="field"><span>상태</span><select name="status"><option value="pending">출원</option><option value="granted">등록</option></select></label>

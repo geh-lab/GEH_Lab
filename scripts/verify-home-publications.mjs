@@ -1,0 +1,164 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import vm from 'node:vm';
+import * as utils from '../assets/js/utils.js';
+import * as patents from '../assets/js/patents.js';
+import * as inventors from '../assets/js/patent-inventors.js';
+import * as data from '../assets/js/data.js';
+
+// Exercise production home cards and event handlers without starting Firebase.
+// Stub only the shared modal shell: its title and content are captured for checks.
+const source = (await fs.readFile(new URL('../assets/js/public.js', import.meta.url), 'utf8'))
+  .replace(/^import\s+[\s\S]*?;\s*$/gm, '');
+const member = { id: 'lab-member', nameKr: '테스트 연구자', nameEn: 'Test Researcher' };
+const publication = {
+  id: 'home-paper', title: 'A study of greenhouse irrigation', journal: 'Example Journal',
+  year: 2026, month: 9, indexing: 'SCIE', authors: 'Test Researcher & External Author',
+  doi: '10.1000/home-paper', abstract: 'The complete abstract is available in the details.',
+  memberLinks: [{ memberId: member.id, roles: ['first'] }]
+};
+
+function eventCard(id) {
+  const handlers = new Map();
+  return {
+    dataset: { publicationId: id },
+    closest() { return null; },
+    addEventListener(type, callback) {
+      const listeners = handlers.get(type) || [];
+      listeners.push(callback);
+      handlers.set(type, listeners);
+    },
+    dispatch(type, properties = {}) {
+      const event = { target: this, detail: 1, prevented: false,
+        preventDefault() { this.prevented = true; }, ...properties };
+      (handlers.get(type) || []).forEach((callback) => callback(event));
+      return event;
+    },
+    handlerCount(type) { return (handlers.get(type) || []).length; }
+  };
+}
+
+function runtime(lang = 'kr', cards = []) {
+  const modals = [];
+  const externalOpens = [];
+  const scrollArea = { scrollTop: 250 };
+  const document = {
+    body: { dataset: { page: 'home', lang, root: lang === 'en' ? '..' : '.' } },
+    documentElement: { classList: { add() {} } }, addEventListener() {},
+    querySelector: () => null,
+    querySelectorAll: (selector) => selector.includes('[data-publication-id]') ? cards : []
+  };
+  const api = vm.runInNewContext(`(() => { ${source}\n
+    openModal = (title, html) => captureModal(title, html);
+    modalState.root = { querySelector: () => scrollArea };
+    return { state, homePublicationCard, openPublicationModal, bindInteractiveCards, publicationCard };
+  })()`, {
+    ...utils, ...patents, ...inventors, ...data, document, URL, URLSearchParams, console,
+    window: { matchMedia: () => ({ matches: true }), open: (...args) => externalOpens.push(args) },
+    localStorage: { getItem: () => null }, hasFirebaseConfig: false, isLocalDevMode: true,
+    COLLECTIONS: { members: 'members', projects: 'projects', publications: 'publications', patents: 'patents', board: 'boardPosts' },
+    refreshImageFallbacks() {}, scrollArea, captureModal: (title, html) => modals.push({ title, html }),
+    fetch() { throw new Error('Home publication tests must never contact a server.'); }
+  }, { filename: 'public.js' });
+  api.state.members = [member];
+  api.state.publications = [publication];
+  return { ...api, modals, externalOpens, scrollArea };
+}
+
+let checks = 0;
+function check(name, run) { run(); checks++; console.log(`PASS: ${name}`); }
+function sourceLink(html, href, label) {
+  const anchors = [...html.matchAll(/<a\b[^>]*>[\s\S]*?<\/a>/g)].map(([anchor]) => anchor);
+  const anchor = anchors.find((value) => value.includes(`href="${utils.escapeHTML(href)}"`));
+  assert.ok(anchor, `Missing source link: ${href}`);
+  assert.match(anchor, /target="_blank"/);
+  assert.match(anchor, /rel="[^"]*noreferrer[^\"]*"/);
+  assert.ok(anchor.includes(label), `Missing source label: ${label}`);
+}
+
+check('Home publication cards open details and expose a separately labeled source link in both languages', () => {
+  for (const [lang, label] of [['kr', '논문 원문'], ['en', 'Read paper']]) {
+    const r = runtime(lang);
+    const html = r.homePublicationCard(publication);
+    assert.match(html, /data-publication-id="home-paper"/);
+    assert.match(html, /role="button"/);
+    assert.match(html, /tabindex="0"/);
+    assert.match(html, /aria-haspopup="dialog"/);
+    assert.doesNotMatch(html, /\bdata-link=/);
+    sourceLink(html, 'https://doi.org/10.1000/home-paper', label);
+    r.openPublicationModal(publication);
+    assert.equal(r.modals[0].title, publication.title);
+    assert.equal(r.scrollArea.scrollTop, 0, 'Details must start at the top after another paper was scrolled');
+    const modal = r.modals[0].html;
+    for (const text of [publication.journal, utils.escapeHTML(publication.authors), publication.abstract, 'Lab authors']) {
+      assert.ok(modal.includes(text), `Missing detail: ${text}`);
+    }
+    assert.match(modal, /data-member-id="lab-member"/);
+    sourceLink(modal, 'https://doi.org/10.1000/home-paper', label);
+  }
+});
+
+check('URL-only papers keep their source URL; papers without a source still open useful details', () => {
+  const r = runtime();
+  const urlOnly = { ...publication, doi: '', url: 'https://example.test/paper?issue=9&source=lab' };
+  sourceLink(r.homePublicationCard(urlOnly), urlOnly.url, '논문 원문');
+  r.openPublicationModal(urlOnly);
+  sourceLink(r.modals.at(-1).html, urlOnly.url, '논문 원문');
+  const noSource = { ...publication, doi: '', url: '' };
+  const card = r.homePublicationCard(noSource);
+  assert.match(card, /data-publication-id="home-paper"/);
+  assert.doesNotMatch(card, /<a\b/);
+  r.openPublicationModal(noSource);
+  assert.ok(r.modals.at(-1).html.includes(publication.abstract));
+  assert.doesNotMatch(r.modals.at(-1).html, /<a\b[^>]*href="(?:undefined|null|#|)"/);
+});
+
+check('Publication text and source attributes are escaped in home cards and details', () => {
+  const r = runtime();
+  const unsafe = { ...publication, title: '<img src=x onerror="alert(1)">',
+    journal: '<script>journal</script>', authors: 'A & <svg onload="alert(1)">',
+    abstract: '<script>abstract</script>', doi: '', url: 'https://example.test/paper?label="test"&x=1' };
+  const card = r.homePublicationCard(unsafe);
+  r.openPublicationModal(unsafe);
+  assert.equal(r.modals[0].title, unsafe.title, 'The shared modal shell assigns the title with textContent');
+  for (const html of [card, r.modals[0].html]) {
+    assert.doesNotMatch(html, /<script>|<svg\b|<img\b/);
+    assert.ok(html.includes(utils.escapeHTML(unsafe.authors)));
+    sourceLink(html, unsafe.url, '논문 원문');
+  }
+  assert.ok(card.includes(utils.escapeHTML(unsafe.title)));
+  assert.ok(r.modals[0].html.includes(utils.escapeHTML(unsafe.abstract)));
+});
+
+check('Home card click, Enter and Space open one modal; nested source links keep native behavior', () => {
+  const card = eventCard(publication.id);
+  const r = runtime('en', [card]);
+  r.bindInteractiveCards();
+  r.bindInteractiveCards();
+  assert.equal(card.handlerCount('click'), 1, 'Re-render binding must not duplicate click actions');
+  assert.equal(card.handlerCount('keydown'), 1);
+  card.dispatch('click');
+  for (const key of ['Enter', ' ']) assert.equal(card.dispatch('keydown', { key }).prevented, true);
+  assert.equal(r.modals.length, 3);
+  const anchor = { closest: () => anchor };
+  card.dispatch('click', { target: anchor });
+  const anchorKey = card.dispatch('keydown', { key: 'Enter', target: anchor });
+  assert.equal(anchorKey.prevented, false, 'The source anchor must retain its browser navigation');
+  assert.equal(r.modals.length, 3, 'Source link interactions must not also open details');
+  assert.equal(card.dispatch('keydown', { key: 'ArrowDown' }).prevented, false);
+  assert.equal(r.modals.length, 3);
+  assert.equal(r.externalOpens.length, 0, 'The card must never call window.open');
+  r.state.publications = [];
+  card.dispatch('click');
+  assert.equal(r.modals.length, 3, 'A removed record must not open stale details');
+});
+
+check('The standalone publication page retains DOI and disclosure behavior', () => {
+  const html = runtime('en').publicationCard(publication);
+  assert.doesNotMatch(html, /data-publication-id=|aria-haspopup="dialog"/);
+  assert.match(html, /<details\b[\s\S]*Abstract/);
+  assert.match(html, /<details\b[\s\S]*Lab authors/);
+  sourceLink(html, 'https://doi.org/10.1000/home-paper', 'DOI');
+});
+
+console.log(`Verified ${checks} home publication detail checks.`);

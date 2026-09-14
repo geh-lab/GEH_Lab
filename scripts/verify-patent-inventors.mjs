@@ -154,6 +154,7 @@ check('structured display prefers the external English field when the full Engli
     ...buildPatentInventorFields({ memberIds: ['park', 'ham'], externalInventorsKr: '김외부', externalInventorsEn: 'Jane Doe' }, members),
     inventorsKr: '박종석, 김외부, 함승용', inventorsEn: '박종석, 김외부, 함승용'
   };
+  delete item.inventorOrder; // This is an older structured record, before explicit ordering.
   assert.equal(patentInventorDisplay(item, members, 'en'), 'Jongseok Park, Jane Doe, Seungyong Ham');
 });
 
@@ -202,6 +203,128 @@ check('a complete legacy English credit with unregistered initials is preserved 
   const displayed = patentInventorDisplay(incomplete, members, 'en');
   assert.ok(displayed.includes('Jongseok Park'));
   assert.ok(displayed.includes('A. Outside'), 'An uncertain initials match must not erase an outside inventor');
+});
+
+check('mixed official order survives save, normalization, reopening, and both public languages', () => {
+  const original = buildPatentInventorFields({ memberIds: ['park', 'ham'], externalInventorsKr: '김외부, 이외부', externalInventorsEn: 'Jane Doe; John Smith' }, members);
+  const [parkEntry, hamEntry, jane, john] = original.inventorOrder;
+  const saved = normalizePatent(buildPatentInventorFields({ inventorOrder: [john, hamEntry, jane, parkEntry] }, members, original));
+  assert.equal(saved.inventorsKr, '이외부, 함승용, 김외부, 박종석');
+  assert.equal(saved.inventorsEn, 'John Smith, Seungyong Ham, Jane Doe, Jongseok Park');
+  assert.deepEqual(saved.inventorMemberIds, ['ham', 'park']);
+  assert.deepEqual(resolvePatentInventors(saved, members).memberIds, ['ham', 'park']);
+  assert.deepEqual(buildPatentInventorFields({}, members, saved), {
+    inventorMemberIds: saved.inventorMemberIds, inventorMembers: saved.inventorMembers,
+    externalInventorsKr: saved.externalInventorsKr, externalInventorsEn: saved.externalInventorsEn,
+    inventorOrder: saved.inventorOrder, inventorsKr: saved.inventorsKr, inventorsEn: saved.inventorsEn
+  });
+  assert.equal(patentInventorDisplay(saved, members, 'kr'), saved.inventorsKr);
+  assert.equal(patentInventorDisplay(saved, members, 'en'), saved.inventorsEn);
+});
+
+check('editing an older record preserves its interleaved member and outside order', () => {
+  const legacy = { inventorsKr: '김외부, 박종석, 이외부, 함승용', inventorsEn: 'Jane Doe, Jongseok Park, John Smith, Seungyong Ham' };
+  const saved = buildPatentInventorFields({}, members, legacy);
+  assert.equal(saved.inventorsKr, legacy.inventorsKr);
+  assert.equal(saved.inventorsEn, legacy.inventorsEn);
+  const structured = { ...saved, inventorsKr: '김외부, 함승용, 이외부, 박종석', inventorsEn: '' };
+  delete structured.inventorOrder;
+  const opened = buildPatentInventorFields({}, members, structured);
+  assert.equal(opened.inventorsKr, structured.inventorsKr);
+  assert.equal(opened.inventorsEn, 'Jane Doe, Seungyong Ham, John Smith, Jongseok Park');
+});
+
+check('stored explicit order wins over stale concatenated display fields', () => {
+  const saved = buildPatentInventorFields({ memberIds: ['park', 'ham'] }, members);
+  saved.inventorOrder.reverse();
+  assert.equal(patentInventorDisplay(saved, members, 'en'), 'Seungyong Ham, Jongseok Park');
+  assert.deepEqual(resolvePatentInventors(saved, members).memberIds, ['ham', 'park']);
+});
+
+check('current names update in place after an ordered member is renamed', () => {
+  const saved = buildPatentInventorFields({}, members, { inventorsKr: '김외부, 박종석, 함승용', inventorsEn: 'Jane Doe, Jongseok Park, Seungyong Ham' });
+  const renamed = { ...park, nameKr: '박새이름', nameEn: 'New Name Park' };
+  assert.equal(patentInventorDisplay(saved, [renamed, ham], 'en'), 'Jane Doe, New Name Park, Seungyong Ham');
+  assert.equal(patentsForMember([{ id: 'p', ...saved }], renamed, [renamed, ham]).length, 1);
+  assert.equal(patentInventorDisplay(saved, [], 'kr'), saved.inventorsKr);
+});
+
+check('a moved outside inventor keeps its slot while its Korean and English names are edited', () => {
+  let saved = buildPatentInventorFields({ memberIds: ['park'], externalInventorsKr: '김외부, 이외부', externalInventorsEn: 'Jane Doe, John Smith' }, members);
+  saved = buildPatentInventorFields({ inventorOrder: [saved.inventorOrder[2], saved.inventorOrder[0], saved.inventorOrder[1]] }, members, saved);
+  saved = buildPatentInventorFields({ externalInventorsKr: '김수정, 이외부', inventorOrder: saved.inventorOrder }, members, saved);
+  saved = buildPatentInventorFields({ externalInventorsEn: 'Jane Renamed, John Smith', inventorOrder: saved.inventorOrder }, members, saved);
+  assert.equal(saved.inventorsKr, '이외부, 박종석, 김수정');
+  assert.equal(saved.inventorsEn, 'John Smith, Jongseok Park, Jane Renamed');
+});
+
+check('a moved monolingual outside inventor keeps its slot during character-by-character editing', () => {
+  let saved = buildPatentInventorFields({ memberIds: ['park'], externalInventorsKr: '김외부, 이외부' }, members);
+  saved = buildPatentInventorFields({ inventorOrder: [saved.inventorOrder[2], saved.inventorOrder[0], saved.inventorOrder[1]] }, members, saved);
+  for (const name of ['김', '김수', '김수정']) saved = buildPatentInventorFields({ externalInventorsKr: `${name}, 이외부`, inventorOrder: saved.inventorOrder }, members, saved);
+  assert.equal(saved.inventorsKr, '이외부, 박종석, 김수정');
+});
+
+check('removed names vanish, remaining order stays intact, and new names append once', () => {
+  let saved = buildPatentInventorFields({}, members, { inventorsKr: '김외부, 박종석, 이외부, 함승용', inventorsEn: 'Jane Doe, Jongseok Park, John Smith, Seungyong Ham' });
+  saved = buildPatentInventorFields({ memberIds: ['ham'], externalInventorsKr: '이외부', externalInventorsEn: 'John Smith' }, members, saved);
+  assert.equal(saved.inventorsKr, '이외부, 함승용');
+  saved = buildPatentInventorFields({ memberIds: ['park', 'ham'], externalInventorsKr: '이외부, 새발명자', externalInventorsEn: 'John Smith, New Person' }, members, saved);
+  assert.equal(saved.inventorsKr, '이외부, 함승용, 박종석, 새발명자');
+  assert.deepEqual(saved.inventorMemberIds, ['ham', 'park']);
+});
+
+check('explicit separators preserve paired comma surnames as individually movable outside inventors', () => {
+  const saved = buildPatentInventorFields({ memberIds: ['park'], externalInventorsKr: '김외부; 이외부', externalInventorsEn: 'Doe, Jane; Doe, John' }, members);
+  assert.equal(saved.inventorOrder.length, 3);
+  assert.equal(saved.inventorOrder[1].nameEn, 'Doe, Jane');
+  const reordered = buildPatentInventorFields({ inventorOrder: [saved.inventorOrder[2], saved.inventorOrder[0], saved.inventorOrder[1]] }, members, saved);
+  assert.equal(reordered.inventorsEn, 'Doe, John, Jongseok Park, Doe, Jane');
+  assert.equal(reordered.externalInventorsEn, 'Doe, Jane; Doe, John');
+});
+
+check('ambiguous bilingual outside names remain an intact movable group without guessing pairs', () => {
+  const saved = buildPatentInventorFields({ memberIds: ['park'], externalInventorsKr: '김외부, 이외부', externalInventorsEn: 'Doe, Jane, Doe, John' }, members);
+  assert.equal(saved.inventorOrder.length, 2);
+  const moved = buildPatentInventorFields({ inventorOrder: [saved.inventorOrder[1], saved.inventorOrder[0]] }, members, saved);
+  assert.equal(moved.inventorsKr, '김외부, 이외부, 박종석');
+  assert.equal(moved.inventorsEn, 'Doe, Jane, Doe, John, Jongseok Park');
+  assert.equal(moved.externalInventorsEn, saved.externalInventorsEn);
+});
+
+check('invalid or duplicated order entries cannot omit valid names or relink deselected members', () => {
+  const saved = buildPatentInventorFields({ memberIds: ['park', 'ham'], externalInventorsKr: '김외부' }, members);
+  const result = buildPatentInventorFields({ memberIds: ['ham'], inventorOrder: [null, saved.inventorOrder[2], saved.inventorOrder[2], { memberId: 'unknown' }, saved.inventorOrder[0]] }, members, saved);
+  assert.equal(result.inventorsKr, '김외부, 함승용');
+  assert.deepEqual(result.inventorMemberIds, ['ham']);
+  const unlinked = { ...saved, inventorMemberIds: [] };
+  assert.deepEqual(resolvePatentInventors(unlinked, members).memberIds, []);
+  assert.deepEqual(patentsForMember([unlinked], park, members), []);
+});
+
+check('order snapshots retain missing members even if the older snapshot field is absent', () => {
+  const saved = buildPatentInventorFields({ memberIds: ['park'] }, members);
+  delete saved.inventorMembers;
+  assert.equal(patentInventorDisplay(saved, [], 'en'), 'Jongseok Park');
+});
+
+check('editing complete legacy initials credits does not create duplicate outside inventors', () => {
+  const saved = buildPatentInventorFields({}, members, { inventorsKr: '박종석, 함승용', inventorsEn: 'J. Park, S. Ham' });
+  assert.equal(saved.inventorOrder.length, 2);
+  assert.equal(saved.inventorsEn, 'Jongseok Park, Seungyong Ham');
+});
+
+check('known member anchors preserve interleaved legacy comma surnames through repeated editing', () => {
+  const legacy = { inventorsKr: '외부1, 박종석, 외부2, 함승용', inventorsEn: 'Doe, Jane, Jongseok Park, Doe, John, Seungyong Ham' };
+  let saved = buildPatentInventorFields({}, members, legacy);
+  assert.equal(saved.inventorsKr, legacy.inventorsKr);
+  assert.equal(saved.inventorsEn, legacy.inventorsEn);
+  assert.equal(saved.inventorOrder.length, 4);
+  saved = buildPatentInventorFields({ inventorOrder: saved.inventorOrder }, members, saved);
+  assert.equal(saved.inventorsKr, legacy.inventorsKr);
+  assert.equal(saved.inventorsEn, legacy.inventorsEn);
+  const moved = buildPatentInventorFields({ inventorOrder: [saved.inventorOrder[2], saved.inventorOrder[1], saved.inventorOrder[0], saved.inventorOrder[3]] }, members, saved);
+  assert.equal(moved.inventorsEn, 'Doe, John, Jongseok Park, Doe, Jane, Seungyong Ham');
 });
 
 console.log(`Patent inventor verification passed (${checks} checks).`);
