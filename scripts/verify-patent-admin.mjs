@@ -14,8 +14,9 @@ const source = (await readFile(new URL('../assets/js/admin.js', import.meta.url)
 const html = await readFile(new URL('../admin.html', import.meta.url), 'utf8');
 assert.match(html, /id="patent-inventor-picker"/);
 assert.match(html, /id="patent-inventor-order"/);
-assert.match(html, /name="externalInventorsKr"/);
-assert.match(html, /name="externalInventorsEn"/);
+for (const name of ['externalFamilyNameKr', 'externalGivenNameKr', 'externalFamilyNameEn', 'externalGivenNameEn']) assert.match(html, new RegExp(`name="${name}"`));
+assert.match(html, /id="patent-external-add"[^>]*type="button"|type="button"[^>]*id="patent-external-add"/);
+assert.doesNotMatch(html, /name="externalInventors(?:Kr|En)"/);
 assert.doesNotMatch(html, /name="inventorsKr"[^>]*required/);
 assert.match(html, /<select id="patent-country">/);
 assert.match(html, /name="countryEn"[^>]*readonly/);
@@ -31,8 +32,8 @@ function harness({ ready = true } = {}) {
   const callbacks = [];
   const writes = [];
   const notices = [];
-  const controls = ['titleKr', 'titleEn', 'externalInventorsKr', 'externalInventorsEn', 'applicantKr', 'applicantEn', 'countryKr', 'countryEn', 'applicationNumber', 'applicationDate', 'status', 'registrationNumber', 'registrationDate', 'url', 'descriptionKr', 'descriptionEn']
-    .map((name) => ({ name, value: '', disabled: false }));
+  const controls = ['titleKr', 'titleEn', 'externalFamilyNameKr', 'externalGivenNameKr', 'externalFamilyNameEn', 'externalGivenNameEn', 'applicantKr', 'applicantEn', 'countryKr', 'countryEn', 'applicationNumber', 'applicationDate', 'status', 'registrationNumber', 'registrationDate', 'url', 'descriptionKr', 'descriptionEn']
+    .map((name) => ({ name, value: '', disabled: false, focus() { this.focused = true; }, matches(selector) { return selector === '[data-patent-external-name]' && name.startsWith('external'); } }));
   controls.namedItem = (name) => controls.find((field) => field.name === name);
   const form = {
     id: 'patent-form', dataset: {}, elements: controls,
@@ -54,6 +55,7 @@ function harness({ ready = true } = {}) {
   const selectors = new Map([
     ['#patent-form', form], ['#patent-country', { value: 'KR', innerHTML: '' }], ['#patent-inventor-picker', picker], ['#patent-inventor-preview', {}],
     ['#patent-inventor-order', { innerHTML: '', querySelector() { return null; } }],
+    ['#patent-external-add', { textContent: '', focus() { this.focused = true; } }], ['#patent-external-cancel', { hidden: true }], ['#patent-external-status', { textContent: '' }],
     ['#patent-form-title', {}], ['#patent-registration-fields', {}], ['#patent-search-admin', {}]
   ]);
   const copy = (items = []) => [...items];
@@ -82,7 +84,7 @@ function harness({ ready = true } = {}) {
     openEditor = (kind) => { state.openEditorKind = kind; syncAdminSubscriptions(); };
     closeEditor = () => { state.openEditorKind = ''; syncAdminSubscriptions(); };
     showNotice = recordNotice;
-    globalThis.test = { state, elements, adminSubscriptions, loadPatentForm, resetPatentForm, updatePatentCountryFields, collectPatentInventors, handlePatentSubmit, onPatentInventorInput, onPatentInventorSelection, onPatentInventorReorder, renderPendingEditorPickers };
+    globalThis.test = { state, elements, adminSubscriptions, loadPatentForm, resetPatentForm, updatePatentCountryFields, collectPatentInventors, handlePatentSubmit, onPatentInventorInput, onPatentInventorSelection, onPatentInventorReorder, onPatentInventorOrderAction, onPatentExternalAdd, onPatentExternalKeydown, readPatentExternalInventor, resetPatentExternalEditor, renderPendingEditorPickers };
   `, context);
   const test = context.test;
   test.state.user = { uid: 'test-admin' };
@@ -100,63 +102,94 @@ function harness({ ready = true } = {}) {
     preventDefault() {},
     target: { closest: () => ({ dataset: { patentInventorIndex: String(index), patentInventorMove: direction } }) }
   });
+  const action = (index, action) => test.onPatentInventorOrderAction({
+    preventDefault() {},
+    target: { closest: () => ({ dataset: { patentInventorIndex: String(index), patentInventorAction: action } }) }
+  });
+  const input = (fields) => { for (const [name, text] of Object.entries(fields)) type(name, text); };
+  const add = (fields = {}) => { input(fields); test.onPatentExternalAdd({ preventDefault() {} }); };
+  const key = (key, options = {}) => test.onPatentExternalKeydown({
+    key, target: controls.namedItem('externalGivenNameKr'), preventDefault() {}, ...options
+  });
   const submit = () => test.handlePatentSubmit({ preventDefault() {}, currentTarget: form });
   const arrive = (items = members) => callbacks.findLast((callback) => callback.name === 'members' && !callback.stopped).onData(items);
-  return { ...test, callbacks, writes, notices, picker, order: selectors.get('#patent-inventor-order'), country: selectors.get('#patent-country'), value, type, select, move, submit, arrive };
+  return { ...test, callbacks, writes, notices, picker, order: selectors.get('#patent-inventor-order'), country: selectors.get('#patent-country'), value, type, select, move, action, input, add, key, submit, arrive, preview: selectors.get('#patent-inventor-preview'), cancel: selectors.get('#patent-external-cancel') };
 }
 
 let count = 0;
 async function check(name, fn) { await fn(); count += 1; console.log(`✓ ${name}`); }
 
-await check('Legacy names become checked members and unmatched external names', () => {
+const composerNames = ['externalFamilyNameKr', 'externalGivenNameKr', 'externalFamilyNameEn', 'externalGivenNameEn'];
+const outside = { externalFamilyNameKr: '홍', externalGivenNameKr: '길동', externalFamilyNameEn: 'Hong', externalGivenNameEn: 'Gildong' };
+const revised = { externalFamilyNameKr: '김', externalGivenNameKr: '수정', externalFamilyNameEn: 'Kim', externalGivenNameEn: 'Sujeong' };
+const orderKeys = (h) => plain(h.collectPatentInventors().inventorOrder).map((entry) => entry.memberId || entry.nameKr || entry.nameEn);
+
+await check('Legacy credits become ordered people with checked members and an empty composer', () => {
   const h = harness(); h.loadPatentForm(base);
   assert.deepEqual(plain(h.state.patentInventorDraft.memberIds), ['park']);
-  assert.equal(h.value('externalInventorsKr'), '외부 연구자');
+  assert.deepEqual(orderKeys(h), ['park', '외부 연구자']);
+  for (const name of composerNames) assert.equal(h.value(name), '');
   assert.match(h.picker.innerHTML, /aria-label="박종석 발명자" checked/);
   assert.deepEqual(plain(h.adminSubscriptions.keys()), ['patents', 'members']);
 });
 
-await check('Save composes names and stable links, then reopening retains the selection', async () => {
-  const h = harness(); h.loadPatentForm(base); h.select('ham', true);
-  h.type('externalInventorsKr', '외부 연구자, 새 발명자');
-  h.type('externalInventorsEn', 'Outside Researcher, New Inventor');
+await check('Member checks and direct additions share their actual click order and automatic separators', async () => {
+  const h = harness(); h.loadPatentForm({ ...base, inventorsKr: '' });
+  h.select('ham', true); h.add(outside); h.select('park', true);
+  assert.deepEqual(orderKeys(h), ['ham', '홍길동', 'park']);
+  assert.equal(h.collectPatentInventors().inventorsKr, '함승용, 홍길동, 박종석');
+  assert.equal(h.collectPatentInventors().inventorsEn, 'Seung Yong Ham, Gildong Hong, Jong Seok Park');
+  assert.equal(h.preview.textContent, '국문: 함승용, 홍길동, 박종석\n영문: Seung Yong Ham, Gildong Hong, Jong Seok Park');
+  for (const name of composerNames) assert.equal(h.value(name), '', 'Adding resets each individual-name field');
+  assert.ok(h.state.dirtyForms.has('patent-form'));
   await h.submit();
   const saved = h.writes[0].payload;
-  assert.deepEqual(saved.inventorMemberIds, ['park', 'ham']);
-  assert.equal(saved.inventorsKr, '박종석, 외부 연구자, 함승용, 새 발명자');
-  assert.equal(saved.inventorsEn, 'Jong Seok Park, Outside Researcher, Seung Yong Ham, New Inventor');
-  assert.deepEqual(plain(h.adminSubscriptions.keys()), ['patents'], 'Closing the saved editor releases members');
+  assert.deepEqual(saved.inventorMemberIds, ['ham', 'park']);
+  assert.deepEqual(saved.inventorOrder.map((entry) => entry.memberId || entry.nameKr), ['ham', '홍길동', 'park']);
+  assert.deepEqual(plain(h.adminSubscriptions.keys()), ['patents']);
   h.loadPatentForm({ ...saved, id: 'p1' });
-  assert.deepEqual(plain(h.state.patentInventorDraft.memberIds), ['park', 'ham']);
-  assert.equal(h.value('externalInventorsKr'), '외부 연구자, 새 발명자');
+  assert.deepEqual(orderKeys(h), ['ham', '홍길동', 'park']);
+  assert.equal(h.collectPatentInventors().inventorsEn, saved.inventorsEn);
+  h.action(1, 'edit');
+  for (const [name, value] of Object.entries(outside)) assert.equal(h.value(name), value, 'Saved split names can be edited without reparsing commas');
 });
 
-await check('Late first member snapshot infers untouched legacy text', () => {
+await check('Repeated member checks do not duplicate entries; rechecking appends to the end', () => {
+  const h = harness(); h.loadPatentForm(base);
+  h.select('ham', true); h.select('ham', true);
+  assert.deepEqual(orderKeys(h), ['park', '외부 연구자', 'ham']);
+  h.select('park', false); h.select('park', true);
+  assert.deepEqual(orderKeys(h), ['외부 연구자', 'ham', 'park']);
+  assert.match(h.picker.innerHTML, /aria-label="박종석 발명자" checked/);
+});
+
+await check('Late first member snapshot infers untouched legacy credits without replacing other form fields', () => {
   const h = harness({ ready: false }); h.loadPatentForm(base);
-  assert.equal(h.value('externalInventorsKr'), base.inventorsKr);
-  h.value('titleKr', '다른 항목만 수정');
-  h.arrive();
+  assert.equal(h.collectPatentInventors().inventorsKr, base.inventorsKr);
+  h.value('titleKr', '다른 항목만 수정'); h.arrive();
   assert.deepEqual(plain(h.state.patentInventorDraft.memberIds), ['park']);
-  assert.equal(h.value('externalInventorsKr'), '외부 연구자');
+  assert.deepEqual(orderKeys(h), ['park', '외부 연구자']);
   assert.equal(h.value('titleKr'), '다른 항목만 수정');
 });
 
-await check('Late member snapshots preserve typed external names and manual choices', () => {
+await check('Late member snapshots preserve pending typed names and manually assembled order', () => {
   const h = harness({ ready: false }); h.loadPatentForm(base);
-  h.type('externalInventorsKr', '직접 수정한 이름'); h.arrive();
-  assert.equal(h.value('externalInventorsKr'), '직접 수정한 이름');
+  h.input(outside); h.arrive();
+  for (const [name, value] of Object.entries(outside)) assert.equal(h.value(name), value);
   assert.deepEqual(plain(h.state.patentInventorDraft.memberIds), []);
-  h.select('ham', true); h.arrive();
+  h.add(); h.select('ham', true);
+  const expected = orderKeys(h); h.arrive();
+  assert.deepEqual(orderKeys(h), expected);
   assert.deepEqual(plain(h.state.patentInventorDraft.memberIds), ['ham']);
-  assert.equal(h.value('externalInventorsKr'), '직접 수정한 이름');
 });
 
-await check('Explicit empty selection stays unlinked despite matching external names', async () => {
+await check('Explicit removal stays unlinked when an external person has the same name as a member', async () => {
   const h = harness(); h.loadPatentForm(base); h.select('park', false);
-  h.type('externalInventorsKr', '박종석'); await h.submit();
+  h.add({ externalFamilyNameKr: '박', externalGivenNameKr: '종석' }); await h.submit();
   assert.deepEqual(h.writes[0].payload.inventorMemberIds, []);
   h.loadPatentForm({ ...h.writes[0].payload, id: 'p1' });
   assert.deepEqual(plain(h.state.patentInventorDraft.memberIds), []);
+  assert.equal(h.collectPatentInventors().inventorsKr, '외부 연구자, 박종석');
 });
 
 await check('Missing saved IDs and name snapshots survive edits and can be removed', async () => {
@@ -172,21 +205,21 @@ await check('Missing saved IDs and name snapshots survive edits and can be remov
   assert.equal(h.writes[1].payload.inventorsKr, '외부인');
 });
 
-await check('Member read failure permits external-only saves and retains legacy names', async () => {
+await check('Member read failure permits direct additions and preserves existing credits', async () => {
   const h = harness({ ready: false }); h.loadPatentForm(base);
   h.callbacks.find((callback) => callback.name === 'members').onError({ code: 'permission-denied' });
-  await h.submit();
-  assert.equal(h.writes[0].payload.inventorsKr, base.inventorsKr);
+  h.add(outside); await h.submit();
+  assert.equal(h.writes[0].payload.inventorsKr, `${base.inventorsKr}, 홍길동`);
   assert.deepEqual(h.writes[0].payload.inventorMemberIds, []);
 });
 
-await check('No inventor prevents saving, and reset clears inventor state', async () => {
-  const h = harness(); h.loadPatentForm(base); h.select('park', false); h.type('externalInventorsKr', '');
+await check('No inventors prevents saving, and reset clears the ordered list and composer', async () => {
+  const h = harness(); h.loadPatentForm(base); h.action(1, 'remove'); h.select('park', false);
   await h.submit(); assert.equal(h.writes.length, 0); assert.ok(h.notices.some((notice) => /발명자/.test(notice)));
-  h.resetPatentForm();
+  h.input(outside); h.resetPatentForm();
   assert.deepEqual(plain(h.state.patentInventorDraft.memberIds), []);
-  assert.equal(h.value('externalInventorsKr'), '');
-  assert.equal(h.value('externalInventorsEn'), '');
+  assert.deepEqual(orderKeys(h), []);
+  for (const name of composerNames) assert.equal(h.value(name), '');
 });
 
 await check('Country selection defaults to Korea and synchronizes the saved bilingual values', async () => {
@@ -283,16 +316,98 @@ await check('Removing a selected member retains the reordered external inventor 
   assert.equal(patentsForMember([saved], members[1], members).length, 1);
 });
 
-await check('External text edits update the moved inventor while deletion clears it from the order', async () => {
-  const h = harness(); h.loadPatentForm(interleaved); h.move(1, 'up');
-  h.type('externalInventorsKr', '외부 연구자 수정');
-  h.type('externalInventorsEn', 'Revised Outside Researcher');
-  assert.equal(h.collectPatentInventors().inventorsKr, '외부 연구자 수정, 박종석, 함승용');
-  assert.equal(h.collectPatentInventors().inventorsEn, 'Revised Outside Researcher, Jong Seok Park, Seung Yong Ham');
-  h.type('externalInventorsKr', ''); h.type('externalInventorsEn', '');
+await check('External edits apply in place after moving the person and keep the English pairing', async () => {
+  const h = harness(); h.loadPatentForm(interleaved);
+  h.action(1, 'edit'); h.input(revised); h.move(1, 'up');
+  assert.equal(h.state.patentInventorDraft.editingExternalIndex, 0);
+  h.add();
+  assert.deepEqual(orderKeys(h), ['김수정', 'park', 'ham']);
+  assert.equal(h.collectPatentInventors().inventorsEn, 'Sujeong Kim, Jong Seok Park, Seung Yong Ham');
+  assert.equal(h.state.patentInventorDraft.editingExternalIndex, -1);
+  assert.equal(h.cancel.hidden, true);
   await h.submit();
-  assert.equal(h.writes[0].payload.inventorsKr, '박종석, 함승용');
-  assert.equal(h.writes[0].payload.inventorOrder.length, 2);
+  h.loadPatentForm({ ...h.writes[0].payload, id: 'p1' });
+  assert.deepEqual(orderKeys(h), ['김수정', 'park', 'ham']);
+});
+
+await check('Removing a row before the edited person keeps Apply targeted at the same inventor', () => {
+  const h = harness(); h.loadPatentForm(interleaved);
+  h.action(1, 'edit'); h.input(revised); h.action(0, 'remove');
+  assert.equal(h.state.patentInventorDraft.editingExternalIndex, 0);
+  h.add(); assert.deepEqual(orderKeys(h), ['김수정', 'ham']);
+  assert.doesNotMatch(h.picker.innerHTML, /aria-label="박종석 발명자" checked/);
+  assert.deepEqual(plain(h.state.patentInventorDraft.memberIds), ['ham']);
+});
+
+await check('Removing the person being edited cancels their pending edit without changing other people', () => {
+  const h = harness(); h.loadPatentForm(interleaved);
+  h.action(1, 'edit'); h.input(revised); h.action(1, 'remove');
+  assert.deepEqual(orderKeys(h), ['park', 'ham']);
+  assert.equal(h.state.patentInventorDraft.editingExternalIndex, -1);
+  for (const name of composerNames) assert.equal(h.value(name), '');
+});
+
+await check('Cancel discards only the pending external edit and returns to Add', () => {
+  const h = harness(); h.loadPatentForm(interleaved);
+  h.action(1, 'edit'); h.input(revised); h.resetPatentExternalEditor();
+  assert.deepEqual(orderKeys(h), ['park', '외부 연구자', 'ham']);
+  assert.equal(h.state.patentInventorDraft.editingExternalIndex, -1);
+  assert.equal(h.cancel.hidden, true);
+  for (const name of composerNames) assert.equal(h.value(name), '');
+});
+
+await check('Pending Add or Apply is never silently lost by saving the patent', async () => {
+  const h = harness(); h.loadPatentForm(base); h.input(outside);
+  await h.submit(); assert.equal(h.writes.length, 0); assert.ok(h.notices.some((notice) => /추가|적용/.test(notice)));
+  h.add(); h.action(2, 'edit'); h.input(revised);
+  await h.submit(); assert.equal(h.writes.length, 0);
+  h.add(); await h.submit(); assert.equal(h.writes.length, 1);
+  assert.equal(h.writes[0].payload.inventorsKr, '박종석, 외부 연구자, 김수정');
+});
+
+await check('Clearing every field during an external edit still requires Apply or Cancel before saving', async () => {
+  const h = harness(); h.loadPatentForm(interleaved); h.action(1, 'edit');
+  h.input(Object.fromEntries(composerNames.map((name) => [name, ''])));
+  await h.submit();
+  assert.equal(h.writes.length, 0, 'An empty pending edit must not silently save the old inventor');
+  assert.ok(h.notices.some((notice) => /추가|적용|취소/.test(notice)));
+  assert.equal(h.state.patentInventorDraft.editingExternalIndex, 1);
+  h.resetPatentExternalEditor(); await h.submit();
+  assert.equal(h.writes.length, 1);
+  assert.equal(h.writes[0].payload.inventorsKr, interleaved.inventorsKr);
+  assert.equal(h.writes[0].payload.inventorsEn, interleaved.inventorsEn);
+});
+
+await check('Enter adds one person, while Enter during IME composition does not add prematurely', () => {
+  const h = harness(); h.loadPatentForm({ ...base, inventorsKr: '' }); h.input(outside);
+  h.key('Enter', { isComposing: true }); assert.deepEqual(orderKeys(h), []);
+  h.key('Enter'); assert.deepEqual(orderKeys(h), ['홍길동']);
+  h.key('Enter'); assert.deepEqual(orderKeys(h), ['홍길동'], 'Empty Enter never duplicates the previous addition');
+});
+
+await check('External people with identical names remain separate entries through save and reopen', async () => {
+  const h = harness(); h.loadPatentForm({ ...base, inventorsKr: '' });
+  h.add(outside); h.select('park', true); h.add(outside);
+  assert.deepEqual(orderKeys(h), ['홍길동', 'park', '홍길동']);
+  await h.submit();
+  h.loadPatentForm({ ...h.writes[0].payload, id: 'p1' });
+  assert.deepEqual(orderKeys(h), ['홍길동', 'park', '홍길동']);
+  h.action(0, 'remove'); assert.deepEqual(orderKeys(h), ['park', '홍길동']);
+});
+
+await check('Mononyms and English-only names can be added without typing separators', () => {
+  const h = harness(); h.loadPatentForm({ ...base, inventorsKr: '' });
+  h.add({ externalGivenNameKr: '하늘' });
+  h.add({ externalFamilyNameEn: 'Doe', externalGivenNameEn: 'Jane' });
+  assert.equal(h.collectPatentInventors().inventorsKr, '하늘, Jane Doe');
+  assert.equal(h.collectPatentInventors().inventorsEn, '하늘, Jane Doe');
+});
+
+await check('Directly entered markup is escaped in the rendered ordered list', () => {
+  const h = harness(); h.loadPatentForm({ ...base, inventorsKr: '' });
+  h.add({ externalGivenNameKr: '<img src=x onerror=alert(1)>' });
+  assert.doesNotMatch(h.order.innerHTML, /<img/);
+  assert.match(h.order.innerHTML, /&lt;img/);
 });
 
 console.log(`Patent admin verification passed (${count} checks, no network).`);

@@ -327,4 +327,108 @@ check('known member anchors preserve interleaved legacy comma surnames through r
   assert.equal(moved.inventorsEn, 'Doe, John, Jongseok Park, Doe, Jane, Seungyong Ham');
 });
 
+check('person entries preserve checkbox and external-add order with automatically joined credits', () => {
+  const outside = { memberId: '', nameKr: '홍길동', nameEn: 'Gildong Hong',
+    familyNameKr: '홍', givenNameKr: '길동', familyNameEn: 'Hong', givenNameEn: 'Gildong' };
+  const saved = buildPatentInventorFields({ orderedInventors: [{ memberId: 'ham' }, outside, { memberId: 'park' }] }, members);
+  assert.equal(saved.inventorsKr, '함승용, 홍길동, 박종석');
+  assert.equal(saved.inventorsEn, 'Seungyong Ham, Gildong Hong, Jongseok Park');
+  assert.deepEqual(saved.inventorMemberIds, ['ham', 'park']);
+  assert.deepEqual(saved.inventorOrder[1], outside);
+  assert.equal(saved.externalInventorsKr, '홍길동');
+  assert.equal(saved.externalInventorsEn, 'Gildong Hong');
+  assert.deepEqual(buildPatentInventorFields({}, members, normalizePatent(saved)), saved);
+});
+
+check('one-person name fields compose without separators and retain exact edit metadata', () => {
+  const saved = buildPatentInventorFields({ orderedInventors: [{
+    familyNameKr: ' 남궁 ', givenNameKr: ' 민 ', familyNameEn: ' Namgung ', givenNameEn: ' Min '
+  }] }, members);
+  assert.equal(saved.inventorsKr, '남궁민');
+  assert.equal(saved.inventorsEn, 'Min Namgung');
+  assert.deepEqual(saved.inventorOrder[0], { memberId: '', nameKr: '남궁민', nameEn: 'Min Namgung',
+    familyNameKr: '남궁', givenNameKr: '민', familyNameEn: 'Namgung', givenNameEn: 'Min' });
+  assert.deepEqual(buildPatentInventorFields({}, members, saved), saved);
+});
+
+check('separate same-name outside people remain separate and never inherit a lab link', () => {
+  const saved = buildPatentInventorFields({ orderedInventors: [
+    { memberId: '', nameKr: '김민수', nameEn: 'Minsu Kim' },
+    { memberId: '', nameKr: '김민수', nameEn: 'Minsu Kim' },
+    { memberId: 'park' }, { memberId: '', nameKr: '박종석', nameEn: 'Jongseok Park' }
+  ] }, members);
+  assert.equal(saved.inventorOrder.length, 4);
+  assert.equal(saved.inventorsKr, '김민수, 김민수, 박종석, 박종석');
+  assert.deepEqual(resolvePatentInventors(saved, members).memberIds, ['park']);
+  assert.deepEqual(buildPatentInventorFields({}, members, saved), saved);
+  const removed = buildPatentInventorFields({ orderedInventors: saved.inventorOrder.filter((_, index) => index !== 1) }, members, saved);
+  assert.equal(removed.inventorsKr, '김민수, 박종석, 박종석');
+  assert.deepEqual(buildPatentInventorFields({}, members, removed), removed);
+});
+
+check('per-person bilingual gaps and internal commas survive reordering and repeated save cycles', () => {
+  let saved = buildPatentInventorFields({ orderedInventors: [
+    { memberId: '', nameKr: '한국이름만', nameEn: '' }, { memberId: 'ham' },
+    { memberId: '', nameKr: '', nameEn: 'Doe, Jane' },
+    { memberId: '', nameKr: '외부 발명자', nameEn: 'Doe, John', familyNameEn: 'Doe', givenNameEn: 'John' }
+  ] }, members);
+  saved = buildPatentInventorFields({ orderedInventors: [saved.inventorOrder[2], saved.inventorOrder[0], saved.inventorOrder[3], saved.inventorOrder[1]] }, members, saved);
+  for (let index = 0; index < 3; index += 1) {
+    saved = buildPatentInventorFields({}, members, normalizePatent(JSON.parse(JSON.stringify(saved))));
+    assert.equal(saved.inventorsKr, 'Doe, Jane, 한국이름만, 외부 발명자, 함승용');
+    assert.equal(saved.inventorsEn, 'Doe, Jane, 한국이름만, Doe, John, Seungyong Ham');
+    assert.equal(saved.inventorOrder[0].nameKr, '');
+    assert.equal(saved.inventorOrder[1].nameEn, '');
+    assert.equal(saved.inventorOrder[2].familyNameEn, 'Doe');
+    assert.equal(saved.inventorOrder.length, 4);
+  }
+  assert.equal(patentInventorDisplay(saved, members, 'en'), saved.inventorsEn);
+});
+
+check('saved people override stale generated strings without mutating the stored record', () => {
+  const saved = buildPatentInventorFields({ orderedInventors: [
+    { memberId: '', nameKr: '김외부', nameEn: 'Doe, Jane' }, { memberId: 'park' }
+  ] }, members);
+  const stale = { ...saved, inventorsKr: '틀린 순서', inventorsEn: 'Stale credit',
+    externalInventorsKr: '오래된 외부 이름', externalInventorsEn: 'Old outside name' };
+  const before = JSON.stringify(stale);
+  assert.equal(buildPatentInventorFields({}, members, stale).inventorsEn, 'Doe, Jane, Jongseok Park');
+  assert.equal(patentInventorDisplay(stale, members, 'kr'), '김외부, 박종석');
+  assert.equal(patentInventorDisplay(stale, members, 'en'), 'Doe, Jane, Jongseok Park');
+  assert.equal(JSON.stringify(stale), before);
+});
+
+check('person-based editing refreshes member names while preserving missing and deleted snapshots', () => {
+  const original = buildPatentInventorFields({ orderedInventors: [{ memberId: 'ham' },
+    { nameKr: '김외부', nameEn: 'Jane Doe' }, { memberId: 'park' }] }, members);
+  const renamed = { ...park, nameKr: '박새이름', nameEn: 'New Name Park' };
+  const saved = buildPatentInventorFields({ orderedInventors: original.inventorOrder }, [{ ...ham, deleted: true }, renamed], original);
+  assert.equal(saved.inventorsEn, 'Seungyong Ham, Jane Doe, New Name Park');
+  assert.equal(buildPatentInventorFields({}, [], saved).inventorsKr, '함승용, 김외부, 박새이름');
+  const onlyIds = buildPatentInventorFields({ orderedInventors: [{ memberId: 'park' }, { memberId: 'ham' }] }, [], original);
+  assert.equal(onlyIds.inventorsEn, 'Jongseok Park, Seungyong Ham');
+  assert.equal(patentsForMember([{ id: 'p', ...saved }], renamed, [renamed]).length, 1);
+});
+
+check('an authoritative empty person list removes all earlier names and links', () => {
+  const original = buildPatentInventorFields({ orderedInventors: [{ memberId: 'park' }, { nameKr: '김외부' }] }, members);
+  const empty = buildPatentInventorFields({ orderedInventors: [], memberIds: ['ham'], externalInventorsKr: '무시할 이름' }, members, original);
+  assert.deepEqual(empty, { inventorMemberIds: [], inventorMembers: [], inventorOrder: [],
+    externalInventorsKr: '', externalInventorsEn: '', inventorsKr: '', inventorsEn: '' });
+  assert.equal(patentInventorDisplay(empty, members, 'kr'), '');
+  assert.deepEqual(buildPatentInventorFields({}, members, empty), empty);
+});
+
+check('invalid person entries and repeated member IDs cannot create malformed credits', () => {
+  const entries = [null, 'wrong', [], {}, { memberId: 'ham' }, { memberId: 'ham' },
+    { nameKr: ' 김외부 ', nameEn: ' Doe, Jane ', unexpected: { nested: 'value' } }];
+  const before = JSON.stringify(entries);
+  const saved = buildPatentInventorFields({ orderedInventors: entries }, members);
+  assert.equal(saved.inventorsKr, '함승용, 김외부');
+  assert.equal(saved.inventorsEn, 'Seungyong Ham, Doe, Jane');
+  assert.equal(saved.inventorOrder.length, 2);
+  assert.equal(Object.hasOwn(saved.inventorOrder[1], 'unexpected'), false);
+  assert.equal(JSON.stringify(entries), before);
+});
+
 console.log(`Patent inventor verification passed (${checks} checks).`);

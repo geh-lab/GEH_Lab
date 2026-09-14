@@ -227,7 +227,75 @@ function composeOrderedInventors(order, language) {
   return order.map((item) => text(item[language]) || text(item.nameKr) || text(item.nameEn)).filter(Boolean).join(', ');
 }
 
+const personNameFields = ['familyNameKr', 'givenNameKr', 'familyNameEn', 'givenNameEn'];
+
+function personNameMetadata(item = {}) {
+  return Object.fromEntries(personNameFields.filter((key) => own(item, key)).map((key) => [key, text(item[key])]));
+}
+
+// A person added through the form is already a complete entry. Never infer
+// boundaries from the generated credits: names may contain commas or be equal.
+function fieldsFromOrderedPeople(entries, members, previous = {}) {
+  const { byId } = memberIndex(members);
+  const saved = new Map([...(Array.isArray(previous.inventorMembers) ? previous.inventorMembers : []),
+    ...(Array.isArray(previous.inventorOrder) ? previous.inventorOrder : [])]
+    .filter((item) => item && typeof item === 'object' && text(item.memberId))
+    .map((item) => [text(item.memberId), item]));
+  const inventorOrder = [];
+  const emittedMembers = new Set();
+  for (const item of entries) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const memberId = text(item.memberId);
+    if (memberId) {
+      if (emittedMembers.has(memberId)) continue;
+      emittedMembers.add(memberId);
+      const stored = saved.get(memberId) || {};
+      const current = byId.get(memberId);
+      const fallback = {
+        ...stored,
+        nameKr: text(item.nameKr) || text(stored.nameKr),
+        nameEn: text(item.nameEn) || text(stored.nameEn)
+      };
+      inventorOrder.push({ ...snapshot(current || fallback, memberId),
+        ...personNameMetadata(stored), ...personNameMetadata(item) });
+    } else {
+      const metadata = personNameMetadata(item);
+      const nameKr = text(item.nameKr) || `${metadata.familyNameKr || ''}${metadata.givenNameKr || ''}`;
+      const nameEn = text(item.nameEn) || [metadata.givenNameEn, metadata.familyNameEn].filter(Boolean).join(' ');
+      if (nameKr || nameEn) inventorOrder.push({ memberId: '', nameKr, nameEn, ...metadata });
+    }
+  }
+  const inventorMembers = inventorOrder.filter((item) => item.memberId);
+  const outside = inventorOrder.filter((item) => !item.memberId);
+  return {
+    inventorMemberIds: inventorMembers.map((item) => item.memberId), inventorMembers,
+    externalInventorsKr: outside.map((item) => item.nameKr).filter(Boolean).join(', '),
+    externalInventorsEn: outside.map((item) => item.nameEn).filter(Boolean).join(', '),
+    inventorOrder,
+    inventorsKr: composeOrderedInventors(inventorOrder, 'nameKr'),
+    inventorsEn: composeOrderedInventors(inventorOrder, 'nameEn')
+  };
+}
+
 export function buildPatentInventorFields(input = {}, members = [], previous = {}) {
+  if (own(input, 'orderedInventors')) {
+    return fieldsFromOrderedPeople(Array.isArray(input.orderedInventors) ? input.orderedInventors : [], members, previous);
+  }
+  const changesLegacyFields = ['memberIds', 'externalInventorsKr', 'externalInventorsEn', 'inventorOrder']
+    .some((key) => own(input, key));
+  if (!changesLegacyFields && Array.isArray(previous.inventorOrder)) {
+    // Keep explicit unlink semantics for older records, but use each saved
+    // person's own names and position instead of reparsing bilingual strings.
+    const ids = own(previous, 'inventorMemberIds') ? new Set(uniqueIds(previous.inventorMemberIds)) : null;
+    const order = previous.inventorOrder.filter((item) => !text(item?.memberId) || !ids || ids.has(text(item.memberId)));
+    const fields = fieldsFromOrderedPeople(order, members, previous);
+    // The old text editor could keep its external input in a different order.
+    // Preserve those compatibility fields on read; inventorOrder governs display.
+    for (const key of ['externalInventorsKr', 'externalInventorsEn']) {
+      if (own(previous, key)) fields[key] = text(previous[key]);
+    }
+    return fields;
+  }
   const { byId } = memberIndex(members);
   const resolved = resolvePatentInventors(previous, members);
   const memberIds = own(input, 'memberIds') ? uniqueIds(input.memberIds) : resolved.memberIds;
@@ -286,8 +354,8 @@ export function buildPatentInventorFields(input = {}, members = [], previous = {
 }
 
 // Display linked names from the current roster without rewriting saved patent data.
-// The full inventor fields provide the ordering; external bilingual fields remain
-// the authority for names that were entered manually.
+// Saved person entries provide order and bilingual names. Older records without
+// person entries retain their existing full-credit/external-text compatibility.
 export function patentInventorDisplay(patent = {}, members = [], lang = 'kr') {
   const english = lang === 'en';
   if (Array.isArray(patent.inventorOrder)) {

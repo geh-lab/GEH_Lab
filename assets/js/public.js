@@ -1844,7 +1844,7 @@ function renderHome() {
     } else {
       heroStat.innerHTML = [
         homeCollectionSummaryCard('members', lang === 'en' ? 'Members' : '구성원', memberCounts.total, [lang === 'en' ? `PI ${piCount} · Research ${researchProfessors}` : `지도교수 ${piCount} · 연구교수 ${researchProfessors}`, lang === 'en' ? `Graduate ${graduateStudents.length} · Undergraduate ${undergrads}` : `대학원생 ${graduateStudents.length} · 학부연구생 ${undergrads}`]),
-        homeCollectionSummaryCard('projects', lang === 'en' ? 'Projects' : '과제', state.projects.length, [lang === 'en' ? `Ongoing ${ongoingProjects.length}` : `진행 중 ${ongoingProjects.length}`, lang === 'en' ? `Archived ${completedProjects.length}` : `종료 ${completedProjects.length}`]),
+        homeCollectionSummaryCard('projects', lang === 'en' ? 'Projects' : '과제', ongoingProjects.length, [lang === 'en' ? `Ongoing ${ongoingProjects.length}` : `진행 중 ${ongoingProjects.length}`, lang === 'en' ? `Archived ${completedProjects.length}` : `종료 ${completedProjects.length}`]),
         homeCollectionSummaryCard('publications', lang === 'en' ? 'Publications' : '논문', state.publications.length, publicationSummaryLines(currentYearPubs, currentYear)),
         homePatentSummaryCard(),
         homeCollectionSummaryCard('board', lang === 'en' ? 'Board' : '게시판', state.board.length, [lang === 'en' ? `Articles ${boardOtherCount} · Conference ${boardConferenceCount}` : `기사 ${boardOtherCount} · 학회 ${boardConferenceCount}`, lang === 'en' ? `Workshop ${boardWorkshopCount} · Lab equipment ${boardEquipmentCount}` : `워크숍 ${boardWorkshopCount} · 실험실 장비 목록 ${boardEquipmentCount}`])

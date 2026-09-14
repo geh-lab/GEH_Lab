@@ -9750,13 +9750,24 @@ article#member-editor-card::before,
   gap: .35rem;
   align-items: start;
 }
+.patent-inventor-sources { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; align-items: start; }
+.patent-inventor-source { display: grid; gap: .7rem; min-width: 0; }
+.patent-external-name-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem .75rem; }
+.patent-external-language { grid-column: 1 / -1; font-weight: 700; font-size: .85rem; }
+.patent-external-name-fields .field { min-width: 0; align-content: start; gap: .3rem; }
+.patent-external-name-fields .field > span { font-size: .8rem; }
+.admin-editor-modal .patent-external-name-fields input { min-height: 44px; padding: .65rem .8rem; }
+.patent-external-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.patent-external-status { font-size: .85rem; overflow-wrap: anywhere; }
+.patent-external-status:empty { display: none; }
+.patent-inventor-order__empty { padding: .9rem; border: 1px dashed var(--line); border-radius: 16px; }
 .patent-inventor-picker { display: grid; gap: .75rem; min-width: 0; }
 .patent-inventor-picker__list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: .55rem;
-  max-height: 19rem;
+  max-height: 16rem;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: .2rem;
@@ -9803,6 +9814,9 @@ article#member-editor-card::before,
 .admin-editor-modal .patent-inventor-order__controls button { width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0; }
 .patent-inventor-order__controls svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .admin-editor-modal .patent-inventor-order__controls button:disabled { opacity: .4; cursor: default; }
+@media (max-width: 760px) {
+  .patent-inventor-sources { grid-template-columns: minmax(0, 1fr); }
+}
 @media (max-width: 600px) {
   .patent-inventor-order__item { grid-template-columns: auto minmax(0, 1fr); }
   .patent-inventor-order__controls { grid-column: 2; }
