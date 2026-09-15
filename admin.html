@@ -147,7 +147,8 @@
                     <span>경력</span>
                     <button type="button" class="small-button" id="member-experience-add">경력 추가</button>
                   </div>
-                  <div class="experience-editor" id="member-experience-list"></div>
+                  <p class="muted" id="member-experience-hint">↑↓로 순서를 조정하세요. 저장한 순서대로 멤버 상세 화면에 표시됩니다.</p>
+                  <div class="experience-editor" id="member-experience-list" aria-describedby="member-experience-hint"></div>
                 </section>
                 <div class="form-grid form-grid--double bilingual-field-grid">
                   <label class="field"><span>연구 관심 분야 (한국어)</span><textarea name="researchInterestKr"></textarea></label>
@@ -273,16 +274,30 @@
 <label class="field"><span>특허명 (영문)</span><input name="titleEn" type="text"></label>
             </div>
             <section class="patent-inventor-fields" aria-labelledby="patent-inventor-label">
-              <div class="field-label-row"><strong id="patent-inventor-label">발명자 *</strong><span class="muted">연구실 멤버는 선택하고, 목록에 없는 발명자는 직접 입력하세요.</span></div>
-              <div class="publication-picker patent-inventor-picker" id="patent-inventor-picker"></div>
-              <div class="form-grid form-grid--double">
-                <label class="field"><span>목록에 없는 발명자 (국문)</span><input name="externalInventorsKr" type="text" placeholder="예: 홍길동, 김연구" aria-describedby="patent-inventor-hint"></label>
-                <label class="field"><span>목록에 없는 발명자 (영문)</span><input name="externalInventorsEn" type="text" placeholder="예: Gildong Hong, Research Kim" aria-describedby="patent-inventor-hint"></label>
+              <div class="field-label-row"><strong id="patent-inventor-label">발명자 *</strong><span class="muted">멤버를 체크하거나 한 명씩 직접 입력하면 선택한 순서대로 아래 목록에 추가됩니다.</span></div>
+              <div class="patent-inventor-sources">
+                <section class="patent-inventor-source" aria-labelledby="patent-member-source-label">
+                  <strong id="patent-member-source-label">연구실 멤버 선택</strong>
+                  <div class="publication-picker patent-inventor-picker" id="patent-inventor-picker"></div>
+                </section>
+                <section class="patent-inventor-source" aria-labelledby="patent-external-source-label">
+                  <strong id="patent-external-source-label">목록에 없는 발명자 직접 입력</strong>
+                  <div class="patent-external-name-fields">
+                    <span class="patent-external-language">국문</span>
+                    <label class="field"><span>성 (국문)</span><input name="externalFamilyNameKr" type="text" placeholder="홍" autocomplete="off" data-patent-external-name></label>
+                    <label class="field"><span>이름 (국문)</span><input name="externalGivenNameKr" type="text" placeholder="길동" autocomplete="off" data-patent-external-name></label>
+                    <span class="patent-external-language">영문 (선택)</span>
+                    <label class="field"><span>성 (영문)</span><input name="externalFamilyNameEn" type="text" placeholder="Hong" autocomplete="off" data-patent-external-name></label>
+                    <label class="field"><span>이름 (영문)</span><input name="externalGivenNameEn" type="text" placeholder="Gildong" autocomplete="off" data-patent-external-name></label>
+                  </div>
+                  <p class="muted" id="patent-inventor-hint">한 명씩 입력하고 추가하세요. 이름 사이의 쉼표는 자동으로 넣습니다.</p>
+                  <div class="patent-external-actions"><button type="button" class="button secondary button-sm" id="patent-external-add">목록에 추가</button><button type="button" class="small-button" id="patent-external-cancel" hidden>수정 취소</button></div>
+                  <p class="muted patent-external-status" id="patent-external-status" role="status" aria-live="polite"></p>
+                </section>
               </div>
-              <p class="muted" id="patent-inventor-hint">국문과 영문은 같은 순서로 입력하세요. 여러 명은 쉼표로 구분하며, 이름 안에 쉼표가 있으면 세미콜론(;)으로 구분하세요. 선택한 멤버의 특허 건수는 멤버 상세 정보에 반영됩니다.</p>
               <div class="patent-inventor-order-section">
                 <strong id="patent-inventor-order-label">공보상 발명자 순서</strong>
-                <p class="muted" id="patent-inventor-order-hint">위·아래 화살표로 공보에 기재된 순서에 맞춰주세요. 국문과 영문에 함께 적용됩니다.</p>
+                <p class="muted" id="patent-inventor-order-hint">↑↓로 순서를 바꾸면 국문·영문에 함께 적용됩니다. 직접 입력한 이름은 연필 버튼으로 수정할 수 있습니다.</p>
                 <ol class="patent-inventor-order" id="patent-inventor-order" aria-labelledby="patent-inventor-order-label" aria-describedby="patent-inventor-order-hint"></ol>
               </div>
               <div class="patent-inventor-preview"><strong>표시될 발명자</strong><output id="patent-inventor-preview" aria-live="polite"></output></div>

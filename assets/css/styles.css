@@ -2803,7 +2803,7 @@ article#member-editor-card::before,
 
 .experience-row {
   display: grid;
-  grid-template-columns: 170px minmax(240px, 1fr) minmax(240px, 1fr) auto;
+  grid-template-columns: minmax(100px, .5fr) repeat(2, minmax(0, 1fr)) auto;
   gap: .75rem;
   align-items: end;
   padding: .95rem;
@@ -2820,8 +2820,12 @@ article#member-editor-card::before,
   display: flex;
   align-items: flex-end;
   justify-content: flex-end;
-  height: 100%;
+  gap: .35rem;
 }
+.admin-editor-modal .experience-row__actions button { min-height: 44px; height: 44px; }
+.admin-editor-modal .experience-row__actions .experience-row__move { width: 44px; min-width: 44px; padding: 0; }
+.experience-row__move svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.experience-row__move:disabled { opacity: .4; cursor: default; }
 
 .publication-picker__toolbar {
   display: flex;

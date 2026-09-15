@@ -593,7 +593,11 @@ function experienceRowTemplate(entry = {}, index = 0) {
       <label class="field field--compact"><span>연도</span><input data-experience-field="period" type="text" value="${escapeHTML(entry.period || '')}" placeholder="2006–2008"></label>
       <label class="field field--compact experience-row__detail"><span>경력 (한국어) · 직위 | 소속</span><input data-experience-field="detailKr" type="text" value="${escapeHTML(detailKr || '')}" placeholder="박사후연구원 | 도쿄대학교"></label>
       <label class="field field--compact experience-row__detail"><span>Experience (English) · Position | Affiliation</span><input data-experience-field="detailEn" type="text" value="${escapeHTML(detailEn || '')}" placeholder="Postdoctoral Fellow | University of Tokyo"></label>
-      <div class="experience-row__actions"><button type="button" class="small-button is-danger" data-experience-remove>삭제</button></div>
+      <div class="experience-row__actions">
+        <button type="button" class="small-button experience-row__move" data-experience-move="up" aria-label="${index + 1}번째 경력 위로" title="위로"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button>
+        <button type="button" class="small-button experience-row__move" data-experience-move="down" aria-label="${index + 1}번째 경력 아래로" title="아래로"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14m-6-6 6 6 6-6"/></svg></button>
+        <button type="button" class="small-button is-danger" data-experience-remove aria-label="${index + 1}번째 경력 삭제">삭제</button>
+      </div>
     </article>
   `;
 }
@@ -602,13 +606,50 @@ function renderMemberExperienceRows(entries = []) {
   if (!elements.memberExperienceList) return;
   const rows = Array.isArray(entries) && entries.length ? entries : [{ period: '', detail: '' }];
   elements.memberExperienceList.innerHTML = rows.map((entry, index) => experienceRowTemplate(entry, index)).join('');
-  elements.memberExperienceList.querySelectorAll('[data-experience-remove]').forEach((button) => {
-    button.addEventListener('click', () => {
-      markFormDirty(elements.memberForm);
-      button.closest('.experience-row')?.remove();
-      if (!elements.memberExperienceList?.children.length) renderMemberExperienceRows([]);
-    });
+  updateMemberExperienceControls();
+}
+
+function updateMemberExperienceControls() {
+  const rows = Array.from(elements.memberExperienceList?.querySelectorAll('.experience-row') || []);
+  rows.forEach((row, index) => {
+    row.dataset.experienceRow = String(index);
+    for (const direction of ['up', 'down']) {
+      const button = row.querySelector(`[data-experience-move="${direction}"]`);
+      if (!button) continue;
+      button.disabled = direction === 'up' ? index === 0 : index === rows.length - 1;
+      button.setAttribute('aria-label', `${index + 1}번째 경력 ${direction === 'up' ? '위로' : '아래로'}`);
+    }
+    row.querySelector('[data-experience-remove]')?.setAttribute('aria-label', `${index + 1}번째 경력 삭제`);
   });
+}
+
+function onMemberExperienceAction(event) {
+  const button = event.target?.closest('[data-experience-move], [data-experience-remove]');
+  const list = elements.memberExperienceList;
+  const row = button?.closest('.experience-row');
+  if (!button || button.disabled || !row || !list?.contains(row)) return;
+  if (button.hasAttribute('data-experience-remove')) {
+    event.preventDefault();
+    const neighbor = row.nextElementSibling || row.previousElementSibling;
+    row.remove();
+    if (!list.children.length) renderMemberExperienceRows([]);
+    else updateMemberExperienceControls();
+    markFormDirty(elements.memberForm);
+    (neighbor?.querySelector('[data-experience-remove]') || list.querySelector('[data-experience-field="period"]'))?.focus();
+    return;
+  }
+  const direction = button.dataset.experienceMove;
+  if (!['up', 'down'].includes(direction)) return;
+  const neighbor = direction === 'up' ? row.previousElementSibling : row.nextElementSibling;
+  if (!neighbor) return;
+  event.preventDefault();
+  // Move the inputs themselves so unsaved text and bilingual fields stay together.
+  if (direction === 'up') list.insertBefore(row, neighbor);
+  else list.insertBefore(neighbor, row);
+  updateMemberExperienceControls();
+  markFormDirty(elements.memberForm);
+  const focusDirection = button.disabled ? (direction === 'up' ? 'down' : 'up') : direction;
+  row.querySelector(`[data-experience-move="${focusDirection}"]`)?.focus();
 }
 
 function collectMemberExperienceEntries() {
@@ -1178,11 +1219,14 @@ function bindEvents() {
     current.push({ day: '월', time: '', courseName: '', credits: '', description: '' });
     renderMemberCourseSchedule(current);
   });
+  elements.memberExperienceList?.addEventListener('click', onMemberExperienceAction);
   elements.memberExperienceAdd?.addEventListener('click', () => {
+    const list = elements.memberExperienceList;
+    if (!list) return;
     markFormDirty(elements.memberForm);
-    const current = collectMemberExperienceEntries();
-    current.push({ period: '', detail: '' });
-    renderMemberExperienceRows(current);
+    list.insertAdjacentHTML('beforeend', experienceRowTemplate({}, list.children.length));
+    updateMemberExperienceControls();
+    list.lastElementChild?.querySelector('[data-experience-field="period"]')?.focus();
   });
   qs('#member-publication-picker')?.addEventListener('click', onPublicationPickerClick);
   qs('#member-publication-picker')?.addEventListener('input', onPublicationPickerInput);
