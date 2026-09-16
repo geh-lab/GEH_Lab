@@ -11,7 +11,7 @@
     "build:sync": "npm run sync:profiles && npm run build",
     "preview": "node ./node_modules/vite/bin/vite.js preview",
     "verify": "npm run test && npm run build",
-    "test": "node scripts/verify-content.mjs && node scripts/verify-liquid-glass.mjs && node scripts/verify-collection-cache.mjs && node scripts/verify-admin-subscriptions.mjs && node scripts/verify-public-data.mjs && node scripts/verify-patent-inventors.mjs && node scripts/verify-patent-admin.mjs && node scripts/verify-member-patents.mjs && node scripts/verify-research-cards.mjs && node scripts/verify-home-publications.mjs && node scripts/verify-patent-countries.mjs && node scripts/verify-admin-counts.mjs && node scripts/verify-public-server.mjs && node scripts/verify-server-render.mjs && node scripts/verify-public-entry.mjs && node scripts/verify-deployment-source.mjs --test && node scripts/verify-trash-privacy.mjs"
+    "test": "node scripts/verify-content.mjs && node scripts/verify-liquid-glass.mjs && node scripts/verify-collection-cache.mjs && node scripts/verify-admin-subscriptions.mjs && node scripts/verify-public-data.mjs && node scripts/verify-patent-inventors.mjs && node scripts/verify-patent-admin.mjs && node scripts/verify-member-patents.mjs && node scripts/verify-research-cards.mjs && node scripts/verify-home-publications.mjs && node scripts/verify-patent-countries.mjs && node scripts/verify-admin-counts.mjs && node scripts/verify-public-server.mjs && node scripts/verify-server-render.mjs && node scripts/verify-public-entry.mjs && node scripts/verify-deployment-source.mjs --test && node scripts/verify-trash-privacy.mjs && node scripts/verify-count-animation.mjs"
   },
   "devDependencies": {
     "vite": "^7.2.2"
