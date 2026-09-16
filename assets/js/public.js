@@ -1,4 +1,4 @@
-import { memberSummaryMarkup } from './member-summary.js';
+import { memberSummary, memberSummaryMarkup } from './member-summary.js';
 import { setupPublicChrome } from './chrome.js';
 import { portraitMarkup, refreshImageFallbacks } from './portraits.js';
 import '../css/icons.css';
@@ -167,14 +167,17 @@ const prerenderedMembers = (() => {
     return [];
   }
 })();
+// The embedded roster is a build-time snapshot, not a resolved live collection.
+// Keep it for local previews; production starts from the shared cache or server.
+const usePrerenderedMembers = !useLiveData && prerenderedMembers.length > 0;
 const state = {
-  members: prerenderedMembers.length
+  members: usePrerenderedMembers
     ? prerenderedMembers
     : (useLiveData ? [] : dedupeMembers(sortMembers(FALLBACK_MEMBERS).filter(isActiveItem))),
   projects: useLiveData ? [] : sortProjects(FALLBACK_PROJECTS).filter(isActiveItem),
   publications: useLiveData ? [] : sortPublications(FALLBACK_PUBLICATIONS).filter(isActiveItem),
   board: useLiveData ? [] : sortBoardPosts(FALLBACK_BOARD_POSTS).filter(isActiveItem),
-  loadingMembers: useLiveData && !prerenderedMembers.length && (page === 'home' || page === 'members'),
+  loadingMembers: useLiveData && (page === 'home' || page === 'members'),
   loadingProjects: useLiveData && (page === 'home' || page === 'projects'),
   loadingPublications: useLiveData && (page === 'home' || page === 'publications'),
   loadingBoard: useLiveData && (page === 'board' || page === 'home'),
@@ -189,7 +192,7 @@ const state = {
   boardSort: savedBoardSort()
 };
 
-let renderedMemberSignature = page === 'members' && prerenderedMembers.length
+let renderedMemberSignature = page === 'members' && usePrerenderedMembers
   ? collectionRenderSignature(prerenderedMembers)
   : '';
 
@@ -257,7 +260,7 @@ try {
 } catch { /* Persistent storage is optional. */ }
 
 const dataIssues = new Map();
-const resolvedCollections = new Set(prerenderedMembers.length ? ['members'] : []);
+const resolvedCollections = new Set(usePrerenderedMembers ? ['members'] : []);
 const loadingKeyFor = (key) => `loading${key[0].toUpperCase()}${key.slice(1)}`;
 
 function applyCollectionItems(key, items) {
@@ -359,23 +362,18 @@ function memberGridSkeleton(count = 3, modifier = '') {
 function piSkeletonCard() {
   return [
     '<div class="pi-card-layout pi-card-layout--skeleton" aria-hidden="true">',
-    '<div class="pi-photo pi-photo--skeleton skeleton-thumb"></div>',
+    '<div class="profile-avatar profile-avatar--pi"><div class="pi-photo pi-photo--skeleton skeleton-thumb"></div></div>',
     '<div class="pi-card-main">',
     '<div class="pi-card-head">',
     '<span class="skeleton-line skeleton-line--eyebrow"></span>',
     '<span class="skeleton-line skeleton-line--pi-title"></span>',
     '<span class="skeleton-line skeleton-line--pi-subtitle"></span>',
-    '<span class="skeleton-pill skeleton-pill--button"></span>',
     '</div>',
-    '<div class="pi-card-grid pi-card-grid--skeleton">',
-    Array.from({ length: 4 }).map(() => [
-      '<article>',
-      '<span class="skeleton-line skeleton-line--panel-heading"></span>',
-      '<span class="skeleton-line skeleton-line--text"></span>',
-      '<span class="skeleton-line skeleton-line--text short"></span>',
-      '</article>'
-    ].join('')).join(''),
     '</div>',
+    '<div class="pi-card-focus">',
+    '<span class="skeleton-line skeleton-line--panel-heading"></span>',
+    '<span class="skeleton-line skeleton-line--text"></span>',
+    '<span class="skeleton-line skeleton-line--text short"></span>',
     '</div>',
     '</div>'
   ].join('');
@@ -654,11 +652,6 @@ function memberCourseSectionMarkup(member = {}, locale = lang) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  if (window.GEH_BOOT_TIMEOUT) window.clearTimeout(window.GEH_BOOT_TIMEOUT);
-  if (document.documentElement.classList.contains('js-fallback')) {
-    qsa('.reveal').forEach((item) => item.classList.add('is-visible'));
-    document.documentElement.classList.remove('js-fallback');
-  }
   setupAdaptiveGlass(document);
   setupHeader();
   ensureModal();
@@ -669,6 +662,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // A fresh per-collection cache avoids another server read on navigation.
   applyCachedState();
   renderPage();
+  if (window.GEH_BOOT_TIMEOUT) window.clearTimeout(window.GEH_BOOT_TIMEOUT);
+  if (document.documentElement.classList.contains('js-fallback')) {
+    qsa('.reveal').forEach((item) => item.classList.add('is-visible'));
+    document.documentElement.classList.remove('js-fallback');
+  }
   refreshPublicData();
   setupPublicDataRefresh();
 });
@@ -805,6 +803,8 @@ function renderPage() {
   setupCountAnimations();
   bindInteractiveCards();
   openRequestedSearchItem();
+  // Release the pre-paint guard only after stale HTML and its date are replaced.
+  if (page === 'members') document.documentElement.classList.remove('member-roster-pending');
 }
 
 function openRequestedSearchItem() {
@@ -1924,38 +1924,46 @@ function renderMembers() {
   const undergrads = memberCounts.undergradMembers;
   const alumni = members.filter((item) => item.status === 'alumni');
   const membersLoading = state.loadingMembers && useLiveData && !state.members.length;
+  const membersUnavailable = useLiveData && !membersLoading && !resolvedCollections.has('members');
   const initialPiCard = qs('#pi-card');
   if (initialPiCard && pi) {
     initialPiCard.classList.add('pi-card--clickable');
     initialPiCard.dataset.memberId = pi.id;
   }
-  const nextRenderSignature = membersLoading ? '__loading__' : collectionRenderSignature(members);
+  const nextRenderSignature = membersLoading ? '__loading__' : membersUnavailable ? '__unavailable__' : collectionRenderSignature(members);
   if (nextRenderSignature === renderedMemberSignature) return;
   renderedMemberSignature = nextRenderSignature;
 
-  if (membersLoading) {
+  if (membersLoading || membersUnavailable) {
+    const unavailable = emptyState(lang === 'en' ? 'Member information could not be loaded. Please try again shortly.' : '멤버 정보를 불러오지 못했습니다. 잠시 후 다시 확인해주세요.');
     const pageStats = qs('#page-stat-grid');
     if (pageStats) {
-      const stats = [copy.stats.current, copy.researchProfessor, copy.graduateStudent, copy.stats.alumni];
-      pageStats.innerHTML = stats.map((label) => projectStatSkeleton(label)).join('');
+      const stats = memberSummary([], lang).stats;
+      pageStats.innerHTML = stats.map(({ label }) => membersLoading
+        ? projectStatSkeleton(label)
+        : `<article class="stat-card stat-card--summary reveal"><span>${escapeHTML(label)}</span><strong>—</strong></article>`).join('');
     }
     const piCard = qs('#pi-card');
-    if (piCard) piCard.innerHTML = piSkeletonCard();
+    if (piCard) {
+      piCard.classList.remove('pi-card--clickable');
+      piCard.removeAttribute('data-member-id');
+      piCard.innerHTML = membersLoading ? piSkeletonCard() : unavailable;
+    }
     const researchList = qs('#research-professor-list');
-    if (researchList) researchList.innerHTML = memberGridSkeleton(3, 'member-grid--wide');
+    if (researchList) researchList.innerHTML = membersLoading ? memberGridSkeleton(3, 'member-grid--wide') : unavailable;
     const graduateAccordion = qs('#graduate-accordion');
     if (graduateAccordion) {
-      graduateAccordion.innerHTML = [
+      graduateAccordion.innerHTML = membersLoading ? [
         accordionMarkup(copy.phdFullTime, '…', memberGridSkeleton(3), true),
         accordionMarkup(copy.phdPartTime, '…', memberGridSkeleton(2), false),
         accordionMarkup(copy.msFullTime, '…', memberGridSkeleton(2), false),
         accordionMarkup(copy.msPartTime, '…', memberGridSkeleton(2), false)
-      ].join('');
+      ].join('') : unavailable;
     }
     const researcherAccordion = qs('#student-researcher-accordion');
-    if (researcherAccordion) researcherAccordion.innerHTML = accordionMarkup(copy.studentResearcherSection, '…', memberGridSkeleton(2, 'member-grid--wide'), false);
+    if (researcherAccordion) researcherAccordion.innerHTML = membersLoading ? accordionMarkup(copy.studentResearcherSection, '…', memberGridSkeleton(2, 'member-grid--wide'), false) : unavailable;
     const alumniAccordion = qs('#alumni-accordion');
-    if (alumniAccordion) alumniAccordion.innerHTML = accordionMarkup(copy.stats.alumni, '…', memberGridSkeleton(3, 'member-grid--alumni'), false);
+    if (alumniAccordion) alumniAccordion.innerHTML = membersLoading ? accordionMarkup(copy.stats.alumni, '…', memberGridSkeleton(3, 'member-grid--alumni'), false) : unavailable;
     return;
   }
 
@@ -2356,7 +2364,10 @@ function setUpdatedDate() {
   const target = qs('#page-updated');
   if (!target) return;
   let source = BUILD_DATE;
-  if (page === 'members') source = lastUpdated(state.members, BUILD_DATE);
+  if (page === 'members') {
+    if (useLiveData && (!resolvedCollections.has('members') || !state.members.length)) { target.textContent = ''; return; }
+    source = lastUpdated(state.members, BUILD_DATE);
+  }
   if (page === 'projects') source = lastUpdated(state.projects, BUILD_DATE);
   if (page === 'publications') source = lastUpdated(state.publications, BUILD_DATE);
   if (page === 'patents') {

@@ -6,6 +6,8 @@ import * as utils from '../assets/js/utils.js';
 import * as patents from '../assets/js/patents.js';
 import * as inventors from '../assets/js/patent-inventors.js';
 import * as data from '../assets/js/data.js';
+import * as memberSummary from '../assets/js/member-summary.js';
+import { portraitMarkup } from '../assets/js/portraits.js';
 
 // Execute production data modules with fake time, storage and Firestore. No browser,
 // credentials, Firebase SDK, network requests or live database writes are involved.
@@ -54,19 +56,22 @@ function fixture(initial = {}) {
     onSnapshot() { subscriptions++; throw new Error('Public pages must not subscribe to Firestore.'); }
   };
   const runtimes = [];
-  function runtime(page = 'home', lang = 'kr') {
+  function runtime(page = 'home', lang = 'kr', { embeddedMembers, localDev = false } = {}) {
     const timers = new Map();
     let timerId = 0;
     const setTimeout = (callback, delay = 0) => { const id = ++timerId; timers.set(id, { at: clock + delay, callback }); return id; };
     const clearTimeout = id => timers.delete(id);
     const window = {
       ...events(), localStorage: storage, GEH_FIREBASE_CONFIG: { apiKey: 'offline-fixture', projectId: 'offline-fixture' },
-      GEH_LOCAL_DEV_MODE: false, location: { hostname: 'offline.example', protocol: 'https:' },
+      GEH_LOCAL_DEV_MODE: localDev, location: { hostname: 'offline.example', protocol: 'https:' },
       matchMedia: () => ({ matches: true }), setTimeout, clearTimeout
     };
     const document = {
       ...events(), hidden: false, body: { dataset: { page, lang, root: lang === 'en' ? '..' : '.' } },
-      documentElement: { classList: { add() {} } }, querySelector: () => null, querySelectorAll: () => []
+      documentElement: { classList: { add() {} } },
+      querySelector: selector => selector === '#member-roster-data' && embeddedMembers
+        ? { textContent: JSON.stringify(embeddedMembers) } : null,
+      querySelectorAll: () => []
     };
     class FakeDate extends Date { static now() { return clock; } }
     const base = { window, document, localStorage: storage, Date: FakeDate, URL, URLSearchParams, setTimeout, clearTimeout,
@@ -85,11 +90,14 @@ function fixture(initial = {}) {
         items: state[key], resolved: resolvedCollections.has(key),
         summary: key === 'patents' ? homePatentSummaryCard() : homeCollectionSummaryCard(key, key, state[key].length, [])
       }])));
+      const captureDataRender = renderPage;
       showPublicNotice = (message, tone) => captureNotice({ message, tone });
       return { applyCachedState, hydrate, refreshPublicData, setupPublicDataRefresh, loadGlobalSearch, state, dataIssues, resolvedCollections,
         bindInteractiveCards, renderPatents, visibleCollectionNames,
+        renderMemberPage() { renderPage(); },
+        useMemberRenderer() { renderPage = () => { captureDataRender(); renderMembers(); setUpdatedDate(); }; },
         usePatentRenderer() { renderPage = () => { renderPatents(); bindInteractiveCards(); }; } };
-    })()`, { ...base, ...bus, ...adapter, ...utils, ...patents, ...inventors, ...data,
+    })()`, { ...base, ...bus, ...adapter, ...utils, ...patents, ...inventors, ...data, ...memberSummary, portraitMarkup,
       refreshImageFallbacks() {},
       subscribeCollection: firestore.onSnapshot,
       captureRender: value => renders.push(plain(value)), captureNotice: value => notices.push(value)
@@ -133,6 +141,148 @@ function fixture(initial = {}) {
 }
 let checks = 0;
 async function check(name, run) { await run(); checks++; console.log(`PASS: ${name}`); }
+
+// Model the existing server-rendered containers so the real member renderer must
+// replace them, including their stale update date, before live data is available.
+function attachMemberDocument(runtime) {
+  const containers = Object.fromEntries(['page-stat-grid', 'page-updated', 'pi-card', 'research-professor-list',
+    'graduate-accordion', 'student-researcher-accordion', 'alumni-accordion'].map(id => [id, {
+    innerHTML: 'OBSOLETE_STATIC_ROSTER', textContent: 'OBSOLETE_STATIC_DATE', dataset: {},
+    classList: { add() {}, remove() {} }, removeAttribute() {}
+  }]));
+  runtime.document.querySelector = selector => containers[selector.slice(1)] || null;
+  runtime.useMemberRenderer();
+  return { containers, html: () => Object.entries(containers).filter(([id]) => id !== 'page-updated').map(([, node]) => node.innerHTML).join('\n'),
+    date: () => containers['page-updated'].textContent };
+}
+const obsoleteMember = { id: 'obsolete', nameKr: '옛날 멤버', nameEn: 'Obsolete Member',
+  group: 'researchProfessor', updatedAt: '2026-09-08T00:00:00.000Z' };
+const currentMember = { id: 'current', nameKr: '현재 멤버', nameEn: 'Current Member',
+  group: 'researchProfessor', updatedAt: '2026-09-15T00:00:00.000Z' };
+
+await check('Both member pages hide the build snapshot before first paint and retain the guard if startup fails', async () => {
+  for (const entry of ['members.html', 'en/members.html']) {
+    const html = await fs.readFile(new URL(`../${entry}`, import.meta.url), 'utf8');
+    const head = html.slice(0, html.indexOf('</head>'));
+    const configScript = head.match(/<script\b[^>]*\bsrc=["'][^"']*firebase-config\.js(?:\?[^"']*)?["'][^>]*>/);
+    const firstModule = html.search(/<script\b[^>]*\btype=["']module["']/);
+    assert.ok(configScript && firstModule > configScript.index, `${entry}: Firebase configuration must precede module scripts`);
+    const bootstrap = [...head.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
+      .map(([, source]) => source).find(source => source.includes('member-roster-pending'));
+    assert.ok(bootstrap, `${entry}: guard must run in the head before content can paint`);
+    const classes = new Set();
+    const timers = [];
+    vm.runInNewContext(bootstrap, {
+      document: { documentElement: { classList: { add: (...names) => names.forEach(name => classes.add(name)),
+        remove: (...names) => names.forEach(name => classes.delete(name)), contains: name => classes.has(name) } } },
+      window: { setTimeout: callback => { timers.push(callback); return timers.length; } }
+    });
+    assert.equal(classes.has('member-roster-pending'), true);
+    timers.forEach(callback => callback());
+    assert.equal(classes.has('member-roster-pending'), true, 'A script timeout must not reveal the old roster');
+    const style = head.match(/<style id="member-roster-boot-style">([\s\S]*?)<\/style>/)?.[1] || '';
+    assert.match(style, /\.member-roster-pending #page-stat-grid/);
+    assert.match(style, /\.member-roster-pending #page-updated/);
+    assert.match(style, /\.member-roster-pending main\s*>\s*\.page-section\s*\{\s*visibility:\s*hidden\s*!important/);
+    assert.match(html, /class="member-roster-status" role="status"/);
+    assert.match(html, /class="member-roster-status__loading">[^<]+/);
+    assert.match(html, /class="member-roster-status__error">[^<]+/);
+    assert.doesNotMatch(html.match(/<html[^>]*>/)?.[0] || '', /member-roster-pending/,
+      'Without JavaScript the static roster remains available');
+  }
+});
+
+await check('A cold live member page renders loading content, never its embedded obsolete roster, then replaces it with current data', async () => {
+  for (const lang of ['kr', 'en']) {
+    const gate = deferred();
+    const f = fixture({ members: () => gate.promise });
+    const page = f.runtime('members', lang, { embeddedMembers: [obsoleteMember] });
+    const dom = attachMemberDocument(page);
+    assert.equal(page.state.members.length, 0);
+    assert.equal(page.state.loadingMembers, true);
+    assert.equal(page.resolvedCollections.has('members'), false);
+    page.renderMemberPage();
+    assert.match(dom.containers['page-stat-grid'].innerHTML, /stat-card--skeleton/);
+    assert.doesNotMatch(dom.html(), /OBSOLETE_STATIC_ROSTER|옛날 멤버|Obsolete Member/);
+    assert.equal(dom.date(), '');
+    const pending = page.refreshPublicData();
+    await flush();
+    assert.equal(page.state.members.length, 0);
+    gate.resolve([currentMember]);
+    await pending;
+    assert.equal(page.state.loadingMembers, false);
+    assert.equal(page.resolvedCollections.has('members'), true);
+    assert.match(dom.html(), lang === 'en' ? /Current Member/ : /현재 멤버/);
+    assert.doesNotMatch(dom.html(), /OBSOLETE_STATIC_ROSTER|옛날 멤버|Obsolete Member/);
+    assert.equal(page.renders.some(render => render.members.items.some(item => item.id === 'obsolete')), false);
+    assert.match(dom.date(), /2026/);
+    assert.doesNotMatch(dom.date(), /OBSOLETE_STATIC_DATE/);
+    assert.deepEqual(f.reads, { members: 1, publications: 1 });
+  }
+});
+
+await check('A fresh shared cache replaces the embedded member roster immediately without another server read', async () => {
+  const f = fixture({ members: [currentMember] });
+  await f.runtime('members').refreshPublicData();
+  for (const lang of ['kr', 'en']) {
+    const page = f.runtime('members', lang, { embeddedMembers: [obsoleteMember] });
+    const dom = attachMemberDocument(page);
+    page.applyCachedState();
+    page.renderMemberPage();
+    assert.equal(page.state.loadingMembers, false);
+    assert.equal(page.state.members[0].id, 'current');
+    assert.match(dom.html(), lang === 'en' ? /Current Member/ : /현재 멤버/);
+    assert.doesNotMatch(dom.html(), /skeleton|OBSOLETE_STATIC_ROSTER|옛날 멤버|Obsolete Member/);
+    await page.refreshPublicData();
+    assert.deepEqual(f.reads, { members: 1, publications: 1 });
+  }
+});
+
+await check('A cold member request failure shows unavailable counts and clears the embedded roster and date', async () => {
+  for (const lang of ['kr', 'en']) {
+    const f = fixture({ members: errorWith('permission-denied') });
+    const page = f.runtime('members', lang, { embeddedMembers: [obsoleteMember] });
+    const dom = attachMemberDocument(page);
+    page.renderMemberPage();
+    await page.refreshPublicData();
+    assert.equal(page.resolvedCollections.has('members'), false);
+    assert.equal(page.state.members.length, 0);
+    assert.match(dom.containers['page-stat-grid'].innerHTML, /<strong>—<\/strong>/);
+    assert.doesNotMatch(dom.containers['page-stat-grid'].innerHTML, /<strong[^>]*>0<\/strong>/);
+    assert.match(dom.containers['pi-card'].innerHTML, lang === 'en' ? /could not be loaded/ : /불러오지 못했습니다/);
+    assert.doesNotMatch(dom.html(), /OBSOLETE_STATIC_ROSTER|옛날 멤버|Obsolete Member/);
+    assert.equal(dom.date(), '');
+    assert.equal(page.publicCollectionCache.read('members', { allowStale: true }), null);
+  }
+});
+
+await check('A successful empty member collection shows known zeros, not the embedded roster or a stale update date', async () => {
+  for (const lang of ['kr', 'en']) {
+    const f = fixture({ members: [] });
+    const page = f.runtime('members', lang, { embeddedMembers: [obsoleteMember] });
+    const dom = attachMemberDocument(page);
+    await page.refreshPublicData();
+    assert.equal(page.resolvedCollections.has('members'), true);
+    assert.equal(page.state.members.length, 0);
+    assert.equal([...dom.containers['page-stat-grid'].innerHTML.matchAll(/<strong[^>]*>0<\/strong>/g)].length, 4);
+    assert.doesNotMatch(dom.html(), /OBSOLETE_STATIC_ROSTER|옛날 멤버|Obsolete Member|<strong>—<\/strong>/);
+    assert.equal(dom.date(), '');
+    const next = f.runtime('members', lang, { embeddedMembers: [obsoleteMember] });
+    next.applyCachedState();
+    assert.equal(next.state.members.length, 0);
+    assert.equal(next.state.loadingMembers, false);
+    assert.equal(next.resolvedCollections.has('members'), true);
+  }
+});
+
+await check('Local previews can still initialize from the embedded roster without a Firebase read', () => {
+  const f = fixture();
+  const page = f.runtime('members', 'kr', { embeddedMembers: [obsoleteMember], localDev: true });
+  assert.equal(page.state.members[0].id, 'obsolete');
+  assert.equal(page.state.loadingMembers, false);
+  assert.equal(page.resolvedCollections.has('members'), true);
+  assert.deepEqual(f.reads, {});
+});
 
 await check('Home, global search, same-language navigation and English navigation reuse each collection', async () => {
   const f = fixture();

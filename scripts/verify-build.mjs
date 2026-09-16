@@ -136,6 +136,17 @@ for (const [entry, canonical, language] of [
   const html = await readFile(new URL(entry, root), 'utf8');
   if (!html.includes(`<link rel="canonical" href="${canonical}">`)) missing.push(`${entry} -> canonical mismatch`);
   if (!html.includes('class="profile-avatar"') || !html.includes('member-preview-identity')) missing.push(`${entry} -> compact member previews missing`);
+  const memberHead = html.slice(0, html.indexOf('</head>'));
+  const memberConfig = memberHead.match(/<script\b[^>]*\bsrc=["'][^"']*firebase-config\.js(?:\?[^"']*)?["'][^>]*>/);
+  const firstMemberModule = html.search(/<script\b[^>]*\btype=["']module["']/);
+  if (!memberConfig || firstMemberModule <= memberConfig.index) missing.push(`${entry} -> Firebase configuration must precede module scripts`);
+  if (!/<script\b[^>]*>[\s\S]*?classList\.add\([^)]*['"]member-roster-pending['"]/.test(memberHead)) {
+    missing.push(`${entry} -> pre-paint member loading guard missing`);
+  }
+  if (!/\.member-roster-pending main\s*>\s*\.page-section\s*\{\s*visibility:\s*hidden\s*!important/.test(memberHead)) {
+    missing.push(`${entry} -> critical member loading visibility rule missing`);
+  }
+  if (!html.includes('class="member-roster-status" role="status"')) missing.push(`${entry} -> accessible member loading status missing`);
   if (!html.includes('id="member-roster-data"')) missing.push(`${entry} -> embedded live roster data missing`);
   const embeddedSource = html.match(/<script id="member-roster-data" type="application\/json">([\s\S]*?)<\/script>/)?.[1];
   try {
