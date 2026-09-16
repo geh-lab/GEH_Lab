@@ -1,7 +1,5 @@
 import { memberSummary, memberSummaryMarkup } from './member-summary.js';
-import { setupPublicChrome } from './chrome.js';
 import { portraitMarkup, refreshImageFallbacks } from './portraits.js';
-import '../css/icons.css';
 import { resolveProjectInvestigator, localizedInvestigatorName } from './project-investigator.js';
 import { sortPatents, filterPatents, patentText, patentStatusLabel, normalizePatent, safePatentUrl } from './patents.js';
 import { patentsForMember, resolvePatentInventors, patentInventorDisplay } from './patent-inventors.js';
@@ -35,9 +33,13 @@ import {
   setupAdaptiveGlass,
   setSpatialOrigin
 } from './utils.js?v=111';
-import { hasFirebaseConfig, isLocalDevMode, fetchCollectionResult, readCachedCollection, COLLECTIONS } from './firebase-public.js?v=83';
-import { PUBLIC_DATA_CHANGED, getPublicCollectionRevision } from './public-data-cache.js';
 
+export function createPublicPage(environment) {
+const { document, window, localStorage, setupPublicChrome, serverRender = false } = environment;
+const { hasFirebaseConfig, isLocalDevMode, fetchCollectionResult, readCachedCollection, COLLECTIONS } = environment.firebaseApi;
+const { PUBLIC_DATA_CHANGED, getPublicCollectionRevision, seedPublicCollection } = environment.cacheApi;
+/* PUBLIC_PAGE_SCOPE_START */
+const isServerRender = typeof serverRender !== 'undefined' && serverRender;
 document.documentElement.classList.add('js');
 
 const body = document.body;
@@ -53,6 +55,21 @@ const BOARD_SORT_STORAGE_KEY = 'geh-board-sort-v1';
 
 const qs = (selector) => document.querySelector(selector);
 const qsa = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
+
+const initialPagePayload = (() => {
+  try {
+    const raw = qs('#public-page-data')?.textContent;
+    if (!raw) return null;
+    const payload = JSON.parse(raw);
+    return payload.projectId === window.GEH_FIREBASE_CONFIG?.projectId ? payload : null;
+  } catch { return null; }
+})();
+const initialPublicData = Object.fromEntries(Object.values(COLLECTIONS).filter(name => {
+  const record = initialPagePayload?.collections?.[name];
+  return Array.isArray(record?.items) && Number.isFinite(record.fetchedAt) && record.fetchedAt > 0;
+}).map(name => [name, initialPagePayload.collections[name]]));
+const initialUnavailableCollections = new Set(Array.isArray(initialPagePayload?.unavailableCollections)
+  ? initialPagePayload.unavailableCollections.filter(name => Object.values(COLLECTIONS).includes(name)) : []);
 
 function savedBoardView() {
   try {
@@ -279,7 +296,32 @@ function applyCachedState() {
   if (!useLiveData) return;
   Object.entries(COLLECTIONS).forEach(([key, name]) => {
     const record = readCachedCollection(name);
-    if (record) applyCollectionItems(key, record.items);
+    if (record && (!initialPublicData[name] || record.fetchedAt >= initialPublicData[name].fetchedAt)) applyCollectionItems(key, record.items);
+  });
+}
+
+function markCollectionUnavailable(key) {
+  state[loadingKeyFor(key)] = false;
+  if (key === 'patents') state.patentsError = !resolvedCollections.has(key);
+  dataIssues.set(key, true);
+}
+
+function unavailableCollectionMarkup(key) {
+  if (!useLiveData || resolvedCollections.has(key) || !dataIssues.has(key)) return '';
+  return emptyState(lang === 'en' ? 'This information could not be loaded. Please try again shortly.' : '정보를 불러오지 못했습니다. 잠시 후 다시 확인해주세요.');
+}
+
+function applyServerState() {
+  if (!useLiveData) return;
+  Object.entries(COLLECTIONS).forEach(([key, name]) => {
+    const record = initialPublicData[name];
+    if (!record) {
+      if (initialUnavailableCollections.has(name)) markCollectionUnavailable(key);
+      return;
+    }
+    applyCollectionItems(key, record.items);
+    if (!record.stale) seedPublicCollection(name, { items: record.items, fetchedAt: record.fetchedAt });
+    else dataIssues.set(key, true);
   });
 }
 
@@ -660,8 +702,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (page === 'home') setupHeroSlider();
 
   // A fresh per-collection cache avoids another server read on navigation.
+  applyServerState();
   applyCachedState();
   renderPage();
+  showDataIssues();
   if (window.GEH_BOOT_TIMEOUT) window.clearTimeout(window.GEH_BOOT_TIMEOUT);
   if (document.documentElement.classList.contains('js-fallback')) {
     qsa('.reveal').forEach((item) => item.classList.add('is-visible'));
@@ -798,6 +842,7 @@ function renderPage() {
   if (page === 'patents') renderPatents();
   if (page === 'board') renderBoard();
   setUpdatedDate();
+  if (isServerRender) return;
   setupRevealAnimations();
   setupAccordions();
   setupCountAnimations();
@@ -1532,7 +1577,7 @@ function renderMemberPublicationBlock(member = {}) {
 }
 
 function setupRevealAnimations() {
-  if (reducedMotion.matches || !('IntersectionObserver' in window)) {
+  if (initialPagePayload || reducedMotion.matches || !('IntersectionObserver' in window)) {
     qsa('.reveal').forEach((item) => item.classList.add('is-visible'));
     return;
   }
@@ -1556,7 +1601,7 @@ function setupRevealAnimations() {
 }
 
 function setupCountAnimations() {
-  if (reducedMotion.matches || !('IntersectionObserver' in window)) {
+  if (Object.keys(initialPublicData).length || reducedMotion.matches || !('IntersectionObserver' in window)) {
     qsa('.count-up').forEach((item) => {
       item.textContent = String(Number(item.dataset.target || '0'));
       item.dataset.counted = 'true';
@@ -1860,7 +1905,7 @@ function renderHome() {
       pubGrid.innerHTML = Array.from({ length: 2 }, () => homePublicationSkeletonCard()).join('');
     } else {
       pubGrid.dataset.count = String(pubItems.length || 0);
-      pubGrid.innerHTML = pubItems.length ? pubItems.map(homePublicationCard).join('') : emptyState(lang === 'en' ? 'No publications yet.' : '표시할 논문이 없습니다.');
+      pubGrid.innerHTML = unavailableCollectionMarkup('publications') || (pubItems.length ? pubItems.map(homePublicationCard).join('') : emptyState(lang === 'en' ? 'No publications yet.' : '표시할 논문이 없습니다.'));
     }
   }
 
@@ -1872,7 +1917,7 @@ function renderHome() {
       previewGrid.innerHTML = Array.from({ length: 4 }, () => projectSkeletonCard()).join('');
     } else {
       previewGrid.dataset.count = String(ongoingPreview.length || 0);
-      previewGrid.innerHTML = ongoingPreview.map((project) => projectCard(project, { compact: true })).join('');
+      previewGrid.innerHTML = unavailableCollectionMarkup('projects') || ongoingPreview.map((project) => projectCard(project, { compact: true })).join('');
     }
     stretchProjectGrid(previewGrid);
   }
@@ -1883,7 +1928,7 @@ function renderHome() {
     if (state.loadingBoard && !state.board.length) {
       newsGrid.innerHTML = Array.from({ length: 3 }, () => homeNewsSkeletonCard()).join('');
     } else {
-      newsGrid.innerHTML = newsItems.length ? newsItems.map(homeNewsCard).join('') : emptyState(lang === 'en' ? 'No board posts yet.' : '표시할 게시글이 없습니다.');
+      newsGrid.innerHTML = unavailableCollectionMarkup('board') || (newsItems.length ? newsItems.map(homeNewsCard).join('') : emptyState(lang === 'en' ? 'No board posts yet.' : '표시할 게시글이 없습니다.'));
     }
   }
 
@@ -2759,4 +2804,21 @@ function setupAccordions() {
       button.setAttribute('aria-expanded', String(isOpen));
     });
   });
+}
+
+/* PUBLIC_PAGE_SCOPE_END */
+return {
+  renderServer(records, unavailableCollections = []) {
+    for (const [key, name] of Object.entries(COLLECTIONS)) {
+      if (records[name]) {
+        applyCollectionItems(key, records[name].items);
+        if (records[name].stale) dataIssues.set(key, true);
+      } else if (unavailableCollections.includes(name)) markCollectionUnavailable(key);
+    }
+    renderedMemberSignature = null;
+    renderPage();
+    showDataIssues();
+    return state;
+  }
+};
 }

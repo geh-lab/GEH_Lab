@@ -12,6 +12,10 @@ export const publicCollectionCache = createCollectionCache({
   scope: window.GEH_FIREBASE_CONFIG?.projectId || 'local-preview'
 });
 
+export function seedPublicCollection(name, record) {
+  return publicCollectionCache.seed(name, record);
+}
+
 function notify(collections) {
   collections.forEach((name) => revisions.set(name, getPublicCollectionRevision(name) + 1));
   window.dispatchEvent(new CustomEvent(PUBLIC_DATA_CHANGED, { detail: { collections } }));

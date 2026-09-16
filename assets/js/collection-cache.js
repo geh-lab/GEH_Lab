@@ -79,6 +79,44 @@ export function createCollectionCache({ storage, scope, now = Date.now, ttlMs = 
     return { items: record.items, fetchedAt: record.fetchedAt, stale };
   }
 
+  function seed(name, record) {
+    const key = keyFor(name);
+    const timestamp = now();
+    if (!Array.isArray(record?.items) || !Number.isFinite(record.fetchedAt)
+      || record.fetchedAt < 0 || record.fetchedAt > timestamp
+      || timestamp - record.fetchedAt >= ttlMs || invalidated.has(name) || inFlight.has(name)) return false;
+
+    let raw;
+    let persisted;
+    try {
+      raw = storage?.getItem(key);
+      persisted = JSON.parse(raw);
+    } catch { /* Verified server data can still seed the in-memory cache. */ }
+    const invalidTombstoneTime = !Number.isFinite(persisted?.invalidatedAt) || persisted.invalidatedAt < 0;
+    if (persisted?.version === VERSION && persisted.invalidated
+      && (invalidTombstoneTime || record.fetchedAt <= persisted.invalidatedAt)) {
+      // An HTML response generated before an admin save cannot restore that old roster.
+      const current = memory.get(name);
+      if (!current || invalidTombstoneTime || current.fetchedAt <= persisted.invalidatedAt) {
+        clearLocal(name);
+        invalidated.add(name);
+      }
+      return false;
+    }
+
+    const stored = parseRecord(raw);
+    const current = memory.get(name);
+    if (stored && (!current || stored.fetchedAt > current.fetchedAt)) memory.set(name, stored);
+    if (memory.get(name)?.fetchedAt >= record.fetchedAt) return false;
+
+    // Preserve server age: visiting another page must not restart the freshness window.
+    const seeded = { items: record.items, fetchedAt: record.fetchedAt };
+    memory.set(name, seeded);
+    failures.delete(name);
+    persist(name, seeded);
+    return true;
+  }
+
   function fallback(name, failure) {
     const record = failure.allowStale ? read(name, { allowStale: true }) : null;
     if (!record) throw failure.error;
@@ -150,5 +188,5 @@ export function createCollectionCache({ storage, scope, now = Date.now, ttlMs = 
     return true;
   }
 
-  return { read, load, invalidate, handleStorageEvent, keyFor };
+  return { read, load, seed, invalidate, handleStorageEvent, keyFor };
 }

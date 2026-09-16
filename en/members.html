@@ -2,9 +2,6 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#f5f7f8">
-  <script>try{var gehTheme=localStorage.getItem('geh-theme');document.documentElement.dataset.theme=gehTheme==='light'||gehTheme==='dark'?gehTheme:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.style.colorScheme=document.documentElement.dataset.theme}catch(e){document.documentElement.dataset.theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}</script>
   <!-- Hide the build-time roster before the first paint; no-JS keeps the static roster. -->
   <script>document.documentElement.classList.add('js','member-roster-pending');window.GEH_BOOT_TIMEOUT=window.setTimeout(function(){document.documentElement.classList.add('js-fallback')},3000);</script>
   <style id="member-roster-boot-style">
@@ -16,6 +13,9 @@
     .member-roster-pending.js-fallback .member-roster-status__error { display: inline; }
   </style>
   <script vite-ignore src="../firebase-config.js?v=80"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f5f7f8">
+  <script>try{var gehTheme=localStorage.getItem('geh-theme');document.documentElement.dataset.theme=gehTheme==='light'||gehTheme==='dark'?gehTheme:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.style.colorScheme=document.documentElement.dataset.theme}catch(e){document.documentElement.dataset.theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}</script>
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
   <script>try{var gehText=Number(localStorage.getItem('geh-text-size'));if([100,125,150,175,200].includes(gehText)){document.documentElement.dataset.textSize=String(gehText);document.documentElement.style.setProperty('--reading-scale',String(gehText/100))}}catch(e){}</script>
@@ -310,7 +310,7 @@ Part-time 6 (Ph.D. 4 · M.S. 2)</small></div></article><article class="stat-card
 </footer>
 
 </div>
-<script type="module" src="../assets/js/public.js?v=142"></script>
+<script type="module" src="../assets/js/public-entry.js?v=142"></script>
 <script>
   window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
 </script>
