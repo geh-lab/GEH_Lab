@@ -36,5 +36,5 @@ export function memberSummary(members = [], lang = 'kr') {
 }
 
 export function memberSummaryMarkup(members, lang) {
-  return memberSummary(members, lang).stats.map(item => `<article class="stat-card stat-card--summary reveal"><span>${escapeHTML(item.label)}</span><strong>${item.value}</strong>${item.detail ? `<div class="stat-card__meta"><small>${escapeHTML(item.detail)}</small></div>` : ''}</article>`).join('');
+  return memberSummary(members, lang).stats.map(item => `<article class="stat-card stat-card--summary reveal"><span>${escapeHTML(item.label)}</span><strong class="count-up" data-count-key="members:${escapeHTML(item.label)}" data-target="${item.value}">${item.value}</strong>${item.detail ? `<div class="stat-card__meta"><small>${escapeHTML(item.detail)}</small></div>` : ''}</article>`).join('');
 }

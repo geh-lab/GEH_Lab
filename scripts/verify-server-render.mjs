@@ -30,7 +30,12 @@ for (const lang of ['kr', 'en']) {
     assert.ok(!html.includes('GEH_BOOT_TIMEOUT'), 'no delayed boot guard');
     assert.ok(!document.documentElement.classList.contains('member-roster-pending'));
     assert.ok([...document.querySelectorAll('.reveal')].every(el => el.classList.contains('is-visible')));
-    assert.ok([...document.querySelectorAll('.count-up')].every(el => el.textContent === el.dataset.target), 'counts populated');
+    const counters = [...document.querySelectorAll('.count-up')];
+    const expectedCounters = { home: 5, members: 4, projects: 2, publications: 4, patents: 3, board: 0 };
+    assert.equal(counters.length, expectedCounters[page], `${lang}/${page}: every summary number supports motion`);
+    assert.ok(counters.every(el => el.textContent === el.dataset.target), 'counts populated');
+    assert.ok(counters.every(el => el.dataset.countKey?.startsWith(`${page}:`)), 'counter keys identify the page');
+    assert.equal(new Set(counters.map(el => el.dataset.countKey)).size, counters.length, 'each statistic has its own replay guard');
     assert.equal(document.querySelector('.count-up[data-counted]'), null, 'server content must remain eligible for browser count animation');
     assert.equal(document.querySelector('[data-bound]'), null, 'client listeners can bind');
     assert.equal(document.querySelector('base').getAttribute('href'), lang === 'en' ? '/en/' : '/');
@@ -66,6 +71,16 @@ assert.equal(partialDoc.querySelector('[class*="skeleton"]'), null);
 assert.ok(partialDoc.querySelector('#hero-stat-grid').textContent.includes('—'));
 assert.ok(partialDoc.querySelector('#home-publication-grid').textContent.includes('불러오지 못했습니다'));
 checks++;
+
+for (const lang of ['kr', 'en']) {
+  const template = await readFile(new URL(`${lang === 'en' ? 'en/' : ''}patents.html`, root), 'utf8');
+  const failed = parseHTML(renderServerPublicPage(template, { members: record('members') }, {
+    page: 'patents', lang, projectId, unavailableCollections: ['patents']
+  })).document;
+  assert.equal(failed.querySelectorAll('#patent-stat-grid .count-up').length, 0, 'failed counts cannot animate into zero');
+  assert.deepEqual([...failed.querySelectorAll('#patent-stat-grid strong')].map(el => el.textContent), ['—', '—', '—']);
+  checks++;
+}
 
 const payloadAttack = '</script><img src=x onerror=alert(1)>\u2028\u2029';
 const board = await readFile(new URL('news.html', root), 'utf8');

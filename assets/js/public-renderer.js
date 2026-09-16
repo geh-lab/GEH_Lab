@@ -845,9 +845,9 @@ function renderPage() {
   if (isServerRender) return;
   setupRevealAnimations();
   setupAccordions();
-  setupCountAnimations();
   bindInteractiveCards();
   openRequestedSearchItem();
+  setupCountAnimations();
   // Release the pre-paint guard only after stale HTML and its date are replaced.
   if (page === 'members') document.documentElement.classList.remove('member-roster-pending');
 }
@@ -2259,7 +2259,12 @@ function renderPatents() {
     { value: state.patents.filter((item) => item.status === 'granted').length, label: en ? 'Granted' : '등록 특허' },
     { value: state.patents.filter((item) => item.status === 'pending').length, label: en ? 'Filed' : '출원 특허' }
   ];
-  statGrid.innerHTML = stats.map((item) => `<article class="stat-card reveal"><strong>${state.loadingPatents || state.patentsError ? '—' : item.value}</strong><span>${escapeHTML(item.label)}</span></article>`).join('');
+  statGrid.innerHTML = stats.map((item) => {
+    const count = state.loadingPatents || state.patentsError
+      ? '<strong>—</strong>'
+      : `<strong class="count-up" data-count-key="patents:${escapeHTML(item.label)}" data-target="${item.value}">${item.value}</strong>`;
+    return `<article class="stat-card reveal">${count}<span>${escapeHTML(item.label)}</span></article>`;
+  }).join('');
   if (state.loadingPatents) { container.innerHTML = publicationListSkeleton(2); return; }
   if (state.patentsError) {
     container.innerHTML = emptyState(en ? 'Patents could not be loaded. Please reload this page to try again.' : '특허 정보를 불러오지 못했습니다. 페이지를 새로고침해 다시 시도해주세요.');
