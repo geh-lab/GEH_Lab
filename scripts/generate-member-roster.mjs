@@ -334,6 +334,40 @@ function replaceMarker(html, marker, content) {
   return html.replace(new RegExp(`${start}[\\s\\S]*?${end}`), `${start}\n${content}\n${end}`);
 }
 
+// The loading shell belongs to the generated roster too. Repair older page
+// templates on every build so a partial HTML upload cannot restore the flash.
+export function ensureMemberLoadingMarkup(html, lang) {
+  const configPattern = /\s*<script\b[^>]*\bsrc=["'][^"']*firebase-config\.js(?:\?[^"']*)?["'][^>]*>\s*<\/script>/g;
+  const configScripts = html.match(configPattern) || [];
+  if (configScripts.length !== 1) throw new Error(`${lang}: expected one Firebase configuration script`);
+  const configScript = configScripts[0].trim();
+  html = html.replace(configPattern, '')
+    .replace(/\s*<!-- Hide the build-time roster before the first paint; no-JS keeps the static roster\. -->/g, '')
+    .replace(/\s*<script\b[^>]*>([\s\S]*?)<\/script>/g, (script, body) => body.includes('window.GEH_BOOT_TIMEOUT=') ? '' : script)
+    .replace(/\s*<style id="member-roster-boot-style">[\s\S]*?<\/style>/g, '')
+    .replace(/\s*<div class="member-roster-status" role="status">[\s\S]*?<\/div>/g, '');
+  const charset = /<meta charset="UTF-8">/;
+  const meta = /\s*<div class="page-hero-meta">/;
+  if (!charset.test(html) || !meta.test(html)) throw new Error(`${lang}: member page loading anchors missing`);
+  const boot = `
+  <!-- Hide the build-time roster before the first paint; no-JS keeps the static roster. -->
+  <script>document.documentElement.classList.add('js','member-roster-pending');window.GEH_BOOT_TIMEOUT=window.setTimeout(function(){document.documentElement.classList.add('js-fallback')},3000);</script>
+  <style id="member-roster-boot-style">
+    .member-roster-status, .member-roster-status__error { display: none; }
+    .member-roster-pending #page-stat-grid, .member-roster-pending #page-updated,
+    .member-roster-pending main > .page-section { visibility: hidden !important; }
+    .member-roster-pending .member-roster-status { display: block; }
+    .member-roster-pending.js-fallback .member-roster-status__loading { display: none; }
+    .member-roster-pending.js-fallback .member-roster-status__error { display: inline; }
+  </style>
+  ${configScript}`;
+  const loading = lang === 'en' ? 'Loading member information…' : '멤버 정보를 불러오는 중입니다…';
+  const error = lang === 'en' ? 'The page is taking longer to load.' : '페이지를 불러오는 데 시간이 걸리고 있습니다.';
+  const reload = lang === 'en' ? 'Reload' : '새로고침';
+  const status = `<div class="member-roster-status" role="status"><span class="member-roster-status__loading">${loading}</span><span class="member-roster-status__error">${error} <a href="members.html">${reload}</a></span></div>`;
+  return html.replace(charset, match => match + boot).replace(meta, match => `\n    ${status}\n    ${match.trim()}`);
+}
+
 async function materializePhoto(member) {
   const source = String(member.photoUrl || member.photoPath || '');
   const match = source.match(/^data:image\/(png|jpe?g|webp);base64,(.+)$/s);
@@ -367,7 +401,7 @@ async function main() {
 
   for (const lang of ['kr', 'en']) {
     const sections = rosterSections(members, lang);
-    let html = await readFile(pages[lang], 'utf8');
+    let html = ensureMemberLoadingMarkup(await readFile(pages[lang], 'utf8'), lang);
     html = replaceMarker(html, 'STRUCTURED_DATA', `<script id="member-roster-structured-data" type="application/ld+json">${safeJson(structuredData(sections, lang))}</script>`);
     html = replaceMarker(html, 'DATA', `<script id="member-roster-data" type="application/json">${safeJson(members.map(compactMember))}</script>`);
     html = replaceMarker(html, 'STATS', sections.stats);
@@ -392,4 +426,4 @@ async function main() {
   console.log(`Member roster generated: ${members.length} people (${current.length} current, ${alumni.length} alumni) on the two canonical member pages.`);
 }
 
-await main();
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();

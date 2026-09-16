@@ -8,6 +8,7 @@ import * as inventors from '../assets/js/patent-inventors.js';
 import * as data from '../assets/js/data.js';
 import * as memberSummary from '../assets/js/member-summary.js';
 import { portraitMarkup } from '../assets/js/portraits.js';
+import { ensureMemberLoadingMarkup } from './generate-member-roster.mjs';
 
 // Execute production data modules with fake time, storage and Firestore. No browser,
 // credentials, Firebase SDK, network requests or live database writes are involved.
@@ -159,6 +160,35 @@ const obsoleteMember = { id: 'obsolete', nameKr: '옛날 멤버', nameEn: 'Obsol
   group: 'researchProfessor', updatedAt: '2026-09-08T00:00:00.000Z' };
 const currentMember = { id: 'current', nameKr: '현재 멤버', nameEn: 'Current Member',
   group: 'researchProfessor', updatedAt: '2026-09-15T00:00:00.000Z' };
+
+await check('Roster generation repairs legacy page loading shells and stays identical on repeated builds', async () => {
+  for (const [entry, lang, prefix] of [['members.html', 'kr', ''], ['en/members.html', 'en', '../']]) {
+    const current = await fs.readFile(new URL(`../${entry}`, import.meta.url), 'utf8');
+    const legacy = current
+      .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/g, (script, body) => body.includes('window.GEH_BOOT_TIMEOUT=') ? '' : script)
+      .replace(/<style id="member-roster-boot-style">[\s\S]*?<\/style>/, '')
+      .replace(/<div class="member-roster-status" role="status">[\s\S]*?<\/div>/, '')
+      .replace(/<script\b[^>]*\bsrc="[^"]*firebase-config\.js[^"]*"[^>]*><\/script>/, '')
+      .replace('</head>', "<script>document.documentElement.classList.add('js');window.GEH_BOOT_TIMEOUT=window.setTimeout(function(){document.documentElement.classList.add('js-fallback')},3000);</script></head>")
+      .replace('</body>', `<script vite-ignore src="${prefix}firebase-config.js?v=80"></script></body>`);
+    for (const input of [current, legacy]) {
+      const output = ensureMemberLoadingMarkup(input, lang);
+      assert.ok(ensureMemberLoadingMarkup(output, lang) === output, `${entry}: repeated builds must not duplicate or move markup`);
+      assert.equal((output.match(/window.GEH_BOOT_TIMEOUT=/g) || []).length, 1);
+      assert.equal((output.match(/<style id="member-roster-boot-style">/g) || []).length, 1);
+      assert.equal((output.match(/class="member-roster-status" role="status"/g) || []).length, 1);
+      assert.equal((output.match(/firebase-config\.js/g) || []).length, 1);
+      assert.match(output.slice(0, output.indexOf('</head>')), /classList\.add\('js','member-roster-pending'\)/);
+      const configIndex = output.indexOf(`src="${prefix}firebase-config.js?v=80"`);
+      assert.ok(configIndex > 0 && configIndex < output.indexOf('type="module"'));
+      for (const token of ['geh-theme', 'geh-text-size', 'member-roster-data', 'member-roster-structured-data']) {
+        const script = [...current.matchAll(/<script\b[^>]*>[\s\S]*?<\/script>/g)].find(([value]) => value.includes(token))?.[0];
+        assert.ok(script && output.includes(script), `${entry}: preserve ${token}`);
+      }
+      assert.ok(output.includes(lang === 'en' ? 'Loading member information…' : '멤버 정보를 불러오는 중입니다…'));
+    }
+  }
+});
 
 await check('Both member pages hide the build snapshot before first paint and retain the guard if startup fails', async () => {
   for (const entry of ['members.html', 'en/members.html']) {
