@@ -1,5 +1,5 @@
 import { parseHTML } from 'linkedom';
-import { createPublicPage } from '../assets/js/public.js';
+import { createPublicPage } from '../assets/js/public-renderer.js';
 
 const COLLECTIONS = Object.freeze({
   members: 'members', projects: 'projects', publications: 'publications',

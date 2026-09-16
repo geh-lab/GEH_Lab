@@ -1818,13 +1818,14 @@ async function moveItemToTrash(itemType, collectionName, item, title) {
     payload
   };
   await saveDocument(COLLECTIONS.trash, trashId, trashEntry);
+  // Keep the original content only in private trash; public readers get a tombstone.
   await saveDocument(collectionName, item.id, {
     id: item.id,
     deleted: true,
     deletedAt,
     purgeAfterAt,
     trashExpired: false
-  });
+  }, { merge: false });
   return trashEntry;
 }
 
@@ -1853,7 +1854,7 @@ async function permanentlyDeleteTrashItem(item, options = {}) {
     deletedAt: item.deletedAt || new Date().toISOString(),
     purgeAfterAt: item.purgeAfterAt || '',
     trashExpired: true
-  });
+  }, { merge: false });
   await deleteDocumentById(COLLECTIONS.trash, item.id);
   if (!options.silent) showNotice('휴지통 항목이 영구 삭제되었습니다.', 'success');
 }

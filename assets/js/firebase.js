@@ -455,18 +455,19 @@ export function listenCollection(name, onData, onError) {
   );
 }
 
-export async function saveDocument(collectionName, documentId, payload) {
+export async function saveDocument(collectionName, documentId, payload, { merge = true } = {}) {
   if (isLocalDevMode) {
     const clean = { ...payload };
     delete clean.id;
     const items = readLocalCollection(collectionName);
     const targetId = documentId || makeLocalId(collectionName);
     const index = items.findIndex((item) => item.id === targetId);
+    const previous = merge && index >= 0 ? items[index] : {};
     const next = {
-      ...(index >= 0 ? items[index] : {}),
+      ...previous,
       ...clean,
       id: targetId,
-      createdAt: (index >= 0 ? items[index]?.createdAt : localNow()),
+      createdAt: clean.createdAt || previous.createdAt || localNow(),
       updatedAt: localNow()
     };
     if (index >= 0) items[index] = next;
@@ -486,7 +487,7 @@ export async function saveDocument(collectionName, documentId, payload) {
       createdAt: clean.createdAt || serverTimestamp(),
       updatedAt: serverTimestamp()
     },
-    { merge: true }
+    { merge }
   );
   notifyDocumentWrite(collectionName);
   return targetRef.id;

@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 // evaluate its lexical scope with fake DOM/data dependencies and expose only
 // the functions under test; they must not evaluate the environment wrapper.
 export async function getPublicPageSource() {
-  const source = await readFile(new URL('../assets/js/public.js', import.meta.url), 'utf8');
+  const source = await readFile(new URL('../assets/js/public-renderer.js', import.meta.url), 'utf8');
   const startMarker = '/* PUBLIC_PAGE_SCOPE_START */';
   const endMarker = '/* PUBLIC_PAGE_SCOPE_END */';
   const start = source.indexOf(startMarker);

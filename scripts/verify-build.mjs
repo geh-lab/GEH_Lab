@@ -114,6 +114,12 @@ if (oldProfilePages.length) missing.push(`independent profile pages still emitte
 
 for (const entry of entries) {
   const html = await readFile(new URL(entry, root), 'utf8');
+  if (coreEntries.includes(entry) && entry !== 'admin.html') {
+    const scripts = Array.from(html.matchAll(/<script\b[^>]*\btype=["']module["'][^>]*\bsrc=["']([^"']+)["'][^>]*>/g), match => match[1]);
+    if (!scripts.some(source => /\/assets\/public-entry-[^/]+\.js$/.test(source))) {
+      missing.push(`${entry} -> public browser entry bundle missing; do not deploy a factory-only public.js entry`);
+    }
+  }
   if (entry === 'index.html' || entry === 'en/index.html') missing.push(...await verifyHomeLayout(entry, html, root));
   const references = Array.from(html.matchAll(/(?:href|src)="([^"]+)"/g), (match) => match[1]);
   for (const reference of references) {

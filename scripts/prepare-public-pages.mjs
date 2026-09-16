@@ -38,6 +38,9 @@ export async function preparePublicPages(projectRoot = resolve(dirname(fileURLTo
       if (!/<!doctype html>/i.test(html) || !html.includes(`data-page="${page}"`) || !html.includes(`data-lang="${lang}"`) || !/<script\b[^>]*type="module"[^>]*src="\/assets\//.test(html)) {
         throw new Error(`Public page template is incomplete: ${relative}`);
       }
+      if (!/<script\b[^>]*type="module"[^>]*src="\/assets\/public-entry-[^/]+\.js"/.test(html)) {
+        throw new Error(`Public page startup bundle is missing: ${relative}`);
+      }
       templates.push({ relative, source, target: resolve(projectRoot, '.server', relative) });
     }
   }
