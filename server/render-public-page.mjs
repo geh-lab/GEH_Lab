@@ -86,7 +86,9 @@ export function renderServerPublicPage(template, records, { page, lang, projectI
   document.querySelectorAll('.reveal').forEach(element => element.classList.add('is-visible'));
   document.querySelectorAll('.count-up').forEach(element => {
     element.textContent = String(Number(element.dataset.target || '0'));
-    element.dataset.counted = 'true';
+    // Populated HTML is ready to read, but browser motion has not run yet.
+    element.removeAttribute('data-counted');
+    element.removeAttribute('data-counting');
   });
   // DOM listeners are not serialized. Let the browser attach them on startup.
   document.querySelectorAll('[data-bound], [data-reveal-bound], [data-count-bound]').forEach(element => {

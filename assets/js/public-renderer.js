@@ -1600,11 +1600,20 @@ function setupRevealAnimations() {
   });
 }
 
+const animatedCountTargets = new Map();
+
 function setupCountAnimations() {
-  if (Object.keys(initialPublicData).length || reducedMotion.matches || !('IntersectionObserver' in window)) {
-    qsa('.count-up').forEach((item) => {
+  const counters = qsa('.count-up');
+  const remember = (item, target) => {
+    if (item.dataset.countKey) animatedCountTargets.set(item.dataset.countKey, target);
+  };
+  if (reducedMotion.matches || !('IntersectionObserver' in window)) {
+    setupCountAnimations.observer?.disconnect();
+    counters.forEach((item) => {
       item.textContent = String(Number(item.dataset.target || '0'));
+      item.dataset.counting = 'false';
       item.dataset.counted = 'true';
+      remember(item, Number(item.dataset.target || '0'));
     });
     return;
   }
@@ -1613,10 +1622,15 @@ function setupCountAnimations() {
       (entries) => {
         entries.forEach((entry) => {
           const el = entry.target;
-          const target = Number(el.dataset.target || '0');
           if (!entry.isIntersecting || el.dataset.counted === 'true') return;
+          if (el.isConnected === false) {
+            setupCountAnimations.observer.unobserve(el);
+            return;
+          }
+          const target = Number(el.dataset.target || '0');
           el.dataset.counting = 'true';
           el.dataset.counted = 'true';
+          remember(el, target);
           setupCountAnimations.observer.unobserve(el);
           animateCount(el, target);
         });
@@ -1624,10 +1638,17 @@ function setupCountAnimations() {
       { threshold: 0.25 }
     );
   }
-  qsa('.count-up').forEach((item) => {
-    if (item.dataset.counted !== 'true') item.textContent = '0';
-    if (item.dataset.countBound) return;
-    item.dataset.countBound = 'true';
+  // Re-rendering a section must not retain detached observer targets or replay
+  // an unchanged statistic. New values may animate once when they become visible.
+  setupCountAnimations.observer.disconnect();
+  counters.forEach((item) => {
+    const target = Number(item.dataset.target || '0');
+    if (item.dataset.counted === 'true') return;
+    item.textContent = String(target);
+    if (item.dataset.countKey && animatedCountTargets.get(item.dataset.countKey) === target) {
+      item.dataset.counted = 'true';
+      return;
+    }
     setupCountAnimations.observer.observe(item);
   });
 }
@@ -1635,15 +1656,28 @@ function setupCountAnimations() {
 function animateCount(el, target) {
   const duration = 900;
   const start = performance.now();
+  function finish() {
+    el.textContent = String(target);
+    el.dataset.counting = 'false';
+  }
+  if (reducedMotion.matches || target === 0) {
+    finish();
+    return;
+  }
   function step(now) {
+    if (el.isConnected === false) {
+      el.dataset.counting = 'false';
+      return;
+    }
+    if (reducedMotion.matches || el.dataset.counting !== 'true') {
+      finish();
+      return;
+    }
     const progress = Math.max(0, Math.min((now - start) / duration, 1));
     const eased = 1 - Math.pow(1 - progress, 3);
     el.textContent = String(Math.round(target * eased));
-    if (progress < 1 && el.dataset.counting === 'true') requestAnimationFrame(step);
-    else {
-      el.textContent = String(target);
-      el.dataset.counting = 'false';
-    }
+    if (progress < 1) requestAnimationFrame(step);
+    else finish();
   }
   requestAnimationFrame(step);
 }
@@ -1733,7 +1767,7 @@ function publicationSummaryLines(currentYearPubs = [], currentYear = String(new 
 
 function homeSummaryCard(title, value, lines = []) {
   const meta = (Array.isArray(lines) ? lines : []).filter(Boolean).map((line) => `<small>${escapeHTML(line)}</small>`).join('');
-  const count = value == null ? '<strong>—</strong>' : `<strong class="count-up" data-target="${escapeHTML(value)}">0</strong>`;
+  const count = value == null ? '<strong>—</strong>' : `<strong class="count-up" data-count-key="home:${escapeHTML(title)}" data-target="${escapeHTML(value)}">${escapeHTML(value)}</strong>`;
   return `<article class="stat-card stat-card--summary reveal">${count}<span>${escapeHTML(title)}</span>${meta ? `<div class="stat-card__meta">${meta}</div>` : ''}</article>`;
 }
 
@@ -2104,7 +2138,7 @@ function renderProjects() {
     if (state.loadingProjects && useLiveProjectsOnly() && !state.projects.length) {
       statGrid.innerHTML = stats.map((item) => projectStatSkeleton(item.label)).join('');
     } else {
-      statGrid.innerHTML = stats.map((item) => `<article class="stat-card reveal"><strong class="count-up" data-target="${escapeHTML(item.value)}">0</strong><span>${escapeHTML(item.label)}</span></article>`).join('');
+      statGrid.innerHTML = stats.map((item) => `<article class="stat-card reveal"><strong class="count-up" data-count-key="projects:${escapeHTML(item.label)}" data-target="${escapeHTML(item.value)}">${escapeHTML(item.value)}</strong><span>${escapeHTML(item.label)}</span></article>`).join('');
     }
   }
 
@@ -2159,7 +2193,7 @@ function renderPublications() {
       const signature = stats.map((item) => item.label + ':' + item.value).join('|');
       if (statGrid.dataset.signature !== signature) {
         statGrid.dataset.signature = signature;
-        statGrid.innerHTML = stats.map((item) => '<article class="stat-card reveal"><strong class="count-up" data-target="' + escapeHTML(item.value) + '">0</strong><span>' + escapeHTML(item.label) + '</span></article>').join('');
+        statGrid.innerHTML = stats.map((item) => '<article class="stat-card reveal"><strong class="count-up" data-count-key="publications:' + escapeHTML(item.label) + '" data-target="' + escapeHTML(item.value) + '">' + escapeHTML(item.value) + '</strong><span>' + escapeHTML(item.label) + '</span></article>').join('');
       }
     }
   }

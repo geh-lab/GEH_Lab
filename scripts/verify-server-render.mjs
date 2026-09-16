@@ -31,6 +31,7 @@ for (const lang of ['kr', 'en']) {
     assert.ok(!document.documentElement.classList.contains('member-roster-pending'));
     assert.ok([...document.querySelectorAll('.reveal')].every(el => el.classList.contains('is-visible')));
     assert.ok([...document.querySelectorAll('.count-up')].every(el => el.textContent === el.dataset.target), 'counts populated');
+    assert.equal(document.querySelector('.count-up[data-counted]'), null, 'server content must remain eligible for browser count animation');
     assert.equal(document.querySelector('[data-bound]'), null, 'client listeners can bind');
     assert.equal(document.querySelector('base').getAttribute('href'), lang === 'en' ? '/en/' : '/');
     const payload = JSON.parse(document.querySelector('#public-page-data').textContent);
