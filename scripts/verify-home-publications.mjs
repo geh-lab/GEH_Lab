@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
 import vm from 'node:vm';
 import * as utils from '../assets/js/utils.js';
 import * as patents from '../assets/js/patents.js';
 import * as inventors from '../assets/js/patent-inventors.js';
 import * as data from '../assets/js/data.js';
+import { getPublicPageSource } from './public-test-source.mjs';
 
 // Exercise production home cards and event handlers without starting Firebase.
 // Stub only the shared modal shell: its title and content are captured for checks.
-const source = (await fs.readFile(new URL('../assets/js/public.js', import.meta.url), 'utf8'))
+const source = (await getPublicPageSource())
   .replace(/^import\s+[\s\S]*?;\s*$/gm, '');
 const member = { id: 'lab-member', nameKr: '테스트 연구자', nameEn: 'Test Researcher' };
 const publication = {

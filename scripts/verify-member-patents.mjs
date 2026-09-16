@@ -6,10 +6,11 @@ import * as utils from '../assets/js/utils.js';
 import * as patents from '../assets/js/patents.js';
 import * as inventors from '../assets/js/patent-inventors.js';
 import * as data from '../assets/js/data.js';
+import { getPublicPageSource } from './public-test-source.mjs';
 
 // Exercise the production modal/data code with an in-memory document, fake time,
 // storage and Firestore. No Firebase SDK, credentials or network are used.
-const sources = Object.fromEntries(await Promise.all(['public-data-cache', 'firebase-public', 'public'].map(async (name) => [name, await fs.readFile(new URL(`../assets/js/${name}.js`, import.meta.url), 'utf8')])));
+const sources = Object.fromEntries(await Promise.all(['public-data-cache', 'firebase-public', 'public'].map(async (name) => [name, name === 'public' ? await getPublicPageSource() : await fs.readFile(new URL(`../assets/js/${name}.js`, import.meta.url), 'utf8')])));
 const stripImports = (source) => source.replace(/^import\s+[\s\S]*?;\s*$/gm, '').replace(/^export\s+/gm, '');
 const failure = (code) => Object.assign(new Error(code), { code });
 const flush = async () => { for (let count = 0; count < 80; count++) await Promise.resolve(); };

@@ -7,6 +7,7 @@ import { memberSummary } from '../assets/js/member-summary.js';
 import { normalizeTextSize, nextTextSize } from '../assets/js/reading-preferences.js';
 import { GLASS_SURFACE, GLASS_CONTROL, surfaceOptics, createSurfaceMaps } from '../assets/js/glass-surface-model.js';
 import { normalizePatent, sortPatents, filterPatents, patentText, validatePatent, safePatentUrl } from '../assets/js/patents.js';
+import { getPublicPageSource } from './public-test-source.mjs';
 
 const members = [
   { id: 'park', nameKr: '박종석', nameEn: 'Jongseok Park' },
@@ -24,7 +25,7 @@ assert.equal(localizedInvestigatorName({ principalInvestigator: 'Guest researche
 const snapshot = normalizeProject({ principalInvestigatorKr: '박종석', principalInvestigatorEn: 'Jongseok Park' });
 assert.equal(localizedInvestigatorName(snapshot, [], 'kr'), '박종석');
 assert.equal(localizedInvestigatorName(snapshot, [], 'en'), 'Jongseok Park');
-const publicSource = await readFile(new URL('../assets/js/public.js', import.meta.url), 'utf8');
+const publicSource = await getPublicPageSource();
 assert.match(publicSource, /projects: \[COLLECTIONS.projects, COLLECTIONS.members\]/);
 assert.match(publicSource, /projects: new Set\(\['projects', 'members'\]\)/);
 

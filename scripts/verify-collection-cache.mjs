@@ -58,6 +58,134 @@ await check('Successful empty arrays survive a new instance and expire independe
   assert.deepEqual(await next.load('patents', () => { throw new Error('Must not fetch'); }), { items: [], fetchedAt: 70, stale: false, source: 'cache' });
 });
 
+await check('Server-seeded records prevent a duplicate fetch without extending server age', async () => {
+  const f = fixture();
+  f.tick(80);
+  const record = { items: [{ id: 'server-rendered' }], fetchedAt: 20 };
+  assert.equal(f.cache.seed('members', record), true);
+  const noFetch = () => { throw new Error('Fresh server-rendered data must not be fetched again'); };
+  assert.deepEqual(await f.cache.load('members', noFetch), { ...record, stale: false, source: 'cache' });
+  f.tick(39);
+  assert.equal(f.cache.seed('members', record), false);
+  assert.equal(f.writes.length, 1);
+  assert.equal((await createCollectionCache(f.settings).load('members', noFetch)).fetchedAt, 20);
+  f.tick(1);
+  assert.equal(f.cache.read('members'), null);
+  assert.equal(f.cache.seed('members', record), false);
+  assert.equal((await f.cache.load('members', async () => [{ id: 'refreshed' }])).source, 'server');
+});
+
+await check('A newer browser record wins over HTML seeds in both memory and storage', async () => {
+  const f = fixture();
+  f.tick(20);
+  await f.cache.load('members', async () => [{ id: 'local' }]);
+  f.tick(10);
+  const other = createCollectionCache(f.settings);
+  await other.load('members', async () => [{ id: 'other-tab' }], { force: true });
+  const writes = f.writes.length;
+  for (const fetchedAt of [10, 25, 30]) {
+    assert.equal(f.cache.seed('members', { items: [{ id: 'older-html' }], fetchedAt }), false);
+    assert.equal(f.cache.read('members').items[0].id, 'other-tab');
+    assert.equal(createCollectionCache(f.settings).seed('members', { items: [], fetchedAt }), false);
+  }
+  assert.equal(f.writes.length, writes);
+  f.tick(1);
+  assert.equal(f.cache.seed('members', { items: [{ id: 'newer-html' }], fetchedAt: 31 }), true);
+  assert.equal(f.cache.read('members').items[0].id, 'newer-html');
+  assert.equal(f.writes.length, writes + 1);
+});
+
+await check('Seed validation rejects expired, future, malformed and unsupported data', async () => {
+  const f = fixture();
+  f.tick(200);
+  for (const record of [null, {}, { items: {}, fetchedAt: 200 }, { items: [], fetchedAt: -1 },
+    { items: [], fetchedAt: NaN }, { items: [], fetchedAt: Infinity }, { items: [], fetchedAt: '200' },
+    { items: [], fetchedAt: 201 }, { items: [], fetchedAt: 100 }, { items: [], fetchedAt: 0 }]) {
+    assert.equal(f.cache.seed('members', record), false);
+    assert.equal(f.cache.read('members'), null);
+  }
+  assert.equal(f.writes.length, 0);
+  assert.throws(() => f.cache.seed('trash', { items: [], fetchedAt: 200 }), { code: 'cache/unsupported-collection' });
+  assert.equal(fixture({ ttlMs: 0 }).cache.seed('members', { items: [], fetchedAt: 0 }), false);
+});
+
+await check('An empty server-rendered collection remains a resolved cache hit', async () => {
+  const f = fixture();
+  assert.equal(f.cache.seed('members', { items: [], fetchedAt: 0 }), true);
+  const next = createCollectionCache(f.settings);
+  assert.deepEqual(await next.load('members', () => { throw new Error('An empty seed is not a cache miss'); }),
+    { items: [], fetchedAt: 0, stale: false, source: 'cache' });
+});
+
+await check('Persisted tombstones reject older or equal HTML before the first cache read', async () => {
+  const f = fixture();
+  f.tick(20);
+  const key = f.cache.invalidate('members');
+  const tombstone = f.values.get(key);
+  f.tick(10);
+  for (const fetchedAt of [0, 20]) {
+    const next = createCollectionCache(f.settings);
+    assert.equal(next.seed('members', { items: [{ id: 'before-save' }], fetchedAt }), false);
+    assert.equal(next.read('members', { allowStale: true }), null);
+    assert.equal(f.values.get(key), tombstone);
+  }
+  const next = createCollectionCache(f.settings);
+  assert.equal(next.seed('members', { items: [{ id: 'after-save' }], fetchedAt: 30 }), true);
+  assert.equal(next.read('members').items[0].id, 'after-save');
+  for (const invalidatedAt of [undefined, -1, '20']) {
+    const malformed = JSON.stringify({ version: 1, invalidated: true, invalidatedAt });
+    f.values.set(key, malformed);
+    assert.equal(createCollectionCache(f.settings).seed('members', { items: [], fetchedAt: 30 }), false);
+    assert.equal(f.values.get(key), malformed);
+  }
+});
+
+await check('Local invalidation and active requests cannot be bypassed by an HTML seed', async () => {
+  const f = fixture();
+  f.cache.invalidate('members');
+  f.tick(5);
+  assert.equal(f.cache.seed('members', { items: [{ id: 'html' }], fetchedAt: 5 }), false);
+  const gate = deferred();
+  const pending = f.cache.load('members', () => gate.promise);
+  await Promise.resolve();
+  assert.equal(f.cache.seed('members', { items: [{ id: 'html' }], fetchedAt: 5 }), false);
+  gate.resolve([{ id: 'saved' }]);
+  assert.equal((await pending).items[0].id, 'saved');
+  f.tick(1);
+  assert.equal(f.cache.seed('members', { items: [{ id: 'later-html' }], fetchedAt: 6 }), true);
+  const refreshing = deferred();
+  const refresh = f.cache.load('members', () => refreshing.promise, { force: true });
+  f.tick(1);
+  assert.equal(f.cache.seed('members', { items: [], fetchedAt: 7 }), false);
+  refreshing.resolve([{ id: 'fresh-request' }]);
+  assert.equal((await refresh).items[0].id, 'fresh-request');
+});
+
+await check('Seeding notices missed cross-tab invalidations without restoring old memory', async () => {
+  const f = fixture();
+  await f.cache.load('members', async () => [{ id: 'before-save' }]);
+  f.tick(5);
+  createCollectionCache(f.settings).invalidate('members');
+  assert.equal(f.cache.seed('members', { items: [{ id: 'old-html' }], fetchedAt: 0 }), false);
+  assert.equal(f.cache.read('members', { allowStale: true }), null);
+  assert.equal((await f.cache.load('members', async () => [{ id: 'after-save' }])).items[0].id, 'after-save');
+});
+
+await check('Blocked storage still permits memory seeding while preserving local invalidation', async () => {
+  for (const storage of [undefined, {}, {
+    getItem() { throw new Error('Storage blocked'); },
+    setItem() { throw new Error('Storage blocked'); }
+  }, { getItem: () => null, setItem() { throw errorWith('QuotaExceededError'); } }]) {
+    const f = fixture({ storage });
+    assert.equal(f.cache.seed('members', { items: [], fetchedAt: 0 }), true);
+    assert.equal((await f.cache.load('members', () => { throw new Error('Memory seed expected'); })).source, 'cache');
+    f.cache.invalidate('members');
+    f.tick(1);
+    assert.equal(f.cache.seed('members', { items: [], fetchedAt: 1 }), false);
+    assert.equal(f.cache.read('members'), null);
+  }
+});
+
 await check('Concurrent loads share one request, while other collections remain independent', async () => {
   const f = fixture();
   const gate = deferred();

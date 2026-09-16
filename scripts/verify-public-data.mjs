@@ -9,10 +9,11 @@ import * as data from '../assets/js/data.js';
 import * as memberSummary from '../assets/js/member-summary.js';
 import { portraitMarkup } from '../assets/js/portraits.js';
 import { ensureMemberLoadingMarkup } from './generate-member-roster.mjs';
+import { getPublicPageSource } from './public-test-source.mjs';
 
 // Execute production data modules with fake time, storage and Firestore. No browser,
 // credentials, Firebase SDK, network requests or live database writes are involved.
-const sources = Object.fromEntries(await Promise.all(['public-data-cache', 'firebase-public', 'public', 'firebase'].map(async (name) => [name, await fs.readFile(new URL(`../assets/js/${name}.js`, import.meta.url), 'utf8')])));
+const sources = Object.fromEntries(await Promise.all(['public-data-cache', 'firebase-public', 'public', 'firebase'].map(async (name) => [name, name === 'public' ? await getPublicPageSource() : await fs.readFile(new URL(`../assets/js/${name}.js`, import.meta.url), 'utf8')])));
 const stripImports = (source) => source.replace(/^import\s+[\s\S]*?;\s*$/gm, '').replace(/^export\s+/gm, '');
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const errorWith = (code) => Object.assign(new Error(code), { code });
@@ -57,7 +58,7 @@ function fixture(initial = {}) {
     onSnapshot() { subscriptions++; throw new Error('Public pages must not subscribe to Firestore.'); }
   };
   const runtimes = [];
-  function runtime(page = 'home', lang = 'kr', { embeddedMembers, localDev = false } = {}) {
+  function runtime(page = 'home', lang = 'kr', { embeddedMembers, publicPageData, localDev = false } = {}) {
     const timers = new Map();
     let timerId = 0;
     const setTimeout = (callback, delay = 0) => { const id = ++timerId; timers.set(id, { at: clock + delay, callback }); return id; };
@@ -70,15 +71,18 @@ function fixture(initial = {}) {
     const document = {
       ...events(), hidden: false, body: { dataset: { page, lang, root: lang === 'en' ? '..' : '.' } },
       documentElement: { classList: { add() {} } },
-      querySelector: selector => selector === '#member-roster-data' && embeddedMembers
-        ? { textContent: JSON.stringify(embeddedMembers) } : null,
+      querySelector: selector => {
+        if (selector === '#member-roster-data' && embeddedMembers) return { textContent: JSON.stringify(embeddedMembers) };
+        if (selector === '#public-page-data' && publicPageData) return { textContent: JSON.stringify(publicPageData) };
+        return null;
+      },
       querySelectorAll: () => []
     };
     class FakeDate extends Date { static now() { return clock; } }
     const base = { window, document, localStorage: storage, Date: FakeDate, URL, URLSearchParams, setTimeout, clearTimeout,
       CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options?.detail; } },
       console: { warn() {}, error() {} }, fetch: () => { throw new Error('Network access is prohibited in this test.'); } };
-    const bus = vm.runInNewContext(`(() => { ${stripImports(sources['public-data-cache'])}\nreturn { publicCollectionCache, invalidatePublicCollection, PUBLIC_DATA_CHANGED, getPublicCollectionRevision }; })()`, {
+    const bus = vm.runInNewContext(`(() => { ${stripImports(sources['public-data-cache'])}\nreturn { publicCollectionCache, seedPublicCollection, invalidatePublicCollection, PUBLIC_DATA_CHANGED, getPublicCollectionRevision }; })()`, {
       ...base, createCollectionCache: options => createCollectionCache({ ...options, now: () => clock })
     }, { filename: 'public-data-cache.js' });
     const adapter = vm.runInNewContext(`(() => { ${stripImports(sources['firebase-public'])}\nfirestoreContext = injectedFirestore; return { COLLECTIONS, hasFirebaseConfig, isLocalDevMode, fetchCollectionResult, readCachedCollection }; })()`, {
@@ -93,7 +97,7 @@ function fixture(initial = {}) {
       }])));
       const captureDataRender = renderPage;
       showPublicNotice = (message, tone) => captureNotice({ message, tone });
-      return { applyCachedState, hydrate, refreshPublicData, setupPublicDataRefresh, loadGlobalSearch, state, dataIssues, resolvedCollections,
+      return { applyServerState, applyCachedState, hydrate, refreshPublicData, setupPublicDataRefresh, loadGlobalSearch, state, dataIssues, resolvedCollections,
         bindInteractiveCards, renderPatents, visibleCollectionNames,
         renderMemberPage() { renderPage(); },
         useMemberRenderer() { renderPage = () => { captureDataRender(); renderMembers(); setUpdatedDate(); }; },
@@ -266,6 +270,163 @@ await check('A fresh shared cache replaces the embedded member roster immediatel
     await page.refreshPublicData();
     assert.deepEqual(f.reads, { members: 1, publications: 1 });
   }
+});
+
+await check('Fresh server-rendered member data hydrates without skeletons or a duplicate Firebase read and keeps its original expiry', async () => {
+  for (const lang of ['kr', 'en']) {
+    const f = fixture({ members: [currentMember], publications: [] });
+    const fetchedAt = 999900;
+    const page = f.runtime('members', lang, { embeddedMembers: [obsoleteMember], publicPageData: {
+      projectId: 'offline-fixture', collections: {
+        members: { items: [currentMember], fetchedAt, stale: false },
+        publications: { items: [], fetchedAt, stale: false }
+      }
+    } });
+    const dom = attachMemberDocument(page);
+    page.applyServerState();
+    page.applyCachedState();
+    page.renderMemberPage();
+    assert.equal(page.state.loadingMembers, false);
+    assert.equal(page.resolvedCollections.has('members'), true);
+    assert.match(dom.html(), lang === 'en' ? /Current Member/ : /현재 멤버/);
+    assert.doesNotMatch(dom.html(), /skeleton|OBSOLETE_STATIC_ROSTER|옛날 멤버|Obsolete Member/);
+    assert.match(dom.date(), /2026/);
+    await page.refreshPublicData();
+    assert.deepEqual(f.reads, {}, 'Hydration must reuse the data already fetched by the server');
+    assert.equal(page.publicCollectionCache.read('members').fetchedAt, fetchedAt);
+    await f.advance(599899);
+    await page.refreshPublicData();
+    assert.deepEqual(f.reads, {});
+    await f.advance(1);
+    await page.refreshPublicData();
+    assert.deepEqual(f.reads, { members: 1, publications: 1 }, 'Expiry is based on the server timestamp, not hydration time');
+    assert.equal(page.publicCollectionCache.read('members').fetchedAt, 1599900);
+  }
+});
+
+await check('A newer browser cache wins over older server HTML before the first client render', async () => {
+  const f = fixture({ members: [currentMember], publications: [] });
+  await f.runtime('members').refreshPublicData();
+  await f.advance(100);
+  const page = f.runtime('members', 'en', { embeddedMembers: [obsoleteMember], publicPageData: {
+    projectId: 'offline-fixture', collections: {
+      members: { items: [obsoleteMember], fetchedAt: 999900, stale: false },
+      publications: { items: [], fetchedAt: 999900, stale: false }
+    }
+  } });
+  const dom = attachMemberDocument(page);
+  page.applyServerState();
+  page.applyCachedState();
+  page.renderMemberPage();
+  assert.equal(page.state.members[0].id, 'current');
+  assert.match(dom.html(), /Current Member/);
+  assert.doesNotMatch(dom.html(), /skeleton|Obsolete Member/);
+  assert.equal(page.renders.some(render => render.members.items.some(item => item.id === 'obsolete')), false);
+  assert.equal(page.publicCollectionCache.read('members').fetchedAt, 1000000);
+  await page.refreshPublicData();
+  assert.deepEqual(f.reads, { members: 1, publications: 1 });
+});
+
+await check('An admin tombstone keeps older server HTML uncached until hydration replaces it with saved data', async () => {
+  const f = fixture({ members: [currentMember], publications: [] });
+  const administrator = f.runtime('home');
+  await f.admin(administrator).saveDocument('members', currentMember.id, currentMember);
+  const key = administrator.publicCollectionCache.keyFor('members');
+  const tombstone = f.values.get(key);
+  await f.advance(100);
+  const page = f.runtime('members', 'en', { publicPageData: {
+    projectId: 'offline-fixture', collections: {
+      members: { items: [obsoleteMember], fetchedAt: 999900, stale: false },
+      publications: { items: [], fetchedAt: 999900, stale: false }
+    }
+  } });
+  const dom = attachMemberDocument(page);
+  page.applyServerState();
+  page.applyCachedState();
+  page.renderMemberPage();
+  assert.match(dom.html(), /Obsolete Member/);
+  assert.doesNotMatch(dom.html(), /skeleton/);
+  assert.equal(page.publicCollectionCache.read('members', { allowStale: true }), null);
+  assert.equal(f.values.get(key), tombstone, 'HTML generated before the save must not replace its invalidation marker');
+  const gate = deferred();
+  f.responses.set('members', () => gate.promise);
+  const pending = page.refreshPublicData();
+  await flush();
+  assert.deepEqual(f.reads, { members: 1 }, 'Rejected SSR freshness must cause an immediate member fetch');
+  assert.equal(f.values.get(key), tombstone);
+  assert.doesNotMatch(dom.html(), /skeleton/);
+  gate.resolve([currentMember]);
+  await pending;
+  assert.match(dom.html(), /Current Member/);
+  assert.doesNotMatch(dom.html(), /Obsolete Member|skeleton/);
+  assert.equal(page.publicCollectionCache.read('members').fetchedAt, 1000100);
+  assert.equal(page.publicCollectionCache.read('members').items[0].id, 'current');
+});
+
+await check('Stale server data is never stamped fresh or allowed to suppress its next refresh', async () => {
+  for (const stale of [true, false]) {
+    const f = fixture({ members: [currentMember], publications: [] });
+    const page = f.runtime('members', 'kr', { publicPageData: {
+      projectId: 'offline-fixture', collections: {
+        members: { items: [obsoleteMember], fetchedAt: 400000, stale },
+        publications: { items: [], fetchedAt: 400000, stale }
+      }
+    } });
+    const dom = attachMemberDocument(page);
+    page.applyServerState();
+    page.applyCachedState();
+    page.renderMemberPage();
+    assert.equal(page.publicCollectionCache.read('members', { allowStale: true }), null);
+    assert.equal(f.values.has(page.publicCollectionCache.keyFor('members')), false);
+    if (stale) assert.equal(page.dataIssues.has('members'), true);
+    await page.refreshPublicData();
+    assert.deepEqual(f.reads, { members: 1, publications: 1 });
+    assert.equal(page.state.members[0].id, 'current');
+    assert.equal(page.dataIssues.has('members'), false);
+    assert.equal(page.publicCollectionCache.read('members').fetchedAt, 1000000);
+    assert.doesNotMatch(dom.html(), /skeleton|옛날 멤버/);
+  }
+});
+
+await check('Server-rendered empty members remain resolved through hydration and later navigation', async () => {
+  const f = fixture({ members: [], publications: [] });
+  const page = f.runtime('members', 'kr', { embeddedMembers: [obsoleteMember], publicPageData: {
+    projectId: 'offline-fixture', collections: {
+      members: { items: [], fetchedAt: 1000000, stale: false },
+      publications: { items: [], fetchedAt: 1000000, stale: false }
+    }
+  } });
+  const dom = attachMemberDocument(page);
+  page.applyServerState();
+  page.applyCachedState();
+  page.renderMemberPage();
+  assert.equal(page.state.members.length, 0);
+  assert.equal(page.state.loadingMembers, false);
+  assert.equal(page.resolvedCollections.has('members'), true);
+  assert.equal([...dom.containers['page-stat-grid'].innerHTML.matchAll(/<strong[^>]*>0<\/strong>/g)].length, 4);
+  assert.doesNotMatch(dom.html(), /skeleton|OBSOLETE_STATIC_ROSTER|옛날 멤버|<strong>—<\/strong>/);
+  assert.equal(dom.date(), '');
+  await page.refreshPublicData();
+  const next = f.runtime('members', 'en', { embeddedMembers: [obsoleteMember] });
+  next.applyCachedState();
+  assert.equal(next.state.members.length, 0);
+  assert.equal(next.state.loadingMembers, false);
+  assert.equal(next.resolvedCollections.has('members'), true);
+  await next.refreshPublicData();
+  assert.deepEqual(f.reads, {});
+});
+
+await check('Server page data from another Firebase project cannot seed or resolve this page', () => {
+  const f = fixture();
+  const page = f.runtime('members', 'kr', { publicPageData: {
+    projectId: 'unrelated-project', collections: { members: { items: [currentMember], fetchedAt: 1000000, stale: false } }
+  } });
+  page.applyServerState();
+  page.applyCachedState();
+  assert.equal(page.state.members.length, 0);
+  assert.equal(page.resolvedCollections.has('members'), false);
+  assert.equal(page.publicCollectionCache.read('members'), null);
+  assert.equal(f.values.size, 0);
 });
 
 await check('A cold member request failure shows unavailable counts and clears the embedded roster and date', async () => {

@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
 import vm from 'node:vm';
 import * as utils from '../assets/js/utils.js';
 import * as patents from '../assets/js/patents.js';
 import * as inventors from '../assets/js/patent-inventors.js';
 import * as data from '../assets/js/data.js';
+import { getPublicPageSource } from './public-test-source.mjs';
 
 // Run the production card renderers with an offline roster. The DOMContentLoaded
 // callback is not invoked; any attempted network request fails the test.
-const source = (await fs.readFile(new URL('../assets/js/public.js', import.meta.url), 'utf8'))
+const source = (await getPublicPageSource())
   .replace(/^import\s+[\s\S]*?;\s*$/gm, '');
 const memberA = { id: 'member-a', nameKr: '연구자 가', nameEn: 'Researcher A', email: 'private-a@example.test' };
 const memberB = { id: 'member-b', nameKr: '연구자 나', nameEn: 'Researcher B', email: 'private-b@example.test' };
