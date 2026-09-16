@@ -1,11 +1,39 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'node:path';
 import { cp, mkdir } from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
+import { PUBLIC_PAGE_ROUTES } from './scripts/prepare-public-pages.mjs';
 
 const page = (path) => resolve(process.cwd(), path);
 
 export default defineConfig({
   plugins: [{
+    name: 'geh-preview-server-pages',
+    configurePreviewServer(server) {
+      let handler;
+      server.middlewares.use(async (req, res, next) => {
+        const url = new URL(req.url || '/', 'http://localhost');
+        const pathname = url.pathname === '/en/' ? '/en' : url.pathname;
+        if (pathname === '/board.html' || pathname === '/en/board.html') {
+          res.writeHead(308, { Location: `${pathname.replace('board.html', 'news.html')}${url.search}` });
+          res.end();
+          return;
+        }
+        const route = PUBLIC_PAGE_ROUTES.find(candidate => candidate.source === pathname);
+        if (!route && pathname !== '/api/public-page') return next();
+        if (route) req.query = { ...Object.fromEntries(url.searchParams), page: route.page, lang: route.lang };
+        try {
+          // Load the Node response handler only during preview, never into a browser bundle.
+          handler ||= import(/* @vite-ignore */ pathToFileURL(page('api/public-page.js')).href).then(module => module.default);
+          await (await handler)(req, res);
+        } catch (error) {
+          server.config.logger.error(`Public page preview failed: ${error.message}`);
+          if (!res.headersSent) res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+          res.end('페이지를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+        }
+      });
+    }
+  }, {
     name: 'geh-copy-runtime-static',
     async writeBundle() {
       await mkdir(page('dist/assets/images'), { recursive: true });

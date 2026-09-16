@@ -16,5 +16,69 @@
       "destination": "/en/news.html",
       "permanent": true
     }
+  ],
+  "functions": {
+    "api/public-page.js": {
+      "includeFiles": "{.server/**,firebase-config.js}",
+      "maxDuration": 15
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/api/public-page?page=home&lang=kr"
+    },
+    {
+      "source": "/index.html",
+      "destination": "/api/public-page?page=home&lang=kr"
+    },
+    {
+      "source": "/members.html",
+      "destination": "/api/public-page?page=members&lang=kr"
+    },
+    {
+      "source": "/projects.html",
+      "destination": "/api/public-page?page=projects&lang=kr"
+    },
+    {
+      "source": "/publications.html",
+      "destination": "/api/public-page?page=publications&lang=kr"
+    },
+    {
+      "source": "/patents.html",
+      "destination": "/api/public-page?page=patents&lang=kr"
+    },
+    {
+      "source": "/news.html",
+      "destination": "/api/public-page?page=board&lang=kr"
+    },
+    {
+      "source": "/en",
+      "destination": "/api/public-page?page=home&lang=en"
+    },
+    {
+      "source": "/en/index.html",
+      "destination": "/api/public-page?page=home&lang=en"
+    },
+    {
+      "source": "/en/members.html",
+      "destination": "/api/public-page?page=members&lang=en"
+    },
+    {
+      "source": "/en/projects.html",
+      "destination": "/api/public-page?page=projects&lang=en"
+    },
+    {
+      "source": "/en/publications.html",
+      "destination": "/api/public-page?page=publications&lang=en"
+    },
+    {
+      "source": "/en/patents.html",
+      "destination": "/api/public-page?page=patents&lang=en"
+    },
+    {
+      "source": "/en/news.html",
+      "destination": "/api/public-page?page=board&lang=en"
+    }
   ]
 }
