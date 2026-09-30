@@ -1,4 +1,4 @@
-# GitHub 업로드 · r6
+# GitHub 업로드 · 2026-09-30 YouTube 연결
 
 기존 GitHub → Vercel 자동 배포 방식을 그대로 사용합니다.
 
@@ -22,4 +22,4 @@ Public server pages prepared (12 templates, 14 routes; no static route collision
 
 Firebase 추가 설정은 이번 실행 복구에 필요하지 않습니다. 이 ZIP에는 `node_modules`, `dist`, `.server`를 넣지 않았습니다. 이미 저장소에서 추적 중인 생성 폴더는 제외하고 소스만 관리하세요. `.server`는 배포 빌드에서 자동 생성됩니다.
 
-r6는 멤버·특허의 국문·영문 현황 숫자에 증가 모션을 추가한 업로드본이며 운영 배포를 대신 수행한 것은 아닙니다.
+이번 업로드본은 연구실 YouTube 하단 링크, 소식·기사 분류, 채널 바로가기 표시를 추가합니다. 운영 배포나 게시글 등록을 대신 수행한 것은 아닙니다. 배포 후 [YOUTUBE_ANNOUNCEMENT.md](YOUTUBE_ANNOUNCEMENT.md)의 내용을 관리자 게시판에 직접 등록하면 됩니다. 기존 숫자 증가 모션은 유지합니다.
