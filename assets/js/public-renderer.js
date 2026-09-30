@@ -1222,7 +1222,7 @@ function openBoardModal(post) {
       ${gallery}
       <p class="detail-lead">${escapeHTML(post.description || '')}</p>
       <div class="member-chip-row">
-        ${post.linkUrl ? `<a class="button primary" href="${escapeHTML(post.linkUrl)}" target="_blank" rel="noreferrer">${lang === 'en' ? 'Open link' : '링크 열기'}</a>` : ''}
+        ${post.linkUrl ? `<a class="button primary" href="${escapeHTML(post.linkUrl)}" target="_blank" rel="noopener noreferrer">${boardLinkLabel(post.linkUrl)}</a>` : ''}
         ${youtube ? `<a class="button secondary" href="${escapeHTML(post.youtubeUrl)}" target="_blank" rel="noreferrer">YouTube</a>` : ''}
       </div>
     </div>
@@ -1840,7 +1840,7 @@ function homePublicationCard(item = {}) {
 function homeNewsCard(item = {}) {
   const images = boardMediaUrls(item);
   const cover = images[0] || '';
-  const youtube = youtubeEmbedUrl(item.youtubeUrl || '');
+  const youtube = youtubeEmbedUrl(item.youtubeUrl || '') || isYouTubeChannelUrl(item.linkUrl);
   const indicators = [];
   if (images.length) {
     const imageLabel = lang === 'en'
@@ -1849,7 +1849,7 @@ function homeNewsCard(item = {}) {
     indicators.push(`<span class="home-news-indicator"><i class="ph ph-images" aria-hidden="true"></i>${escapeHTML(imageLabel)}</span>`);
   }
   if (youtube) indicators.push(`<span class="home-news-indicator"><i class="ph ph-youtube-logo" aria-hidden="true"></i>YouTube</span>`);
-  if (item.linkUrl) indicators.push(`<span class="home-news-indicator">${lang === 'en' ? 'Link' : '링크'}</span>`);
+  if (item.linkUrl && !isYouTubeChannelUrl(item.linkUrl)) indicators.push(`<span class="home-news-indicator">${lang === 'en' ? 'Link' : '링크'}</span>`);
   return `<article class="home-news-card reveal interactive-card" data-board-id="${escapeHTML(item.id)}" tabindex="0" role="button" aria-label="${escapeHTML(item.title || '')}">
     <div class="home-news-card__copy">
       <div class="member-chip-row home-news-card__topline"><span class="member-chip member-chip--soft">${escapeHTML(boardCategoryLabel(item.category))}</span>${indicators.join('')}</div>
@@ -1926,7 +1926,7 @@ function renderHome() {
         homeCollectionSummaryCard('projects', lang === 'en' ? 'Projects' : '과제', ongoingProjects.length, [lang === 'en' ? `Ongoing ${ongoingProjects.length}` : `진행 중 ${ongoingProjects.length}`, lang === 'en' ? `Archived ${completedProjects.length}` : `종료 ${completedProjects.length}`]),
         homeCollectionSummaryCard('publications', lang === 'en' ? 'Publications' : '논문', state.publications.length, publicationSummaryLines(currentYearPubs, currentYear)),
         homePatentSummaryCard(),
-        homeCollectionSummaryCard('board', lang === 'en' ? 'Board' : '게시판', state.board.length, [lang === 'en' ? `Articles ${boardOtherCount} · Conference ${boardConferenceCount}` : `기사 ${boardOtherCount} · 학회 ${boardConferenceCount}`, lang === 'en' ? `Workshop ${boardWorkshopCount} · Lab equipment ${boardEquipmentCount}` : `워크숍 ${boardWorkshopCount} · 실험실 장비 목록 ${boardEquipmentCount}`])
+        homeCollectionSummaryCard('board', lang === 'en' ? 'Board' : '게시판', state.board.length, [lang === 'en' ? `News & articles ${boardOtherCount} · Conference ${boardConferenceCount}` : `소식·기사 ${boardOtherCount} · 학회 ${boardConferenceCount}`, lang === 'en' ? `Workshop ${boardWorkshopCount} · Lab equipment ${boardEquipmentCount}` : `워크숍 ${boardWorkshopCount} · 실험실 장비 목록 ${boardEquipmentCount}`])
       ].join('');
     }
   }
@@ -2684,6 +2684,23 @@ function publicationCard(item) {
 }
 
 
+function isYouTubeChannelUrl(value = '') {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:'
+      && ['youtube.com', 'www.youtube.com', 'm.youtube.com'].includes(url.hostname)
+      && /^\/(?:channel\/[^/]+|@[^/]+|c\/[^/]+|user\/[^/]+)\/?$/.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function boardLinkLabel(value) {
+  return isYouTubeChannelUrl(value)
+    ? (lang === 'en' ? 'Visit YouTube channel' : 'YouTube 채널 보기')
+    : (lang === 'en' ? 'Open link' : '링크 열기');
+}
+
 function youtubeEmbedUrl(value = '') {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -2739,8 +2756,8 @@ function normalizeBoardCategory(category = '') {
 
 function boardFilterConfig() {
   return lang === 'en'
-    ? [['all', 'All'], ['other', 'Articles'], ['conference', 'Conference'], ['workshop', 'Workshop'], ['equipment', 'Lab equipment list']]
-    : [['all', '전체'], ['other', '기사'], ['conference', '학회'], ['workshop', '워크숍'], ['equipment', '실험실 장비 목록']];
+    ? [['all', 'All'], ['other', 'News & articles'], ['conference', 'Conference'], ['workshop', 'Workshop'], ['equipment', 'Lab equipment list']]
+    : [['all', '전체'], ['other', '소식·기사'], ['conference', '학회'], ['workshop', '워크숍'], ['equipment', '실험실 장비 목록']];
 }
 
 function boardCategoryLabel(category = '') {
@@ -2751,10 +2768,10 @@ function boardCategoryLabel(category = '') {
     workshop: lang === 'en' ? 'Workshop' : '워크숍',
     equipment: lang === 'en' ? 'Lab equipment list' : '실험실 장비 목록',
     news: lang === 'en' ? 'Lab equipment list' : '실험실 장비 목록',
-    notice: lang === 'en' ? 'Articles' : '기사',
-    other: lang === 'en' ? 'Articles' : '기사'
+    notice: lang === 'en' ? 'News & articles' : '소식·기사',
+    other: lang === 'en' ? 'News & articles' : '소식·기사'
   };
-  return map[normalizeBoardCategory(category)] || (lang === 'en' ? 'Articles' : '기사');
+  return map[normalizeBoardCategory(category)] || (lang === 'en' ? 'News & articles' : '소식·기사');
 }
 
 function boardDateLabel(value = '') {
@@ -2796,7 +2813,7 @@ function boardCard(post) {
         ${boardMetaMarkup(post)}
         <h3>${escapeHTML(post.title)}</h3>
         ${post.description ? `<p>${escapeHTML(post.description)}</p>` : ''}
-        ${post.linkUrl ? `<a class="member-link" href="${escapeHTML(post.linkUrl)}" target="_blank" rel="noreferrer">${lang === 'en' ? 'Open link' : '링크 열기'}</a>` : ''}
+        ${post.linkUrl ? `<a class="member-link" href="${escapeHTML(post.linkUrl)}" target="_blank" rel="noopener noreferrer">${boardLinkLabel(post.linkUrl)}</a>` : ''}
       </div>
     </article>
   `;

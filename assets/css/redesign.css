@@ -313,7 +313,10 @@
 #geh-site .root_daum_roughmap .btn_zoom_reset::before { content:'↺'; }
 #geh-site .root_daum_roughmap .wrap_btn_zoom button:hover { background:#edf5fa !important; }
 #geh-site .site-footer { width:min(1200px,calc(100% - 64px)); margin:60px auto 0; padding:28px 0 96px; display:grid; grid-template-columns:1fr auto; align-items:center; gap:16px 24px; border:0 !important; outline:0 !important; border-radius:0 !important; background:none !important; box-shadow:none !important; }
-#geh-site .footer-admin { color:var(--muted); font-size:calc(13px * var(--reading-scale,1)); min-height:44px; display:inline-flex; align-items:center; }
+#geh-site .footer-links { display:flex; align-items:center; flex-wrap:wrap; gap:4px 16px; }
+#geh-site .footer-links a { color:var(--muted); font-size:calc(13px * var(--reading-scale,1)); min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; gap:8px; border-radius:8px; }
+#geh-site .footer-youtube .ph { flex:none; font-size:22px; }
+#geh-site .footer-links a:is(:hover,:focus-visible) { color:var(--accent); text-decoration:underline; text-underline-offset:4px; }
 #geh-site .footer-meta { grid-column:1 / -1; color:var(--muted); font-size:calc(11px * var(--reading-scale,1)); }
 #geh-site .public-status-notice { margin-top:100px; background:var(--card-strong); }
 #geh-site .admin-shell { width:min(1320px,100%); max-width:none; margin:0 auto; padding:110px 28px 96px; }

@@ -3337,7 +3337,7 @@ function normalizeBoardCategory(category = '') {
 }
 
 function boardAdminFilters() {
-  return [['all', '전체'], ['other', '기사'], ['conference', '학회'], ['workshop', '워크숍'], ['equipment', '실험실 장비 목록']];
+  return [['all', '전체'], ['other', '소식·기사'], ['conference', '학회'], ['workshop', '워크숍'], ['equipment', '실험실 장비 목록']];
 }
 
 function renderBoardFilterTabs() {
@@ -3368,8 +3368,8 @@ function boardItemMarkup(item) {
 }
 
 function boardCategoryLabel(category = '') {
-  const map = { conference: '학회', poster: '학회', oral: '학회', workshop: '워크숍', equipment: '실험실 장비 목록', news: '실험실 장비 목록', notice: '기사', other: '기사' };
-  return map[normalizeBoardCategory(category)] || '기사';
+  const map = { conference: '학회', poster: '학회', oral: '학회', workshop: '워크숍', equipment: '실험실 장비 목록', news: '실험실 장비 목록', notice: '소식·기사', other: '소식·기사' };
+  return map[normalizeBoardCategory(category)] || '소식·기사';
 }
 
 function renderBoardList() {
