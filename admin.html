@@ -334,13 +334,13 @@
           <div class="editor-title-row"><h2 id="board-form-title">게시판 추가</h2><button type="button" class="small-button editor-close-button" data-editor-close="board">닫기</button></div>
           <form id="board-form" class="editor-form">
             <div class="form-grid form-grid--double form-grid--board-meta">
-              <label class="field"><span>분류</span><select name="category"><option value="other" selected>기사</option><option value="conference">학회</option><option value="workshop">워크숍</option><option value="equipment">실험실 장비 목록</option></select></label>
+              <label class="field"><span>분류</span><select name="category"><option value="other" selected>소식·기사</option><option value="conference">학회</option><option value="workshop">워크숍</option><option value="equipment">실험실 장비 목록</option></select></label>
               <label class="field"><span>날짜</span><input name="date" type="date"></label>
             </div>
             <label class="field"><span>제목 *</span><input name="title" type="text" required></label>
             <label class="field"><span>설명</span><textarea name="description"></textarea></label>
             <label class="field"><span>링크</span><input name="linkUrl" type="url" placeholder="발표 자료, 포스터 파일, 외부 링크"></label>
-            <label class="field"><span>YouTube 링크</span><input name="youtubeUrl" type="url" placeholder="https://www.youtube.com/watch?v=..."></label>
+            <label class="field"><span>YouTube 영상 링크</span><input name="youtubeUrl" type="url" placeholder="https://www.youtube.com/watch?v=..." aria-describedby="board-youtube-hint"><small class="field-hint" id="board-youtube-hint">개별 영상 주소를 입력하면 게시글에서 재생됩니다. 채널 주소는 위의 ‘링크’에 입력해 주세요.</small></label>
             <div class="member-photo-box"><span class="field-label">첨부 이미지</span><div class="photo-preview photo-preview--wide photo-preview--gallery" id="board-image-preview"></div><div class="form-actions form-actions--upload"><label class="file-picker"><input id="board-image-input" type="file" accept="image/*" multiple><span class="file-picker__button">파일 선택</span><span class="file-picker__name" id="board-image-file-name">선택된 파일 없음</span></label><button type="button" class="small-button" id="board-image-remove">이미지 제거</button></div><p class="field-hint">여러 장 업로드 가능 · 목록에서는 첫 번째 이미지만 대표 썸네일로 표시됩니다.</p></div>
             <div class="form-actions"><button class="button primary" type="submit">저장</button><button class="button secondary" type="button" id="board-reset">초기화</button></div>
           </form>
